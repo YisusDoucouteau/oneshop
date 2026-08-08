@@ -11,27 +11,21 @@ return new class extends Migration
      */
     public function up(): void
 {
-    Schema::create('role_user', function (Blueprint $table) {
-        $table->foreignId('user_id')
+    Schema::create('rol_usuario', function (Blueprint $table) {
+        $table->foreignId('usuario_id')
             ->constrained('users')
             ->cascadeOnDelete();
 
-        $table->foreignId('role_id')
+        $table->foreignId('rol_id')
             ->constrained('roles')
             ->cascadeOnDelete();
 
-        $table->primary([
-            'user_id',
-            'role_id'
-        ]);
+        $table->primary(['usuario_id', 'rol_id']);
     });
 }
 
-    /**
-     * Reverse the migrations.
-     */
-    public function down(): void
+public function down(): void
 {
-    Schema::dropIfExists('role_user');
+    Schema::dropIfExists('rol_usuario');
 }
 };

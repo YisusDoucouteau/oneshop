@@ -6,34 +6,26 @@ use Illuminate\Support\Facades\Schema;
 
 return new class extends Migration
 {
-    /**
-     * Run the migrations.
-     */
-    public function up(): void
+   
+public function up(): void
 {
     Schema::table('users', function (Blueprint $table) {
-        $table->boolean('is_active')
+        $table->boolean('activo')
             ->default(true)
             ->after('password');
 
-        $table->timestamp('last_login_at')
+        $table->timestamp('ultimo_acceso')
             ->nullable()
-            ->after('is_active');
-
-        $table->softDeletes();
+            ->after('activo');
     });
 }
 
-    /**
-     * Reverse the migrations.
-     */
-    public function down(): void
+public function down(): void
 {
     Schema::table('users', function (Blueprint $table) {
         $table->dropColumn([
-            'is_active',
-            'last_login_at',
-            'deleted_at',
+            'activo',
+            'ultimo_acceso',
         ]);
     });
 }
