@@ -15,6 +15,7 @@ class DatabaseSeeder extends Seeder
           $this->call([
         SeguridadSeeder::class,
         CatalogoSeeder::class,
+        ImportacionSeeder::class,
         AlmacenSeeder::class,
     ]);
     }
