@@ -18,6 +18,7 @@ class DatabaseSeeder extends Seeder
         ImportacionSeeder::class,
         AlmacenSeeder::class,
         InventarioSeeder::class,
+        TecnicoSeeder::class,
     ]);
     }
 }
