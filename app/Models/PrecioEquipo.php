@@ -4,7 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
-
+use Illuminate\Database\Eloquent\Relations\HasMany;
 class PrecioEquipo extends Model
 {
     protected $table = 'precios_equipos';
@@ -56,4 +56,11 @@ class PrecioEquipo extends Model
             'usuario_aprobacion_id'
         );
     }
+    public function solicitudesDescuentos(): HasMany
+{
+    return $this->hasMany(
+        SolicitudDescuento::class,
+        'precio_equipo_id'
+    );
+}
 }

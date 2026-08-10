@@ -126,4 +126,19 @@ public function reparaciones(): HasMany
         'equipo_id'
     );
 }
+public function detallesReservas(): HasMany
+{
+    return $this->hasMany(
+        DetalleReserva::class,
+        'equipo_id'
+    );
+}
+
+public function detallesVentas(): HasMany
+{
+    return $this->hasMany(
+        DetalleVenta::class,
+        'equipo_id'
+    );
+}
 }
