@@ -21,6 +21,7 @@ class DatabaseSeeder extends Seeder
         TecnicoSeeder::class,
         CostosSeeder::class,
         ComercialSeeder::class,
+        GarantiaSeeder::class,
     ]);
     }
 }
