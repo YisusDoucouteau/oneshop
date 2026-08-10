@@ -1,0 +1,89 @@
+<?php
+
+namespace App\Models;
+
+use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
+
+class Equipo extends Model
+{
+    protected $table = 'equipos';
+
+    protected $fillable = [
+        'producto_id',
+        'detalle_lote_id',
+        'almacen_actual_id',
+        'estado_actual_id',
+        'condicion_fisica_id',
+        'codigo_interno',
+        'serial_fabricante',
+        'fecha_registro',
+        'fecha_disponible',
+        'observacion',
+        'activo',
+    ];
+
+    protected function casts(): array
+    {
+        return [
+            'fecha_registro' => 'datetime',
+            'fecha_disponible' => 'datetime',
+            'activo' => 'boolean',
+        ];
+    }
+
+    public function producto(): BelongsTo
+    {
+        return $this->belongsTo(Producto::class);
+    }
+
+    public function detalleLote(): BelongsTo
+    {
+        return $this->belongsTo(
+            DetalleLote::class,
+            'detalle_lote_id'
+        );
+    }
+
+    public function almacenActual(): BelongsTo
+    {
+        return $this->belongsTo(
+            Almacen::class,
+            'almacen_actual_id'
+        );
+    }
+
+    public function estadoActual(): BelongsTo
+    {
+        return $this->belongsTo(
+            EstadoEquipo::class,
+            'estado_actual_id'
+        );
+    }
+
+    public function condicionFisica(): BelongsTo
+    {
+        return $this->belongsTo(
+            CondicionFisica::class,
+            'condicion_fisica_id'
+        );
+    }
+
+    public function especificacion(): HasOne
+    {
+        return $this->hasOne(
+            EspecificacionEquipo::class,
+            'equipo_id'
+        );
+    }
+
+    public function historialEstados(): HasMany
+    {
+        return $this->hasMany(
+            HistorialEstadoEquipo::class,
+            'equipo_id'
+        )->orderBy('fecha_cambio');
+    }
+}
