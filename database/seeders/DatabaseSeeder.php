@@ -16,7 +16,6 @@ class DatabaseSeeder extends Seeder
         SeguridadSeeder::class,
         CatalogoSeeder::class,
         ImportacionSeeder::class,
-        AlmacenSeeder::class,
         InventarioSeeder::class,
         TecnicoSeeder::class,
         CostosSeeder::class,
