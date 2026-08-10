@@ -20,6 +20,7 @@ class DatabaseSeeder extends Seeder
         InventarioSeeder::class,
         TecnicoSeeder::class,
         CostosSeeder::class,
+        ComercialSeeder::class,
     ]);
     }
 }
