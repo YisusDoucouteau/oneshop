@@ -103,4 +103,27 @@ public function transferencias(): BelongsToMany
         'transferencia_id'
     );
 }
+public function revisionesTecnicas(): HasMany
+{
+    return $this->hasMany(
+        RevisionTecnica::class,
+        'equipo_id'
+    );
+}
+
+public function diagnosticos(): HasMany
+{
+    return $this->hasMany(
+        Diagnostico::class,
+        'equipo_id'
+    );
+}
+
+public function reparaciones(): HasMany
+{
+    return $this->hasMany(
+        Reparacion::class,
+        'equipo_id'
+    );
+}
 }

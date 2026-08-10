@@ -30,4 +30,11 @@ class CategoriaProducto extends Model
             'categoria_producto_id'
         );
     }
+    public function plantillasChecklist(): HasMany
+{
+    return $this->hasMany(
+        PlantillaChecklist::class,
+        'categoria_producto_id'
+    );
+}
 }

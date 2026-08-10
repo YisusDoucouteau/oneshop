@@ -4,7 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
-
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 class AsignacionComponente extends Model
 {
     protected $table = 'asignaciones_componentes';
@@ -74,4 +74,14 @@ class AsignacionComponente extends Model
     {
         return $this->belongsTo(User::class, 'retirado_por_id');
     }
+
+    public function reparaciones(): BelongsToMany
+{
+    return $this->belongsToMany(
+        Reparacion::class,
+        'reparaciones_componentes',
+        'asignacion_componente_id',
+        'reparacion_id'
+    );
+}
 }
