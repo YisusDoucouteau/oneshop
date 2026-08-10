@@ -23,6 +23,7 @@ class DatabaseSeeder extends Seeder
         ComercialSeeder::class,
         GarantiaSeeder::class,
         FinanzasSeeder::class,
+        ConfiguracionSeeder::class,
     ]);
     }
 }
