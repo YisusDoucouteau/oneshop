@@ -6,7 +6,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
-
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 class Equipo extends Model
 {
     protected $table = 'equipos';
@@ -86,4 +86,21 @@ class Equipo extends Model
             'equipo_id'
         )->orderBy('fecha_cambio');
     }
+    public function asignacionesComponentes(): HasMany
+{
+    return $this->hasMany(
+        AsignacionComponente::class,
+        'equipo_id'
+    );
+}
+
+public function transferencias(): BelongsToMany
+{
+    return $this->belongsToMany(
+        Transferencia::class,
+        'transferencias_equipos',
+        'equipo_id',
+        'transferencia_id'
+    );
+}
 }

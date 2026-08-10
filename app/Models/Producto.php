@@ -5,7 +5,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
-
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 class Producto extends Model
 {
     protected $table = 'productos';
@@ -54,4 +54,34 @@ class Producto extends Model
             'producto_id'
         );
     }
+    public function almacenes(): BelongsToMany
+{
+    return $this->belongsToMany(
+        Almacen::class,
+        'existencias_productos',
+        'producto_id',
+        'almacen_id'
+    )
+        ->withPivot([
+            'cantidad_disponible',
+            'cantidad_reservada',
+        ])
+        ->withTimestamps();
+}
+
+public function movimientosInventario(): HasMany
+{
+    return $this->hasMany(
+        MovimientoInventario::class,
+        'producto_id'
+    );
+}
+
+public function asignacionesComponentes(): HasMany
+{
+    return $this->hasMany(
+        AsignacionComponente::class,
+        'producto_id'
+    );
+}
 }
