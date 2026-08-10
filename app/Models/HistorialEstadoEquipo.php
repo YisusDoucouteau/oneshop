@@ -65,4 +65,5 @@ class HistorialEstadoEquipo extends Model
             'autorizado_por_id'
         );
     }
+    
 }
