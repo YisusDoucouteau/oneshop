@@ -141,4 +141,20 @@ public function detallesVentas(): HasMany
         'equipo_id'
     );
 }
+public function precios(): HasMany
+{
+    return $this->hasMany(
+        PrecioEquipo::class,
+        'equipo_id'
+    );
+}
+public function precioVigente(): HasOne
+{
+    return $this->hasOne(
+        PrecioEquipo::class,
+        'equipo_id'
+    )
+        ->where('vigente', true)
+        ->latestOfMany('vigente_desde');
+}
 }

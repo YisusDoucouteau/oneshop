@@ -3,39 +3,51 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
-use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
-class Moneda extends Model
+class TipoCambio extends Model
 {
-    protected $table = 'monedas';
+    protected $table = 'tipos_cambio';
 
     protected $fillable = [
-        'codigo',
-        'nombre',
-        'simbolo',
-        'activo',
+        'moneda_origen_id',
+        'moneda_destino_id',
+        'valor',
+        'fecha',
+        'fuente',
+        'usuario_id',
+        'observacion',
     ];
 
     protected function casts(): array
     {
         return [
-            'activo' => 'boolean',
+            'valor' => 'decimal:6',
+            'fecha' => 'datetime',
         ];
     }
 
-    public function tiposCambioOrigen(): HasMany
+    public function monedaOrigen(): BelongsTo
     {
-        return $this->hasMany(
-            TipoCambio::class,
+        return $this->belongsTo(
+            Moneda::class,
             'moneda_origen_id'
         );
     }
 
-    public function tiposCambioDestino(): HasMany
+    public function monedaDestino(): BelongsTo
     {
-        return $this->hasMany(
-            TipoCambio::class,
+        return $this->belongsTo(
+            Moneda::class,
             'moneda_destino_id'
+        );
+    }
+
+    public function usuario(): BelongsTo
+    {
+        return $this->belongsTo(
+            User::class,
+            'usuario_id'
         );
     }
 }

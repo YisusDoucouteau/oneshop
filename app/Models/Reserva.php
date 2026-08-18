@@ -14,10 +14,10 @@ class Reserva extends Model
     protected $fillable = [
         'numero',
         'cliente_id',
-        'usuario_id',
+        'registrado_por_id',
         'estado',
         'fecha_reserva',
-        'fecha_vencimiento',
+        'fecha_expiracion',
         'fecha_cierre',
         'observacion',
     ];
@@ -26,7 +26,7 @@ class Reserva extends Model
     {
         return [
             'fecha_reserva' => 'datetime',
-            'fecha_vencimiento' => 'datetime',
+            'fecha_expiracion' => 'datetime',
             'fecha_cierre' => 'datetime',
         ];
     }
@@ -36,9 +36,12 @@ class Reserva extends Model
         return $this->belongsTo(Cliente::class);
     }
 
-    public function usuario(): BelongsTo
+    public function registradoPor(): BelongsTo
     {
-        return $this->belongsTo(User::class);
+        return $this->belongsTo(
+            User::class,
+            'registrado_por_id'
+        );
     }
 
     public function detalles(): HasMany

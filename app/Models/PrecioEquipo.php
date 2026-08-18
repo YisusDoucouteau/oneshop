@@ -49,13 +49,13 @@ class PrecioEquipo extends Model
         );
     }
 
-    public function usuarioAprobacion(): BelongsTo
-    {
-        return $this->belongsTo(
-            User::class,
-            'usuario_aprobacion_id'
-        );
-    }
+    public function aprobadoPor(): BelongsTo
+{
+    return $this->belongsTo(
+        User::class,
+        'aprobado_por_id'
+    );
+}
     public function solicitudesDescuentos(): HasMany
 {
     return $this->hasMany(
