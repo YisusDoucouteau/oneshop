@@ -23,9 +23,7 @@ class PrecioEquipo extends Model
         'observacion',
     ];
 
-    protected function casts(): array
-    {
-        return [
+    protected $casts = [
             'costo_total_snapshot' => 'decimal:2',
             'precio_sugerido' => 'decimal:2',
             'precio_publico' => 'decimal:2',
@@ -34,7 +32,6 @@ class PrecioEquipo extends Model
             'vigente_hasta' => 'datetime',
             'vigente' => 'boolean',
         ];
-    }
 
     public function equipo(): BelongsTo
     {

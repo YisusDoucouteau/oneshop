@@ -20,12 +20,9 @@ class Proveedor extends Model
         'activo',
     ];
 
-    protected function casts(): array
-    {
-        return [
+    protected $casts = [
             'activo' => 'boolean',
         ];
-    }
 
     public function lotes(): HasMany
     {

@@ -24,16 +24,13 @@ class EspecificacionEquipo extends Model
         'datos_adicionales',
     ];
 
-    protected function casts(): array
-    {
-        return [
+    protected $casts = [
             'ram_gb' => 'integer',
             'almacenamiento_gb' => 'integer',
             'pantalla_pulgadas' => 'decimal:1',
             'bateria_porcentaje' => 'integer',
             'datos_adicionales' => 'array',
         ];
-    }
 
     public function equipo(): BelongsTo
     {

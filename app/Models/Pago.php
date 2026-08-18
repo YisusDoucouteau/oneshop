@@ -24,14 +24,11 @@ class Pago extends Model
         'observacion',
     ];
 
-    protected function casts(): array
-    {
-        return [
+    protected $casts = [
             'monto' => 'decimal:2',
             'fecha_pago' => 'datetime',
             'fecha_verificacion' => 'datetime',
         ];
-    }
 
     public function reserva(): BelongsTo
     {

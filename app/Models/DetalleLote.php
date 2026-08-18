@@ -22,16 +22,13 @@ class DetalleLote extends Model
         'observacion',
     ];
 
-    protected function casts(): array
-    {
-        return [
+    protected $casts = [
             'cantidad_esperada' => 'integer',
             'cantidad_recibida' => 'integer',
 
             'costo_unitario_origen' => 'decimal:2',
             'costo_unitario_bob' => 'decimal:2',
         ];
-    }
 
     public function lote(): BelongsTo
     {

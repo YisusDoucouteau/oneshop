@@ -18,14 +18,11 @@ class EstadoEquipo extends Model
         'activo',
     ];
 
-    protected function casts(): array
-    {
-        return [
+    protected $casts = [
             'es_final' => 'boolean',
             'activo' => 'boolean',
             'orden' => 'integer',
         ];
-    }
 
     public function equipos(): HasMany
     {

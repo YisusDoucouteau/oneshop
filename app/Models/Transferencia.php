@@ -24,14 +24,11 @@ class Transferencia extends Model
         'observacion',
     ];
 
-    protected function casts(): array
-    {
-        return [
+    protected $casts = [
             'fecha_solicitud' => 'datetime',
             'fecha_despacho' => 'datetime',
             'fecha_recepcion' => 'datetime',
         ];
-    }
 
     public function almacenOrigen(): BelongsTo
     {

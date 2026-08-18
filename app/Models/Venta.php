@@ -26,16 +26,13 @@ class Venta extends Model
         'observacion',
     ];
 
-    protected function casts(): array
-    {
-        return [
+    protected $casts = [
             'fecha_venta' => 'datetime',
             'subtotal' => 'decimal:2',
             'descuento_total' => 'decimal:2',
             'total' => 'decimal:2',
             'fecha_anulacion' => 'datetime',
         ];
-    }
 
     public function cliente(): BelongsTo
     {

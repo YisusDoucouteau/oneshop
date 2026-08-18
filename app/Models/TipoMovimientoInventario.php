@@ -16,12 +16,9 @@ class TipoMovimientoInventario extends Model
         'activo',
     ];
 
-    protected function casts(): array
-    {
-        return [
+    protected $casts = [
             'activo' => 'boolean',
         ];
-    }
 
     public function movimientos(): HasMany
     {

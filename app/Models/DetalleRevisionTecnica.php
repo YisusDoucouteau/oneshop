@@ -20,14 +20,11 @@ class DetalleRevisionTecnica extends Model
         'observacion',
     ];
 
-    protected function casts(): array
-    {
-        return [
+    protected $casts = [
             'valor_booleano' => 'boolean',
             'valor_numerico' => 'decimal:2',
             'cumple' => 'boolean',
         ];
-    }
 
     public function revision(): BelongsTo
     {

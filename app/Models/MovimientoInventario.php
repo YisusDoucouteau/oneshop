@@ -26,16 +26,13 @@ class MovimientoInventario extends Model
         'observacion',
     ];
 
-    protected function casts(): array
-    {
-        return [
+    protected $casts = [
             'cambio_disponible' => 'integer',
             'cambio_reservado' => 'integer',
             'disponible_resultante' => 'integer',
             'reservado_resultante' => 'integer',
             'fecha_movimiento' => 'datetime',
         ];
-    }
 
     public function producto(): BelongsTo
     {

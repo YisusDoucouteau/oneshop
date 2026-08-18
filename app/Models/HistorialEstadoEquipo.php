@@ -22,12 +22,9 @@ class HistorialEstadoEquipo extends Model
         'observacion',
     ];
 
-    protected function casts(): array
-    {
-        return [
+    protected $casts = [
             'fecha_cambio' => 'datetime',
         ];
-    }
 
     public function equipo(): BelongsTo
     {

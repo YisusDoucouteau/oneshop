@@ -41,15 +41,12 @@ class User extends Authenticatable
      *
      * @var array<string, string>
      */
-    protected function casts(): array
-{
-    return [
+    protected $casts = [
         'email_verified_at' => 'datetime',
         'password' => 'hashed',
         'activo' => 'boolean',
         'ultimo_acceso' => 'datetime',
     ];
-}
 
     public function roles(): BelongsToMany
     {

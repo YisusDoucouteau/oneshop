@@ -21,13 +21,10 @@ class Producto extends Model
         'activo',
     ];
 
-    protected function casts(): array
-    {
-        return [
+    protected $casts = [
             'es_serializado' => 'boolean',
             'activo' => 'boolean',
         ];
-    }
 
     public function categoria(): BelongsTo
     {

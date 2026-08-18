@@ -21,13 +21,10 @@ class Diagnostico extends Model
         'estado',
     ];
 
-    protected function casts(): array
-    {
-        return [
+    protected $casts = [
             'fecha_diagnostico' => 'datetime',
             'requiere_reparacion' => 'boolean',
         ];
-    }
 
     public function equipo(): BelongsTo
     {

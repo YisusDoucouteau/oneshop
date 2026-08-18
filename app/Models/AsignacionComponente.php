@@ -24,15 +24,12 @@ class AsignacionComponente extends Model
         'observacion',
     ];
 
-    protected function casts(): array
-    {
-        return [
+    protected $casts = [
             'cantidad' => 'integer',
             'costo_unitario' => 'decimal:2',
             'fecha_asignacion' => 'datetime',
             'fecha_retiro' => 'datetime',
         ];
-    }
 
     public function equipo(): BelongsTo
     {

@@ -19,12 +19,9 @@ class Cliente extends Model
         'activo',
     ];
 
-    protected function casts(): array
-    {
-        return [
+    protected $casts = [
             'activo' => 'boolean',
         ];
-    }
 
     public function reservas(): HasMany
     {

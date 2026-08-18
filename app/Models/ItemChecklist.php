@@ -25,9 +25,7 @@ class ItemChecklist extends Model
         'activo',
     ];
 
-    protected function casts(): array
-    {
-        return [
+    protected $casts = [
             'valor_minimo' => 'decimal:2',
             'valor_maximo' => 'decimal:2',
             'opciones' => 'array',
@@ -35,7 +33,6 @@ class ItemChecklist extends Model
             'orden' => 'integer',
             'activo' => 'boolean',
         ];
-    }
 
     public function plantilla(): BelongsTo
     {

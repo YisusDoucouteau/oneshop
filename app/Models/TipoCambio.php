@@ -19,13 +19,10 @@ class TipoCambio extends Model
         'observacion',
     ];
 
-    protected function casts(): array
-    {
-        return [
+    protected $casts = [
             'valor' => 'decimal:6',
             'fecha' => 'datetime',
         ];
-    }
 
     public function monedaOrigen(): BelongsTo
     {

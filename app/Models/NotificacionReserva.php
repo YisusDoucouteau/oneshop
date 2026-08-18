@@ -22,12 +22,9 @@ class NotificacionReserva extends Model
         'descripcion',
     ];
 
-    protected function casts(): array
-    {
-        return [
+    protected $casts = [
             'fecha_envio' => 'datetime',
         ];
-    }
 
     public function reserva(): BelongsTo
     {

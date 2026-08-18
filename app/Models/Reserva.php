@@ -22,14 +22,11 @@ class Reserva extends Model
         'observacion',
     ];
 
-    protected function casts(): array
-    {
-        return [
-            'fecha_reserva' => 'datetime',
-            'fecha_expiracion' => 'datetime',
-            'fecha_cierre' => 'datetime',
-        ];
-    }
+    protected $casts = [
+    'fecha_reserva' => 'datetime',
+    'fecha_expiracion' => 'datetime',
+    'fecha_cierre' => 'datetime',
+];
 
     public function cliente(): BelongsTo
     {

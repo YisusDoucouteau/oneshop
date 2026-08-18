@@ -17,13 +17,10 @@ class DetalleReserva extends Model
         'observacion',
     ];
 
-    protected function casts(): array
-    {
-        return [
+    protected $casts = [
             'precio_acordado' => 'decimal:2',
             'descuento_acordado' => 'decimal:2',
         ];
-    }
 
     public function reserva(): BelongsTo
     {

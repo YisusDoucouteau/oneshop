@@ -17,13 +17,10 @@ class TransicionEstadoEquipo extends Model
         'activo',
     ];
 
-    protected function casts(): array
-    {
-        return [
+    protected $casts = [
             'requiere_autorizacion' => 'boolean',
             'activo' => 'boolean',
         ];
-    }
 
     public function estadoOrigen(): BelongsTo
     {

@@ -23,13 +23,10 @@ class Reparacion extends Model
         'observacion',
     ];
 
-    protected function casts(): array
-    {
-        return [
+    protected $casts = [
             'fecha_inicio' => 'datetime',
             'fecha_fin' => 'datetime',
         ];
-    }
 
     public function equipo(): BelongsTo
     {

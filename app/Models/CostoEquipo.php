@@ -22,14 +22,11 @@ class CostoEquipo extends Model
         'descripcion',
     ];
 
-    protected function casts(): array
-    {
-        return [
+    protected $casts = [
             'monto_origen' => 'decimal:2',
             'monto_bob' => 'decimal:2',
             'fecha' => 'datetime',
         ];
-    }
 
     public function equipo(): BelongsTo
     {

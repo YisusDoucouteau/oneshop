@@ -21,13 +21,10 @@ class ParametroSistema extends Model
         'modificado_por_id',
     ];
 
-    protected function casts(): array
-    {
-        return [
+    protected $casts = [
             'editable' => 'boolean',
             'activo' => 'boolean',
         ];
-    }
 
     public function modificadoPor(): BelongsTo
     {

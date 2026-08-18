@@ -25,14 +25,11 @@ class Equipo extends Model
         'activo',
     ];
 
-    protected function casts(): array
-    {
-        return [
+    protected $casts = [
             'fecha_registro' => 'datetime',
             'fecha_disponible' => 'datetime',
             'activo' => 'boolean',
         ];
-    }
 
     public function producto(): BelongsTo
     {

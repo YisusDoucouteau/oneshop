@@ -25,9 +25,7 @@ class PoliticaDescuento extends Model
         'activo',
     ];
 
-    protected function casts(): array
-    {
-        return [
+    protected $casts = [
             'dias_desde' => 'integer',
             'dias_hasta' => 'integer',
             'porcentaje_maximo' => 'decimal:4',
@@ -38,7 +36,6 @@ class PoliticaDescuento extends Model
             'vigente_hasta' => 'date',
             'activo' => 'boolean',
         ];
-    }
 
     public function categoria(): BelongsTo
     {

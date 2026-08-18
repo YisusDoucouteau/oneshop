@@ -18,13 +18,10 @@ class Almacen extends Model
         'activo',
     ];
 
-    protected function casts(): array
-    {
-        return [
+    protected $casts = [
             'principal' => 'boolean',
             'activo' => 'boolean',
         ];
-    }
 
     public function equipos(): HasMany
     {

@@ -19,13 +19,10 @@ class ProrrogaReserva extends Model
         'motivo',
     ];
 
-    protected function casts(): array
-    {
-        return [
+    protected $casts = [
             'fecha_vencimiento_anterior' => 'datetime',
             'fecha_vencimiento_nueva' => 'datetime',
         ];
-    }
 
     public function reserva(): BelongsTo
     {

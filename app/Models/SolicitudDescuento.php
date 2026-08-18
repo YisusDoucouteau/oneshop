@@ -27,9 +27,7 @@ class SolicitudDescuento extends Model
         'motivo_respuesta',
     ];
 
-    protected function casts(): array
-    {
-        return [
+    protected $casts = [
             'precio_publico_snapshot' => 'decimal:2',
             'precio_solicitado' => 'decimal:2',
             'descuento_snapshot' => 'decimal:2',
@@ -38,7 +36,6 @@ class SolicitudDescuento extends Model
             'ganancia_snapshot' => 'decimal:2',
             'fecha_respuesta' => 'datetime',
         ];
-    }
 
     public function precioEquipo(): BelongsTo
     {

@@ -17,22 +17,19 @@ class DetalleVenta extends Model
         'precio_lista_snapshot',
         'descuento_unitario',
         'precio_unitario',
-        'costo_snapshot',
+        'costo_unitario_snapshot',
         'subtotal',
         'observacion',
     ];
 
-    protected function casts(): array
-    {
-        return [
+    protected $casts = [
             'cantidad' => 'integer',
             'precio_lista_snapshot' => 'decimal:2',
             'descuento_unitario' => 'decimal:2',
             'precio_unitario' => 'decimal:2',
-            'costo_snapshot' => 'decimal:2',
+            'costo_unitario_snapshot' => 'decimal:2',
             'subtotal' => 'decimal:2',
         ];
-    }
 
     public function venta(): BelongsTo
     {
