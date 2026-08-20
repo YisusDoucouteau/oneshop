@@ -57,4 +57,22 @@ class User extends Authenticatable
             'rol_id'
         );
     }
+    public function tieneRol(string $codigo): bool
+{
+    return $this->roles()
+        ->where('roles.codigo', $codigo)
+        ->where('roles.activo', true)
+        ->exists();
+}
+
+public function tienePermiso(string $codigo): bool
+{
+    return $this->roles()
+        ->where('roles.activo', true)
+        ->whereHas('permisos', function ($query) use ($codigo) {
+            $query->where('permisos.codigo', $codigo)
+                ->where('permisos.activo', true);
+        })
+        ->exists();
+}
 }

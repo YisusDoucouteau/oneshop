@@ -52,4 +52,35 @@ class AuthenticationTest extends TestCase
         $this->assertGuest();
         $response->assertRedirect('/');
     }
+    public function test_usuario_inactivo_no_puede_iniciar_sesion(): void
+    {
+    $user = User::factory()->create([
+        'activo' => false,
+    ]);
+
+    $response = $this->post('/login', [
+        'email' => $user->email,
+        'password' => 'password',
+    ]);
+
+    $this->assertGuest();
+
+    $response->assertSessionHasErrors('email');
+    }
+    public function test_login_actualiza_ultimo_acceso(): void
+    {
+    $user = User::factory()->create([
+        'activo' => true,
+        'ultimo_acceso' => null,
+    ]);
+
+    $this->post('/login', [
+        'email' => $user->email,
+        'password' => 'password',
+    ]);
+
+    $this->assertNotNull(
+        $user->fresh()->ultimo_acceso
+    );
+    }
 }

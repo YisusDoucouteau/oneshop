@@ -41,15 +41,25 @@ class LoginRequest extends FormRequest
     {
         $this->ensureIsNotRateLimited();
 
-        if (! Auth::attempt($this->only('email', 'password'), $this->boolean('remember'))) {
-            RateLimiter::hit($this->throttleKey());
+        if (! Auth::attempt(
+    [
+        'email' => $this->string('email')->toString(),
+        'password' => $this->string('password')->toString(),
+        'activo' => true,
+    ],
+    $this->boolean('remember')
+)) {
+    RateLimiter::hit($this->throttleKey());
 
-            throw ValidationException::withMessages([
-                'email' => trans('auth.failed'),
-            ]);
-        }
+    throw ValidationException::withMessages([
+        'email' => trans('auth.failed'),
+    ]);
+}
 
         RateLimiter::clear($this->throttleKey());
+        Auth::user()->forceFill([
+    'ultimo_acceso' => now(),
+])->save();
     }
 
     /**
