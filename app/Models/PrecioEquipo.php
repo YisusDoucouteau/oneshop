@@ -19,7 +19,7 @@ class PrecioEquipo extends Model
         'vigente_desde',
         'vigente_hasta',
         'vigente',
-        'usuario_aprobacion_id',
+        'aprobado_por_id',
         'observacion',
     ];
 
