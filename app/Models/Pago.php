@@ -16,6 +16,7 @@ class Pago extends Model
         'monto',
         'fecha_pago',
         'referencia',
+        'comprobante_ruta',
         'estado',
         'registrado_por_id',
         'verificado_por_id',
@@ -25,10 +26,10 @@ class Pago extends Model
     ];
 
     protected $casts = [
-            'monto' => 'decimal:2',
-            'fecha_pago' => 'datetime',
-            'fecha_verificacion' => 'datetime',
-        ];
+        'monto' => 'decimal:2',
+        'fecha_pago' => 'datetime',
+        'fecha_verificacion' => 'datetime',
+    ];
 
     public function reserva(): BelongsTo
     {
