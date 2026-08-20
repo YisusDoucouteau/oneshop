@@ -59,7 +59,7 @@ class LoginRequest extends FormRequest
         RateLimiter::clear($this->throttleKey());
         Auth::user()->forceFill([
     'ultimo_acceso' => now(),
-])->save();
+    ])->save();
     }
 
     /**
