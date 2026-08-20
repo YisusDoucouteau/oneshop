@@ -3,11 +3,15 @@
 namespace App\Http\Controllers;
 
 use App\Models\Almacen;
+use App\Models\CondicionFisica;
 use App\Models\Equipo;
 use App\Models\EstadoEquipo;
+use App\Models\Producto;
+use App\Services\RegistroEquipoService;
+use App\Services\TrazabilidadEquipoService;
+use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\View\View;
-use App\Services\TrazabilidadEquipoService;
 class InventarioController extends Controller
 {
     public function index(Request $request): View
@@ -95,6 +99,69 @@ class InventarioController extends Controller
             )
         );
     }
+    public function create(): View
+{
+    $productos = Producto::query()
+        ->with([
+            'marca',
+            'categoria',
+        ])
+        ->where('activo', true)
+        ->where('es_serializado', true)
+        ->orderBy('nombre')
+        ->orderBy('modelo')
+        ->get();
+
+    $almacenes = Almacen::query()
+        ->where('activo', true)
+        ->orderByDesc('principal')
+        ->orderBy('nombre')
+        ->get();
+
+    $condiciones = CondicionFisica::query()
+        ->where('activo', true)
+        ->orderBy('codigo')
+        ->get();
+
+    return view(
+        'inventario.create',
+        compact(
+            'productos',
+            'almacenes',
+            'condiciones'
+        )
+    );
+}
+
+public function store(
+    Request $request,
+    RegistroEquipoService $registroEquipo
+): RedirectResponse {
+    try {
+        $equipo = $registroEquipo->registrar(
+            $request->user()->id,
+            $request->all()
+        );
+
+        return redirect()
+            ->route(
+                'inventario.show',
+                $equipo->codigo_interno
+            )
+            ->with(
+                'success',
+                'Equipo registrado correctamente.'
+            );
+
+    } catch (\App\Exceptions\ReglaNegocioException $exception) {
+
+        return back()
+            ->withInput()
+            ->withErrors([
+                'registro' => $exception->getMessage(),
+            ]);
+    }
+}
     public function show(
     Equipo $equipo,
     TrazabilidadEquipoService $trazabilidad

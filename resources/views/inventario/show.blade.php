@@ -12,7 +12,15 @@
             ← Volver al inventario
         </a>
     </div>
+@if(session('success'))
+    <div class="mb-6 rounded-2xl border border-emerald-200 bg-emerald-50 p-4">
 
+        <p class="text-sm font-semibold text-emerald-800">
+            {{ session('success') }}
+        </p>
+
+    </div>
+@endif
 
     {{-- Encabezado --}}
     <div class="mb-8 flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
