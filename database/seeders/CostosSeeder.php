@@ -10,16 +10,17 @@ class CostosSeeder extends Seeder
     public function run(): void
     {
         $tipos = [
-            ['FLETE_INTERNACIONAL', 'Flete internacional', 'LOTE'],
-            ['ADUANA', 'Aduana', 'LOTE'],
-            ['SEGURO', 'Seguro', 'LOTE'],
-            ['CONSOLIDACION', 'Consolidación', 'LOTE'],
-            ['TRANSPORTE_INTERNO', 'Transporte interno', 'AMBOS'],
-            ['SERVICIO_EXTERNO', 'Servicio técnico externo', 'EQUIPO'],
-            ['REPUESTO_EXTERNO', 'Repuesto adquirido externamente', 'EQUIPO'],
-            ['OTRO', 'Otro costo', 'AMBOS'],
-        ];
-
+    ['FLETE_INTERNACIONAL', 'Flete internacional', 'LOTE'],
+    ['ADUANA', 'Aduana', 'LOTE'],
+    ['SEGURO', 'Seguro', 'LOTE'],
+    ['CONSOLIDACION', 'Consolidación', 'LOTE'],
+    ['ADQUISICION_DIRECTA', 'Adquisición directa del equipo', 'EQUIPO'],
+    ['TRANSPORTE_INTERNO', 'Transporte interno', 'AMBOS'],
+    ['SERVICIO_EXTERNO', 'Servicio técnico externo', 'EQUIPO'],
+    ['REPUESTO_EXTERNO', 'Repuesto adquirido externamente', 'EQUIPO'],
+    ['OTRO', 'Otro costo', 'AMBOS'],
+];
+ 
         foreach ($tipos as [$codigo, $nombre, $ambito]) {
             DB::table('tipos_costos')->updateOrInsert(
                 ['codigo' => $codigo],

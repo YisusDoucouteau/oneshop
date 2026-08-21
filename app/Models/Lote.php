@@ -31,4 +31,11 @@ class Lote extends Model
             'lote_id'
         );
     }
+    public function costos(): HasMany
+{
+    return $this->hasMany(
+        CostoLote::class,
+        'lote_id'
+    );
+}
 }

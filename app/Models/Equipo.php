@@ -154,4 +154,19 @@ public function precioVigente(): HasOne
         ->where('vigente', true)
         ->latestOfMany('vigente_desde');
 }
+public function adquisicionDirecta(): HasOne
+{
+    return $this->hasOne(
+        AdquisicionDirecta::class,
+        'equipo_id'
+    );
+}
+
+public function costos(): HasMany
+{
+    return $this->hasMany(
+        CostoEquipo::class,
+        'equipo_id'
+    );
+}
 }

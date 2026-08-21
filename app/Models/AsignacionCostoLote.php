@@ -14,13 +14,13 @@ class AsignacionCostoLote extends Model
         'equipo_id',
         'metodo_asignacion',
         'porcentaje',
-        'monto_asignado',
+        'monto_asignado_bob',
     ];
 
     protected $casts = [
-            'porcentaje' => 'decimal:4',
-            'monto_asignado' => 'decimal:2',
-        ];
+        'porcentaje' => 'decimal:4',
+        'monto_asignado_bob' => 'decimal:2',
+    ];
 
     public function costoLote(): BelongsTo
     {

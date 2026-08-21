@@ -28,4 +28,11 @@ class Proveedor extends Model
     {
         return $this->hasMany(Lote::class);
     }
+    public function adquisicionesDirectas(): HasMany
+{
+    return $this->hasMany(
+        AdquisicionDirecta::class,
+        'proveedor_id'
+    );
+}
 }

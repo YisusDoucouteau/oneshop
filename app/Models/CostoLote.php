@@ -17,17 +17,17 @@ class CostoLote extends Model
         'tipo_cambio_id',
         'monto_origen',
         'monto_bob',
-        'fecha',
+        'fecha_costo',
         'referencia',
-        'usuario_id',
+        'registrado_por_id',
         'observacion',
     ];
 
     protected $casts = [
-            'monto_origen' => 'decimal:2',
-            'monto_bob' => 'decimal:2',
-            'fecha' => 'datetime',
-        ];
+        'monto_origen' => 'decimal:2',
+        'monto_bob' => 'decimal:2',
+        'fecha_costo' => 'date',
+    ];
 
     public function lote(): BelongsTo
     {
@@ -55,9 +55,12 @@ class CostoLote extends Model
         );
     }
 
-    public function usuario(): BelongsTo
+    public function registradoPor(): BelongsTo
     {
-        return $this->belongsTo(User::class);
+        return $this->belongsTo(
+            User::class,
+            'registrado_por_id'
+        );
     }
 
     public function asignaciones(): HasMany
