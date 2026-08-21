@@ -31,11 +31,20 @@ class Lote extends Model
             'lote_id'
         );
     }
+
+    public function eventosLogisticos(): HasMany
+    {
+        return $this->hasMany(
+            EventoLogisticoLote::class,
+            'lote_id'
+        )->orderBy('fecha_evento');
+    }
+
     public function costos(): HasMany
-{
-    return $this->hasMany(
-        CostoLote::class,
-        'lote_id'
-    );
-}
+    {
+        return $this->hasMany(
+            CostoLote::class,
+            'lote_id'
+        );
+    }
 }

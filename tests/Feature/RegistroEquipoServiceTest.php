@@ -16,7 +16,7 @@ use App\Services\RegistroEquipoService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Validation\ValidationException;
 use Tests\TestCase;
-
+use App\Services\LoteService;
 class RegistroEquipoServiceTest extends TestCase
 {
     use RefreshDatabase;
@@ -244,58 +244,125 @@ class RegistroEquipoServiceTest extends TestCase
     }
 
     public function test_rechaza_lote_con_producto_distinto(): void
-    {
-        $categoria = CategoriaProducto::where(
-            'codigo',
-            'LAPTOP'
-        )->firstOrFail();
+{
+    /*
+    |--------------------------------------------------------------------------
+    | Creamos otro producto
+    |--------------------------------------------------------------------------
+    |
+    | El lote pertenecerá a este producto, mientras que intentaremos
+    | registrar el equipo usando el producto original de la prueba.
+    |
+    */
 
-        $otroProducto = Producto::create([
-            'categoria_producto_id' => $categoria->id,
-            'marca_id' => null,
-            'codigo' => 'OTRO-PRODUCTO',
-            'nombre' => 'Otro equipo',
-            'modelo' => null,
-            'descripcion' => null,
-            'es_serializado' => true,
-            'activo' => true,
-        ]);
+    $otroProducto = Producto::create([
+        'categoria_producto_id' =>
+            $this->producto->categoria_producto_id,
 
-        /*
-         * Para este test únicamente necesitamos una fila
-         * de detalle de lote válida en cuanto a claves.
-         */
-        $lote = Lote::query()->first();
+        'marca_id' => null,
 
-        if (!$lote) {
-            $this->markTestSkipped(
-                'No existe un lote maestro disponible para probar la integridad producto-lote.'
-            );
-        }
+        'codigo' => 'OTRO-PRODUCTO-LOTE',
 
-        $detalle = DetalleLote::create([
-            'lote_id' => $lote->id,
-            'producto_id' => $otroProducto->id,
-            'moneda_id' => null,
-            'tipo_cambio_compra_id' => null,
+        'nombre' => 'Otro equipo de prueba',
+
+        'modelo' => 'OTRO-001',
+
+        'descripcion' => null,
+
+        'es_serializado' => true,
+
+        'activo' => true,
+    ]);
+
+    /*
+    |--------------------------------------------------------------------------
+    | Creamos un lote válido mediante la lógica de negocio
+    |--------------------------------------------------------------------------
+    */
+
+    $loteService = app(LoteService::class);
+
+    $lote = $loteService->crearLote(
+        $this->administrador->id,
+        [
+            'proveedor_id' => null,
+
+            'codigo' =>
+                'IMP-TEST-INTEGRIDAD-001',
+
+            'referencia_compra' =>
+                'REF-INTEGRIDAD-001',
+
+            'origen' =>
+                'Estados Unidos',
+
+            'observacion' =>
+                'Lote creado para prueba de integridad.',
+        ]
+    );
+
+    /*
+    |--------------------------------------------------------------------------
+    | El detalle pertenece al OTRO producto
+    |--------------------------------------------------------------------------
+    */
+
+    $detalle = $loteService->agregarDetalle(
+        $this->administrador->id,
+        $lote->id,
+        [
+            'producto_id' =>
+                $otroProducto->id,
+
             'cantidad_esperada' => 1,
-            'cantidad_recibida' => 0,
-            'costo_unitario_origen' => null,
-            'costo_unitario_bob' => null,
-            'observacion' => null,
-        ]);
 
-        $datos = $this->datosValidos();
-        $datos['detalle_lote_id'] = $detalle->id;
+            'observacion' =>
+                'Detalle utilizado para probar producto incorrecto.',
+        ]
+    );
 
-        $this->expectException(
-            ReglaNegocioException::class
-        );
+    /*
+    |--------------------------------------------------------------------------
+    | Intentamos registrar el producto original usando ese detalle
+    |--------------------------------------------------------------------------
+    */
 
+    $datos = $this->datosValidos();
+
+    $datos['detalle_lote_id'] =
+        $detalle->id;
+
+    try {
         app(RegistroEquipoService::class)
             ->registrar(
                 $this->administrador->id,
                 $datos
             );
+
+        $this->fail(
+            'Se esperaba una excepción porque el producto no coincide con el detalle del lote.'
+        );
+
+    } catch (ReglaNegocioException $exception) {
+
+        $this->assertStringContainsString(
+            'no coincide',
+            $exception->getMessage()
+        );
     }
+
+    /*
+    |--------------------------------------------------------------------------
+    | No debe haberse creado ningún equipo parcial
+    |--------------------------------------------------------------------------
+    */
+
+    $this->assertDatabaseMissing(
+        'equipos',
+        [
+            'codigo_interno' =>
+                'OS-TEST-001',
+        ]
+    );
+}
 }
