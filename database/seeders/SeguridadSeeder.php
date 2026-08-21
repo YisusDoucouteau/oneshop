@@ -67,7 +67,8 @@ class SeguridadSeeder extends Seeder
             ['codigo' => 'inventario.ver', 'nombre' => 'Ver inventario'],
             ['codigo' => 'inventario.registrar', 'nombre' => 'Registrar inventario'],
             ['codigo' => 'inventario.modificar', 'nombre' => 'Modificar inventario'],
-
+            ['codigo' => 'importacion.ver', 'nombre' => 'Ver importaciones'],
+            ['codigo' => 'importacion.gestionar', 'nombre' => 'Gestionar importaciones'],
             ['codigo' => 'transferencias.gestionar', 'nombre' => 'Gestionar transferencias'],
 
             ['codigo' => 'tecnico.ver', 'nombre' => 'Ver información técnica'],
@@ -145,6 +146,8 @@ class SeguridadSeeder extends Seeder
             'ventas.ver',
             'garantias.ver',
             'reportes.ver',
+            'importacion.ver',
+            'importacion.gestionar',
         ];
 
         // Vendedor.
