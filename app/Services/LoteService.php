@@ -188,18 +188,6 @@ class LoteService
                     'El producto no existe o se encuentra inactivo.'
                 );
             }
-
-            $yaExiste = DetalleLote::query()
-                ->where('lote_id', $lote->id)
-                ->where('producto_id', $producto->id)
-                ->exists();
-
-            if ($yaExiste) {
-                throw new ReglaNegocioException(
-                    'El producto ya se encuentra registrado en este lote.'
-                );
-            }
-
             $detalle = DetalleLote::create([
                 'lote_id' => $lote->id,
                 'producto_id' => $producto->id,

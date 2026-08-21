@@ -71,7 +71,26 @@
                     Inventario
                 </a>
             @endif
+@if(auth()->user()->tienePermiso('importacion.ver'))
 
+    <a
+        href="{{ route('importaciones.index') }}"
+        class="
+            flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition
+            {{ request()->routeIs('importaciones.*')
+                ? 'bg-white text-slate-950'
+                : 'text-slate-400 hover:bg-slate-800 hover:text-white'
+            }}
+        "
+    >
+        <span>◫</span>
+
+        <span>
+            Importaciones
+        </span>
+    </a>
+
+@endif
             @if(auth()->user()?->tienePermiso('tecnico.ver'))
                 <div
                     class="flex cursor-not-allowed items-center rounded-xl px-4 py-3 text-sm font-medium text-slate-500"

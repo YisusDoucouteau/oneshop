@@ -13,16 +13,16 @@ class TipoCambio extends Model
         'moneda_origen_id',
         'moneda_destino_id',
         'valor',
-        'fecha',
+        'fecha_vigencia',
         'fuente',
-        'usuario_id',
+        'registrado_por_id',
         'observacion',
     ];
 
     protected $casts = [
-            'valor' => 'decimal:6',
-            'fecha' => 'datetime',
-        ];
+        'valor' => 'decimal:6',
+        'fecha_vigencia' => 'datetime',
+    ];
 
     public function monedaOrigen(): BelongsTo
     {
@@ -40,11 +40,11 @@ class TipoCambio extends Model
         );
     }
 
-    public function usuario(): BelongsTo
+    public function registradoPor(): BelongsTo
     {
         return $this->belongsTo(
             User::class,
-            'usuario_id'
+            'registrado_por_id'
         );
     }
 }

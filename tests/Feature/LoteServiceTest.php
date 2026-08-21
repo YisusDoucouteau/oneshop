@@ -251,51 +251,67 @@ class LoteServiceTest extends TestCase
         );
     }
 
-    public function test_no_permite_producto_duplicado_en_mismo_lote(): void
-    {
-        $servicio = app(LoteService::class);
+    public function test_permite_mismo_producto_en_dos_lineas_del_mismo_lote(): void
+{
+    $servicio = app(LoteService::class);
 
-        $lote = $servicio->crearLote(
-            $this->usuarioOperativo->id,
-            $this->datosLote()
-        );
+    $lote = $servicio->crearLote(
+        $this->usuarioOperativo->id,
+        $this->datosLote()
+    );
 
-        $datos = [
-            'producto_id' =>
-                $this->producto->id,
-            'cantidad_esperada' => 3,
-        ];
+    $detalleUno = $servicio->agregarDetalle(
+        $this->usuarioOperativo->id,
+        $lote->id,
+        [
+            'producto_id' => $this->producto->id,
+            'cantidad_esperada' => 2,
+            'costo_unitario_origen' => 220,
+            'observacion' => 'Primera operación de compra.',
+        ]
+    );
 
-        $servicio->agregarDetalle(
-            $this->usuarioOperativo->id,
-            $lote->id,
-            $datos
-        );
+    $detalleDos = $servicio->agregarDetalle(
+        $this->usuarioOperativo->id,
+        $lote->id,
+        [
+            'producto_id' => $this->producto->id,
+            'cantidad_esperada' => 1,
+            'costo_unitario_origen' => 205,
+            'observacion' => 'Segunda operación de compra.',
+        ]
+    );
 
-        try {
-            $servicio->agregarDetalle(
-                $this->usuarioOperativo->id,
-                $lote->id,
-                $datos
-            );
+    $this->assertNotSame(
+        $detalleUno->id,
+        $detalleDos->id
+    );
 
-            $this->fail(
-                'Se esperaba una excepción de regla de negocio.'
-            );
+    $this->assertDatabaseCount(
+        'detalles_lotes',
+        2
+    );
 
-        } catch (ReglaNegocioException $exception) {
+    $this->assertDatabaseHas(
+        'detalles_lotes',
+        [
+            'id' => $detalleUno->id,
+            'producto_id' => $this->producto->id,
+            'cantidad_esperada' => 2,
+            'costo_unitario_origen' => 220,
+        ]
+    );
 
-            $this->assertStringContainsString(
-                'ya se encuentra registrado',
-                $exception->getMessage()
-            );
-        }
-
-        $this->assertDatabaseCount(
-            'detalles_lotes',
-            1
-        );
-    }
+    $this->assertDatabaseHas(
+        'detalles_lotes',
+        [
+            'id' => $detalleDos->id,
+            'producto_id' => $this->producto->id,
+            'cantidad_esperada' => 1,
+            'costo_unitario_origen' => 205,
+        ]
+    );
+}
 
     public function test_lote_cerrado_no_admite_nuevos_productos(): void
     {

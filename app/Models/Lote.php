@@ -47,4 +47,8 @@ class Lote extends Model
             'lote_id'
         );
     }
+    public function getRouteKeyName(): string
+{
+    return 'codigo';
+}
 }

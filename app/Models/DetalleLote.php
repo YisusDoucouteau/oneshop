@@ -47,4 +47,19 @@ class DetalleLote extends Model
             'detalle_lote_id'
         );
     }
+    public function moneda(): BelongsTo
+{
+    return $this->belongsTo(
+        Moneda::class,
+        'moneda_id'
+    );
+}
+
+public function tipoCambioCompra(): BelongsTo
+{
+    return $this->belongsTo(
+        TipoCambio::class,
+        'tipo_cambio_compra_id'
+    );
+}
 }

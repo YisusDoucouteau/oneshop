@@ -3,7 +3,7 @@
 use App\Http\Controllers\InventarioController;
 use App\Http\Controllers\ProfileController;
 use Illuminate\Support\Facades\Route;
-
+use App\Http\Controllers\ImportacionController;
 Route::get('/', function () {
     return view('welcome');
 });
@@ -37,7 +37,50 @@ Route::middleware([
     'auth',
     'usuario.activo',
 ])->group(function () {
+/*
+|--------------------------------------------------------------------------
+| Importaciones
+|--------------------------------------------------------------------------
+*/
 
+Route::get(
+    '/importaciones',
+    [ImportacionController::class, 'index']
+)
+    ->middleware('permiso:importacion.ver')
+    ->name('importaciones.index');
+
+
+Route::get(
+    '/importaciones/crear',
+    [ImportacionController::class, 'create']
+)
+    ->middleware('permiso:importacion.gestionar')
+    ->name('importaciones.create');
+
+
+Route::post(
+    '/importaciones',
+    [ImportacionController::class, 'store']
+)
+    ->middleware('permiso:importacion.gestionar')
+    ->name('importaciones.store');
+
+
+Route::post(
+    '/importaciones/{lote}/detalles',
+    [ImportacionController::class, 'storeDetalle']
+)
+    ->middleware('permiso:importacion.gestionar')
+    ->name('importaciones.detalles.store');
+
+
+Route::get(
+    '/importaciones/{lote}',
+    [ImportacionController::class, 'show']
+)
+    ->middleware('permiso:importacion.ver')
+    ->name('importaciones.show');
     /*
     |--------------------------------------------------------------------------
     | Inventario
