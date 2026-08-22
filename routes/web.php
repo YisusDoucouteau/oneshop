@@ -4,6 +4,7 @@ use App\Http\Controllers\InventarioController;
 use App\Http\Controllers\ProfileController;
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\ImportacionController;
+use App\Http\Controllers\CatalogoImportacionController;
 Route::get('/', function () {
     return view('welcome');
 });
@@ -81,6 +82,20 @@ Route::get(
 )
     ->middleware('permiso:importacion.ver')
     ->name('importaciones.show');
+    Route::post(
+    '/importaciones/catalogo/productos',
+    [CatalogoImportacionController::class, 'storeProducto']
+)
+    ->middleware('permiso:importacion.gestionar')
+    ->name('importaciones.catalogo.productos.store');
+
+
+Route::post(
+    '/importaciones/catalogo/proveedores',
+    [CatalogoImportacionController::class, 'storeProveedor']
+)
+    ->middleware('permiso:importacion.gestionar')
+    ->name('importaciones.catalogo.proveedores.store');
     /*
     |--------------------------------------------------------------------------
     | Inventario

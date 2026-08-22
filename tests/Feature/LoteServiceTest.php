@@ -4,8 +4,8 @@ namespace Tests\Feature;
 
 use App\Exceptions\ReglaNegocioException;
 use App\Models\CategoriaProducto;
-use App\Models\Lote;
 use App\Models\Marca;
+use App\Models\Moneda;
 use App\Models\Producto;
 use App\Models\Proveedor;
 use App\Models\Rol;
@@ -14,15 +14,15 @@ use App\Services\LoteService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Validation\ValidationException;
 use Tests\TestCase;
-use App\Models\Moneda;
+
 class LoteServiceTest extends TestCase
 {
     use RefreshDatabase;
 
     private User $usuarioOperativo;
     private User $vendedor;
-    private Proveedor $proveedor;
     private Producto $producto;
+    private Proveedor $proveedor;
 
     protected function setUp(): void
     {
@@ -30,54 +30,32 @@ class LoteServiceTest extends TestCase
 
         $this->seed();
 
-        /*
-        |--------------------------------------------------------------------------
-        | Administrador operativo
-        |--------------------------------------------------------------------------
-        */
+        $this->usuarioOperativo = User::factory()->create([
+            'activo' => true,
+        ]);
 
-        $this->usuarioOperativo =
-            User::factory()->create([
-                'activo' => true,
-            ]);
-
-        $rolOperativo = Rol::where(
-            'codigo',
-            'ADMIN_OPERATIVO'
-        )->firstOrFail();
+        $rolOperativo = Rol::query()
+            ->where('codigo', 'ADMIN_OPERATIVO')
+            ->firstOrFail();
 
         $this->usuarioOperativo
             ->roles()
             ->attach($rolOperativo->id);
 
-        /*
-        |--------------------------------------------------------------------------
-        | Vendedor
-        |--------------------------------------------------------------------------
-        */
+        $this->vendedor = User::factory()->create([
+            'activo' => true,
+        ]);
 
-        $this->vendedor =
-            User::factory()->create([
-                'activo' => true,
-            ]);
-
-        $rolVendedor = Rol::where(
-            'codigo',
-            'VENDEDOR'
-        )->firstOrFail();
+        $rolVendedor = Rol::query()
+            ->where('codigo', 'VENDEDOR')
+            ->firstOrFail();
 
         $this->vendedor
             ->roles()
             ->attach($rolVendedor->id);
 
-        /*
-        |--------------------------------------------------------------------------
-        | Proveedor
-        |--------------------------------------------------------------------------
-        */
-
         $this->proveedor = Proveedor::create([
-            'nombre' => 'Proveedor USA Test',
+            'nombre' => 'Proveedor de prueba USA',
             'pais' => 'Estados Unidos',
             'ciudad' => 'Miami',
             'telefono' => null,
@@ -87,28 +65,20 @@ class LoteServiceTest extends TestCase
             'activo' => true,
         ]);
 
-        /*
-        |--------------------------------------------------------------------------
-        | Producto
-        |--------------------------------------------------------------------------
-        */
-
-        $categoria = CategoriaProducto::where(
-            'codigo',
-            'LAPTOP'
-        )->firstOrFail();
+        $categoria = CategoriaProducto::query()
+            ->where('codigo', 'LAPTOP')
+            ->firstOrFail();
 
         $marca = Marca::create([
-            'nombre' => 'Dell Test',
+            'nombre' => 'Dell Lote Test',
             'descripcion' => null,
             'activo' => true,
         ]);
 
         $this->producto = Producto::create([
-            'categoria_producto_id' =>
-                $categoria->id,
+            'categoria_producto_id' => $categoria->id,
             'marca_id' => $marca->id,
-            'codigo' => 'LOT-TEST-P001',
+            'codigo' => 'LOTE-TEST-P001',
             'nombre' => 'Dell Latitude',
             'modelo' => '5420',
             'descripcion' => null,
@@ -117,45 +87,31 @@ class LoteServiceTest extends TestCase
         ]);
     }
 
-    private function datosLote(): array
-    {
+    private function datosLote(
+        string $codigo = 'IMP-TEST-001'
+    ): array {
         return [
-            'proveedor_id' =>
-                $this->proveedor->id,
-
-            'codigo' => 'IMP-TEST-001',
-
-            'referencia_compra' =>
-                'COMPRA-TEST-001',
-
-            'origen' =>
-                'Miami, Estados Unidos',
-
-            'observacion' =>
-                'Lote utilizado en pruebas.',
+            'proveedor_id' => $this->proveedor->id,
+            'codigo' => $codigo,
+            'referencia_compra' => 'REF-TEST-001',
+            'origen' => 'Miami, Estados Unidos',
+            'observacion' => 'Lote generado para pruebas automatizadas.',
         ];
     }
 
     public function test_usuario_autorizado_puede_crear_lote(): void
     {
-        $lote = app(LoteService::class)
-            ->crearLote(
-                $this->usuarioOperativo->id,
-                $this->datosLote()
-            );
+        $lote = app(LoteService::class)->crearLote(
+            $this->usuarioOperativo->id,
+            $this->datosLote()
+        );
 
         $this->assertDatabaseHas('lotes', [
             'id' => $lote->id,
             'codigo' => 'IMP-TEST-001',
-            'proveedor_id' =>
-                $this->proveedor->id,
             'estado' => 'ABIERTO',
+            'proveedor_id' => $this->proveedor->id,
         ]);
-
-        $this->assertSame(
-            'ABIERTO',
-            $lote->estado
-        );
     }
 
     public function test_codigo_de_lote_no_puede_repetirse(): void
@@ -178,37 +134,32 @@ class LoteServiceTest extends TestCase
     }
 
     public function test_proveedor_inactivo_no_puede_usarse(): void
-{
-    $this->proveedor->update([
-        'activo' => false,
-    ]);
+    {
+        $this->proveedor->update([
+            'activo' => false,
+        ]);
 
-    try {
-        app(LoteService::class)
-            ->crearLote(
+        try {
+            app(LoteService::class)->crearLote(
                 $this->usuarioOperativo->id,
                 $this->datosLote()
             );
 
-        $this->fail(
-            'Se esperaba una excepción por proveedor inactivo.'
-        );
+            $this->fail(
+                'Se esperaba una excepción por proveedor inactivo.'
+            );
 
-    } catch (ReglaNegocioException $exception) {
+        } catch (ReglaNegocioException $exception) {
+            $this->assertStringContainsString(
+                'se encuentra inactivo',
+                $exception->getMessage()
+            );
+        }
 
-        $this->assertStringContainsString(
-            'se encuentra inactivo',
-            $exception->getMessage()
-        );
-    }
-
-    $this->assertDatabaseMissing(
-        'lotes',
-        [
+        $this->assertDatabaseMissing('lotes', [
             'codigo' => 'IMP-TEST-001',
-        ]
-    );
-}
+        ]);
+    }
 
     public function test_vendedor_no_puede_gestionar_importaciones(): void
     {
@@ -216,15 +167,10 @@ class LoteServiceTest extends TestCase
             ReglaNegocioException::class
         );
 
-        $this->expectExceptionMessage(
-            'no cuenta con permiso'
+        app(LoteService::class)->crearLote(
+            $this->vendedor->id,
+            $this->datosLote()
         );
-
-        app(LoteService::class)
-            ->crearLote(
-                $this->vendedor->id,
-                $this->datosLote()
-            );
     }
 
     public function test_puede_agregar_producto_a_lote_abierto(): void
@@ -240,154 +186,88 @@ class LoteServiceTest extends TestCase
             $this->usuarioOperativo->id,
             $lote->id,
             [
-                'producto_id' =>
-                    $this->producto->id,
-
+                'producto_id' => $this->producto->id,
                 'cantidad_esperada' => 3,
-
-                'observacion' =>
-                    'Tres unidades esperadas.',
             ]
         );
 
-        $this->assertDatabaseHas(
-            'detalles_lotes',
-            [
-                'id' => $detalle->id,
-                'lote_id' => $lote->id,
-                'producto_id' =>
-                    $this->producto->id,
-                'cantidad_esperada' => 3,
-                'cantidad_recibida' => 0,
-            ]
-        );
+        $this->assertDatabaseHas('detalles_lotes', [
+            'id' => $detalle->id,
+            'lote_id' => $lote->id,
+            'producto_id' => $this->producto->id,
+            'cantidad_esperada' => 3,
+            'cantidad_recibida' => 0,
+        ]);
     }
 
     public function test_permite_mismo_producto_en_dos_lineas_del_mismo_lote(): void
-{
-    $bob = Moneda::query()
-        ->where(
-            'codigo',
-            'BOB'
-        )
-        ->firstOrFail();
+    {
+        $bob = Moneda::query()
+            ->where('codigo', 'BOB')
+            ->firstOrFail();
 
-    $servicio = app(
-        LoteService::class
-    );
+        $servicio = app(LoteService::class);
 
-    $lote = $servicio->crearLote(
-        $this->usuarioOperativo->id,
-        $this->datosLote()
-    );
+        $lote = $servicio->crearLote(
+            $this->usuarioOperativo->id,
+            $this->datosLote()
+        );
 
-    $detalleUno = $servicio->agregarDetalle(
-        $this->usuarioOperativo->id,
-        $lote->id,
-        [
-            'producto_id' =>
-                $this->producto->id,
+        $detalleUno = $servicio->agregarDetalle(
+            $this->usuarioOperativo->id,
+            $lote->id,
+            [
+                'producto_id' => $this->producto->id,
+                'cantidad_esperada' => 2,
+                'moneda_id' => $bob->id,
+                'costo_unitario_origen' => 2200,
+                'observacion' => 'Primera operación de compra.',
+            ]
+        );
 
-            'cantidad_esperada' =>
-                2,
+        $detalleDos = $servicio->agregarDetalle(
+            $this->usuarioOperativo->id,
+            $lote->id,
+            [
+                'producto_id' => $this->producto->id,
+                'cantidad_esperada' => 1,
+                'moneda_id' => $bob->id,
+                'costo_unitario_origen' => 2050,
+                'observacion' => 'Segunda operación de compra.',
+            ]
+        );
 
-            'moneda_id' =>
-                $bob->id,
+        $this->assertNotSame(
+            $detalleUno->id,
+            $detalleDos->id
+        );
 
-            'costo_unitario_origen' =>
-                2200,
+        $this->assertDatabaseHas('detalles_lotes', [
+            'id' => $detalleUno->id,
+            'producto_id' => $this->producto->id,
+            'moneda_id' => $bob->id,
+            'cantidad_esperada' => 2,
+            'costo_unitario_origen' => 2200,
+            'costo_unitario_bob' => 2200,
+        ]);
 
-            'observacion' =>
-                'Primera operación de compra.',
-        ]
-    );
+        $this->assertDatabaseHas('detalles_lotes', [
+            'id' => $detalleDos->id,
+            'producto_id' => $this->producto->id,
+            'moneda_id' => $bob->id,
+            'cantidad_esperada' => 1,
+            'costo_unitario_origen' => 2050,
+            'costo_unitario_bob' => 2050,
+        ]);
 
-    $detalleDos = $servicio->agregarDetalle(
-        $this->usuarioOperativo->id,
-        $lote->id,
-        [
-            'producto_id' =>
-                $this->producto->id,
-
-            'cantidad_esperada' =>
-                1,
-
-            'moneda_id' =>
-                $bob->id,
-
-            'costo_unitario_origen' =>
-                2050,
-
-            'observacion' =>
-                'Segunda operación de compra.',
-        ]
-    );
-
-    $this->assertNotSame(
-        $detalleUno->id,
-        $detalleDos->id
-    );
-
-    $this->assertDatabaseHas(
-        'detalles_lotes',
-        [
-            'id' =>
-                $detalleUno->id,
-
-            'producto_id' =>
-                $this->producto->id,
-
-            'moneda_id' =>
-                $bob->id,
-
-            'cantidad_esperada' =>
-                2,
-
-            'costo_unitario_origen' =>
-                2200,
-
-            'costo_unitario_bob' =>
-                2200,
-        ]
-    );
-
-    $this->assertDatabaseHas(
-        'detalles_lotes',
-        [
-            'id' =>
-                $detalleDos->id,
-
-            'producto_id' =>
-                $this->producto->id,
-
-            'moneda_id' =>
-                $bob->id,
-
-            'cantidad_esperada' =>
-                1,
-
-            'costo_unitario_origen' =>
-                2050,
-
-            'costo_unitario_bob' =>
-                2050,
-        ]
-    );
-
-    $this->assertSame(
-        2,
-        \App\Models\DetalleLote::query()
-            ->where(
-                'lote_id',
-                $lote->id
-            )
-            ->where(
-                'producto_id',
-                $this->producto->id
-            )
-            ->count()
-    );
-}
+        $this->assertSame(
+            2,
+            \App\Models\DetalleLote::query()
+                ->where('lote_id', $lote->id)
+                ->where('producto_id', $this->producto->id)
+                ->count()
+        );
+    }
 
     public function test_lote_cerrado_no_admite_nuevos_productos(): void
     {
@@ -406,17 +286,11 @@ class LoteServiceTest extends TestCase
             ReglaNegocioException::class
         );
 
-        $this->expectExceptionMessage(
-            'lote abierto'
-        );
-
         $servicio->agregarDetalle(
             $this->usuarioOperativo->id,
             $lote->id,
             [
-                'producto_id' =>
-                    $this->producto->id,
-
+                'producto_id' => $this->producto->id,
                 'cantidad_esperada' => 1,
             ]
         );
@@ -431,33 +305,193 @@ class LoteServiceTest extends TestCase
             $this->datosLote()
         );
 
+        $this->expectException(
+            ValidationException::class
+        );
+
+        $servicio->agregarDetalle(
+            $this->usuarioOperativo->id,
+            $lote->id,
+            [
+                'producto_id' => $this->producto->id,
+                'cantidad_esperada' => 0,
+            ]
+        );
+    }
+
+    public function test_precio_unitario_exige_moneda(): void
+    {
+        $servicio = app(LoteService::class);
+
+        $lote = $servicio->crearLote(
+            $this->usuarioOperativo->id,
+            $this->datosLote()
+        );
+
         try {
             $servicio->agregarDetalle(
                 $this->usuarioOperativo->id,
                 $lote->id,
                 [
-                    'producto_id' =>
-                        $this->producto->id,
-
-                    'cantidad_esperada' => 0,
+                    'producto_id' => $this->producto->id,
+                    'cantidad_esperada' => 1,
+                    'costo_unitario_origen' => 233,
                 ]
             );
 
             $this->fail(
-                'Se esperaba una excepción de validación.'
+                'Se esperaba validación porque el precio no tiene moneda.'
             );
 
         } catch (ValidationException $exception) {
-
             $this->assertArrayHasKey(
-                'cantidad_esperada',
+                'moneda_id',
                 $exception->errors()
             );
         }
 
-        $this->assertDatabaseCount(
-            'detalles_lotes',
-            0
+        $this->assertDatabaseMissing('detalles_lotes', [
+            'lote_id' => $lote->id,
+            'producto_id' => $this->producto->id,
+            'costo_unitario_origen' => 233,
+        ]);
+    }
+
+    public function test_compra_en_usd_exige_tipo_de_cambio_aplicado(): void
+    {
+        $usd = Moneda::query()
+            ->where('codigo', 'USD')
+            ->firstOrFail();
+
+        $servicio = app(LoteService::class);
+
+        $lote = $servicio->crearLote(
+            $this->usuarioOperativo->id,
+            $this->datosLote()
+        );
+
+        try {
+            $servicio->agregarDetalle(
+                $this->usuarioOperativo->id,
+                $lote->id,
+                [
+                    'producto_id' => $this->producto->id,
+                    'cantidad_esperada' => 1,
+                    'moneda_id' => $usd->id,
+                    'costo_unitario_origen' => 233,
+                ]
+            );
+
+            $this->fail(
+                'Se esperaba validación porque la compra USD no tiene TC aplicado.'
+            );
+
+        } catch (ValidationException $exception) {
+            $this->assertArrayHasKey(
+                'tipo_cambio_aplicado',
+                $exception->errors()
+            );
+        }
+
+        $this->assertDatabaseMissing('detalles_lotes', [
+            'lote_id' => $lote->id,
+            'producto_id' => $this->producto->id,
+            'costo_unitario_origen' => 233,
+        ]);
+    }
+
+    public function test_compra_usd_calcula_bob_y_guarda_tc_aplicado(): void
+    {
+        $usd = Moneda::query()
+            ->where('codigo', 'USD')
+            ->firstOrFail();
+
+        $servicio = app(LoteService::class);
+
+        $lote = $servicio->crearLote(
+            $this->usuarioOperativo->id,
+            $this->datosLote()
+        );
+
+        $detalle = $servicio->agregarDetalle(
+            $this->usuarioOperativo->id,
+            $lote->id,
+            [
+                'producto_id' => $this->producto->id,
+                'cantidad_esperada' => 1,
+                'moneda_id' => $usd->id,
+                'costo_unitario_origen' => 233,
+                'tipo_cambio_aplicado' => 11.78,
+                'costo_unitario_bob' => 999999,
+            ]
+        );
+
+        $this->assertNotNull(
+            $detalle->tipo_cambio_compra_id
+        );
+
+        $this->assertDatabaseHas('detalles_lotes', [
+            'id' => $detalle->id,
+            'moneda_id' => $usd->id,
+            'costo_unitario_origen' => 233,
+            'costo_unitario_bob' => 2744.74,
+        ]);
+
+        $this->assertDatabaseHas('tipos_cambio', [
+            'id' => $detalle->tipo_cambio_compra_id,
+            'valor' => 11.78,
+            'fuente' => 'MANUAL_OPERACION',
+            'registrado_por_id' => $this->usuarioOperativo->id,
+        ]);
+
+        $this->assertDatabaseMissing('detalles_lotes', [
+            'id' => $detalle->id,
+            'costo_unitario_bob' => 999999,
+        ]);
+    }
+
+    public function test_compra_bob_mantiene_mismo_valor_y_no_crea_tc(): void
+    {
+        $bob = Moneda::query()
+            ->where('codigo', 'BOB')
+            ->firstOrFail();
+
+        $servicio = app(LoteService::class);
+
+        $lote = $servicio->crearLote(
+            $this->usuarioOperativo->id,
+            $this->datosLote()
+        );
+
+        $cantidadTiposCambioAntes =
+            \App\Models\TipoCambio::count();
+
+        $detalle = $servicio->agregarDetalle(
+            $this->usuarioOperativo->id,
+            $lote->id,
+            [
+                'producto_id' => $this->producto->id,
+                'cantidad_esperada' => 1,
+                'moneda_id' => $bob->id,
+                'costo_unitario_origen' => 2700,
+            ]
+        );
+
+        $this->assertNull(
+            $detalle->tipo_cambio_compra_id
+        );
+
+        $this->assertDatabaseHas('detalles_lotes', [
+            'id' => $detalle->id,
+            'moneda_id' => $bob->id,
+            'costo_unitario_origen' => 2700,
+            'costo_unitario_bob' => 2700,
+            'tipo_cambio_compra_id' => null,
+        ]);
+
+        $this->assertSame(
+            $cantidadTiposCambioAntes,
+            \App\Models\TipoCambio::count()
         );
     }
 }

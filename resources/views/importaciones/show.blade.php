@@ -518,33 +518,251 @@
                     <div class="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
 
                         {{-- Producto --}}
+<div
+    x-data="{
+        modalProducto: false,
+        guardandoProducto: false,
+        errorProducto: '',
+
+        nuevoProducto: {
+            categoria_producto_id: '',
+            nueva_categoria_nombre: '',
+            marca_id: '',
+            nueva_marca_nombre: '',
+            nombre: '',
+            modelo: '',
+            descripcion: '',
+            es_serializado: true
+        },
+
+        limpiarProducto() {
+            this.errorProducto = '';
+
+            this.nuevoProducto = {
+                categoria_producto_id: '',
+                nueva_categoria_nombre: '',
+                marca_id: '',
+                nueva_marca_nombre: '',
+                nombre: '',
+                modelo: '',
+                descripcion: '',
+                es_serializado: true
+            };
+        },
+
+        async crearProducto() {
+            this.guardandoProducto = true;
+            this.errorProducto = '';
+
+            try {
+                const respuesta = await fetch(
+                    '{{ route('importaciones.catalogo.productos.store') }}',
+                    {
+                        method: 'POST',
+
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Accept': 'application/json',
+                            'X-CSRF-TOKEN':
+                                document
+                                    .querySelector('meta[name=csrf-token]')
+                                    .getAttribute('content')
+                        },
+
+                        body: JSON.stringify(
+                            this.nuevoProducto
+                        )
+                    }
+                );
+
+                const datos = await respuesta.json();
+
+                if (!respuesta.ok) {
+                    if (datos.errors) {
+                        const mensajes =
+                            Object.values(datos.errors)
+                                .flat();
+
+                        this.errorProducto =
+                            mensajes.join(' ');
+                    } else {
+                        this.errorProducto =
+                            datos.message
+                            ?? 'No fue posible crear el producto.';
+                    }
+
+                    return;
+                }
+
+                const select =
+                    document.getElementById(
+                        'producto_id_lote'
+                    );
+
+                const opcion =
+                    document.createElement(
+                        'option'
+                    );
+
+                opcion.value =
+                    datos.producto.id;
+
+                opcion.textContent =
+                    datos.producto.label;
+
+                opcion.selected =
+                    true;
+
+                select.appendChild(
+                    opcion
+                );
+
+                this.modalProducto =
+                    false;
+
+                this.limpiarProducto();
+
+            } catch (error) {
+                this.errorProducto =
+                    'No fue posible comunicarse con el servidor.';
+            } finally {
+                this.guardandoProducto =
+                    false;
+            }
+        }
+    }"
+>
+
+    <div class="mb-2 flex items-center justify-between gap-3">
+
+        <label class="block text-sm font-semibold text-slate-700">
+            Producto *
+        </label>
+
+        <button
+            type="button"
+            @click="
+                limpiarProducto();
+                modalProducto = true;
+            "
+            class="text-xs font-semibold text-slate-700 hover:text-slate-950"
+        >
+            + Nuevo producto
+        </button>
+
+    </div>
+
+
+    <select
+        id="producto_id_lote"
+        name="producto_id"
+        required
+        class="w-full rounded-xl border-slate-300 focus:border-slate-900 focus:ring-slate-900"
+    >
+
+        <option value="">
+            Seleccionar producto
+        </option>
+
+        @foreach($productos as $producto)
+
+            <option
+                value="{{ $producto->id }}"
+                @selected(old('producto_id') == $producto->id)
+            >
+                {{ $producto->marca?->nombre }}
+                {{ $producto->nombre }}
+
+                @if($producto->modelo)
+                    — {{ $producto->modelo }}
+                @endif
+            </option>
+
+        @endforeach
+
+    </select>
+
+
+    {{-- Modal nuevo producto --}}
+    <template x-teleport="body">
+
+        <div
+            x-show="modalProducto"
+            x-cloak
+            @keydown.escape.window="modalProducto = false"
+            class="fixed inset-0 z-50 flex items-center justify-center p-4"
+        >
+
+            {{-- Fondo --}}
+            <div
+                class="absolute inset-0 bg-slate-950/50"
+                @click="modalProducto = false"
+            ></div>
+
+
+            {{-- Modal --}}
+            <div
+                x-show="modalProducto"
+                x-transition
+                class="relative z-10 max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-2xl bg-white shadow-2xl"
+            >
+
+                <div class="flex items-start justify-between border-b border-slate-200 px-6 py-5">
+
+                    <div>
+                        <h3 class="text-lg font-bold text-slate-950">
+                            Nuevo producto
+                        </h3>
+
+                        <p class="mt-1 text-sm text-slate-500">
+                            Registra modelo.
+                        </p>
+                    </div>
+
+
+                    <button
+                        type="button"
+                        @click="modalProducto = false"
+                        class="rounded-lg px-3 py-2 text-slate-400 hover:bg-slate-100 hover:text-slate-900"
+                    >
+                        ✕
+                    </button>
+
+                </div>
+
+
+                <div class="space-y-5 p-6">
+
+                    {{-- Error --}}
+                    <div
+                        x-show="errorProducto"
+                        class="rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-700"
+                        x-text="errorProducto"
+                    ></div>
+
+
+                    <div class="grid gap-5 md:grid-cols-2">
+
+                        {{-- Categoría --}}
                         <div>
 
                             <label class="mb-2 block text-sm font-semibold text-slate-700">
-                                Producto *
+                                Categoría
                             </label>
 
                             <select
-                                name="producto_id"
-                                required
+                                x-model="nuevoProducto.categoria_producto_id"
                                 class="w-full rounded-xl border-slate-300 focus:border-slate-900 focus:ring-slate-900"
                             >
+
                                 <option value="">
-                                    Seleccionar producto
+                                    Seleccionar
                                 </option>
 
-                                @foreach($productos as $producto)
+                                @foreach($categorias as $categoria)
 
-                                    <option
-                                        value="{{ $producto->id }}"
-                                        @selected(old('producto_id') == $producto->id)
-                                    >
-                                        {{ $producto->marca?->nombre }}
-                                        {{ $producto->nombre }}
-
-                                        @if($producto->modelo)
-                                            — {{ $producto->modelo }}
-                                        @endif
+                                    <option value="{{ $categoria->id }}">
+                                        {{ $categoria->nombre }}
                                     </option>
 
                                 @endforeach
@@ -552,6 +770,189 @@
                             </select>
 
                         </div>
+
+
+                        {{-- Nueva categoría --}}
+                        <div>
+
+                            <label class="mb-2 block text-sm font-semibold text-slate-700">
+                                O nueva categoría
+                            </label>
+
+                            <input
+                                type="text"
+                                x-model="nuevoProducto.nueva_categoria_nombre"
+                                placeholder="Ej. Consola"
+                                class="w-full rounded-xl border-slate-300 focus:border-slate-900 focus:ring-slate-900"
+                            >
+
+                        </div>
+
+
+                        {{-- Marca --}}
+                        <div>
+
+                            <label class="mb-2 block text-sm font-semibold text-slate-700">
+                                Marca
+                            </label>
+
+                            <select
+                                x-model="nuevoProducto.marca_id"
+                                class="w-full rounded-xl border-slate-300 focus:border-slate-900 focus:ring-slate-900"
+                            >
+
+                                <option value="">
+                                    Sin marca definida
+                                </option>
+
+                                @foreach($marcas as $marca)
+
+                                    <option value="{{ $marca->id }}">
+                                        {{ $marca->nombre }}
+                                    </option>
+
+                                @endforeach
+
+                            </select>
+
+                        </div>
+
+
+                        {{-- Nueva marca --}}
+                        <div>
+
+                            <label class="mb-2 block text-sm font-semibold text-slate-700">
+                                O nueva marca
+                            </label>
+
+                            <input
+                                type="text"
+                                x-model="nuevoProducto.nueva_marca_nombre"
+                                placeholder="Ej. Lenovo"
+                                class="w-full rounded-xl border-slate-300 focus:border-slate-900 focus:ring-slate-900"
+                            >
+
+                        </div>
+
+
+                        {{-- Nombre --}}
+                        <div>
+
+                            <label class="mb-2 block text-sm font-semibold text-slate-700">
+                                Nombre *
+                            </label>
+
+                            <input
+                                type="text"
+                                x-model="nuevoProducto.nombre"
+                                placeholder="Ej. ThinkPad"
+                                class="w-full rounded-xl border-slate-300 focus:border-slate-900 focus:ring-slate-900"
+                            >
+
+                        </div>
+
+
+                        {{-- Modelo --}}
+                        <div>
+
+                            <label class="mb-2 block text-sm font-semibold text-slate-700">
+                                Modelo
+                            </label>
+
+                            <input
+                                type="text"
+                                x-model="nuevoProducto.modelo"
+                                placeholder="Ej. T14 Gen 3"
+                                class="w-full rounded-xl border-slate-300 focus:border-slate-900 focus:ring-slate-900"
+                            >
+
+                        </div>
+
+                    </div>
+
+
+                    {{-- Descripción --}}
+                    <div>
+
+                        <label class="mb-2 block text-sm font-semibold text-slate-700">
+                            Descripción
+                        </label>
+
+                        <textarea
+                            x-model="nuevoProducto.descripcion"
+                            rows="2"
+                            placeholder="Información adicional del modelo..."
+                            class="w-full rounded-xl border-slate-300 focus:border-slate-900 focus:ring-slate-900"
+                        ></textarea>
+
+                    </div>
+
+
+                    {{-- Serializado --}}
+                    <label class="flex cursor-pointer items-center gap-3 rounded-xl border border-slate-200 p-4">
+
+                        <input
+                            type="checkbox"
+                            x-model="nuevoProducto.es_serializado"
+                            class="rounded border-slate-300 text-slate-950 focus:ring-slate-900"
+                        >
+
+                        <div>
+                            <p class="text-sm font-semibold text-slate-800">
+                                Producto serializado
+                            </p>
+
+                            <p class="text-xs text-slate-500">
+                                Cada unidad será registrada individualmente en inventario.
+                            </p>
+                        </div>
+
+                    </label>
+
+                </div>
+
+
+                <div class="flex justify-end gap-3 border-t border-slate-200 px-6 py-5">
+
+                    <button
+                        type="button"
+                        @click="modalProducto = false"
+                        class="rounded-xl border border-slate-300 px-5 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-50"
+                    >
+                        Cancelar
+                    </button>
+
+                    <button
+                        type="button"
+                        @click="crearProducto()"
+                        :disabled="
+                            guardandoProducto
+                            || !nuevoProducto.nombre
+                            || (
+                                !nuevoProducto.categoria_producto_id
+                                && !nuevoProducto.nueva_categoria_nombre
+                            )
+                        "
+                        class="rounded-xl bg-slate-950 px-5 py-2.5 text-sm font-semibold text-white hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                        <span x-show="!guardandoProducto">
+                            Crear y seleccionar
+                        </span>
+
+                        <span x-show="guardandoProducto">
+                            Guardando...
+                        </span>
+                    </button>
+
+                </div>
+
+            </div>
+
+        </div>
+
+    </template>
+
+</div>
 
 
                         {{-- Cantidad --}}
