@@ -9,6 +9,8 @@ class TipoCambio extends Model
 {
     protected $table = 'tipos_cambio';
 
+    public const UPDATED_AT = null;
+
     protected $fillable = [
         'moneda_origen_id',
         'moneda_destino_id',
