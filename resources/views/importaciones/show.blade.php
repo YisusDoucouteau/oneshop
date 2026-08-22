@@ -63,17 +63,67 @@
                 </div>
 
 
-                <div class="rounded-xl bg-slate-50 px-5 py-4">
-                    <p class="text-xs font-semibold uppercase tracking-wide text-slate-500">
-                        Recepción
-                    </p>
+                <div class="flex flex-col gap-3 sm:flex-row">
 
-                    <p class="mt-1 text-2xl font-bold text-slate-950">
-                        {{ $cantidadRecibida }}
-                        <span class="text-base font-medium text-slate-400">
-                            / {{ $cantidadEsperada }}
-                        </span>
-                    </p>
+                    {{-- Tipo de cambio de referencia --}}
+                    <div class="rounded-xl bg-slate-50 px-5 py-4">
+
+                        <p class="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                            USD / BOB referencia
+                        </p>
+
+                        @if($referenciaUsdBob && ($referenciaUsdBob['tipo_cambio'] ?? null))
+
+                            @php
+                                $tcCabecera = $referenciaUsdBob['tipo_cambio'];
+                            @endphp
+
+                            <p class="mt-1 text-2xl font-bold text-slate-950">
+                                Bs {{ number_format((float) $tcCabecera->valor, 2, ',', '.') }}
+                            </p>
+
+                            <p class="mt-1 text-xs text-slate-500">
+                                BCB vía BCBO
+
+                                @if($referenciaUsdBob['desactualizado'] ?? false)
+                                    · último valor local
+                                @else
+                                    · referencia disponible
+                                @endif
+                            </p>
+
+                        @else
+
+                            <p class="mt-1 text-sm font-semibold text-amber-700">
+                                No disponible
+                            </p>
+
+                            <p class="mt-1 text-xs text-slate-500">
+                                Puedes registrar el TC aplicado manualmente.
+                            </p>
+
+                        @endif
+
+                    </div>
+
+
+                    {{-- Recepción --}}
+                    <div class="rounded-xl bg-slate-50 px-5 py-4">
+
+                        <p class="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                            Recepción
+                        </p>
+
+                        <p class="mt-1 text-2xl font-bold text-slate-950">
+                            {{ $cantidadRecibida }}
+
+                            <span class="text-base font-medium text-slate-400">
+                                / {{ $cantidadEsperada }}
+                            </span>
+                        </p>
+
+                    </div>
+
                 </div>
 
             </div>
@@ -116,7 +166,7 @@
 
                 <div>
                     <p class="text-xs font-semibold uppercase tracking-wide text-slate-400">
-                        Productos
+                        Líneas de compra
                     </p>
 
                     <p class="mt-2 text-sm font-semibold text-slate-800">
@@ -140,7 +190,7 @@
                     </h2>
 
                     <p class="mt-1 text-sm text-slate-500">
-                        Productos esperados y unidades físicamente recibidas.
+                        Cada fila representa una línea de compra. Un mismo producto puede aparecer varias veces.
                     </p>
                 </div>
 
@@ -171,7 +221,7 @@
                             </th>
 
                             <th class="px-6 py-4 text-left text-xs font-semibold uppercase text-slate-500">
-                                Costo unitario
+                                Compra unitaria
                             </th>
 
                             <th class="px-6 py-4"></th>
@@ -204,6 +254,12 @@
                                         {{ $detalle->producto->modelo ?: $detalle->producto->codigo }}
                                     </p>
 
+                                    @if($detalle->observacion)
+                                        <p class="mt-2 max-w-sm text-xs text-slate-500">
+                                            {{ $detalle->observacion }}
+                                        </p>
+                                    @endif
+
                                 </td>
 
 
@@ -224,61 +280,92 @@
                                 </td>
 
 
-                                <td class="px-6 py-5 text-sm text-slate-700">
+                                <td class="px-6 py-5">
 
                                     @if($detalle->costo_unitario_origen !== null)
 
-    <div>
-        @if($detalle->moneda)
+                                        @if($detalle->moneda)
 
-            <p class="font-semibold text-slate-800">
-                {{ $detalle->moneda->codigo }}
-                {{ number_format(
-                    (float) $detalle->costo_unitario_origen,
-                    2
-                ) }}
-            </p>
+                                            <div>
 
-        @else
-
-            <p class="font-semibold text-amber-700">
-                {{ number_format(
-                    (float) $detalle->costo_unitario_origen,
-                    2
-                ) }}
-            </p>
-
-            <p class="mt-1 text-xs text-amber-600">
-                Moneda pendiente
-            </p>
-
-        @endif
+                                                <p class="font-semibold text-slate-900">
+                                                    {{ $detalle->moneda->codigo }}
+                                                    {{ number_format(
+                                                        (float) $detalle->costo_unitario_origen,
+                                                        2,
+                                                        ',',
+                                                        '.'
+                                                    ) }}
+                                                </p>
 
 
-        @if(
-            $detalle->costo_unitario_bob !== null
-            && $detalle->moneda?->codigo !== 'BOB'
-        )
+                                                @if(
+                                                    $detalle->moneda->codigo === 'USD'
+                                                    && $detalle->tipoCambioCompra
+                                                )
 
-            <p class="mt-1 text-xs text-slate-500">
-                ≈ Bs
-                {{ number_format(
-                    (float) $detalle->costo_unitario_bob,
-                    2
-                ) }}
-            </p>
+                                                    <p class="mt-1 text-xs text-slate-500">
+                                                        TC aplicado:
+                                                        Bs
+                                                        {{ number_format(
+                                                            (float) $detalle->tipoCambioCompra->valor,
+                                                            2,
+                                                            ',',
+                                                            '.'
+                                                        ) }}
+                                                        / USD
+                                                    </p>
 
-        @endif
+                                                @endif
 
-    </div>
 
-@else
+                                                @if(
+                                                    $detalle->costo_unitario_bob !== null
+                                                    && $detalle->moneda->codigo !== 'BOB'
+                                                )
 
-    <span class="text-slate-400">
-        Sin precio registrado
-    </span>
+                                                    <p class="mt-1 text-xs font-medium text-slate-600">
+                                                        ≈ Bs
+                                                        {{ number_format(
+                                                            (float) $detalle->costo_unitario_bob,
+                                                            2,
+                                                            ',',
+                                                            '.'
+                                                        ) }}
+                                                    </p>
 
-@endif
+                                                @endif
+
+                                            </div>
+
+                                        @else
+
+                                            <div>
+
+                                                <p class="font-semibold text-amber-700">
+                                                    {{ number_format(
+                                                        (float) $detalle->costo_unitario_origen,
+                                                        2,
+                                                        ',',
+                                                        '.'
+                                                    ) }}
+                                                </p>
+
+                                                <p class="mt-1 text-xs text-amber-600">
+                                                    Moneda pendiente
+                                                </p>
+
+                                            </div>
+
+                                        @endif
+
+                                    @else
+
+                                        <span class="text-sm text-slate-400">
+                                            Sin precio registrado
+                                        </span>
+
+                                    @endif
 
                                 </td>
 
@@ -324,21 +411,36 @@
         </section>
 
 
-        {{-- Agregar producto --}}
+        {{-- Agregar línea de compra --}}
         @if(
             auth()->user()->tienePermiso('importacion.gestionar')
             && $lote->estado === 'ABIERTO'
         )
 
+            @php
+                $monedaAnterior = $monedas->firstWhere(
+                    'id',
+                    (int) old('moneda_id')
+                );
+
+                $codigoMonedaAnterior =
+                    $monedaAnterior?->codigo ?? '';
+
+                $tcReferencia =
+                    $referenciaUsdBob['tipo_cambio']
+                    ?? null;
+            @endphp
+
+
             <section class="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
 
                 <div>
                     <h2 class="font-semibold text-slate-950">
-                        Agregar producto
+                        Agregar línea de compra
                     </h2>
 
                     <p class="mt-1 text-sm text-slate-500">
-                        Define las unidades esperadas antes de iniciar su recepción física.
+                        Define producto, cantidad y datos económicos antes de iniciar su recepción física.
                     </p>
                 </div>
 
@@ -347,12 +449,76 @@
                     method="POST"
                     action="{{ route('importaciones.detalles.store', $lote) }}"
                     class="mt-6"
+                    x-data="{
+                        moneda: @js($codigoMonedaAnterior),
+
+                        precio: @js(
+                            (string) old(
+                                'costo_unitario_origen',
+                                ''
+                            )
+                        ),
+
+                        tc: @js(
+                            (string) old(
+                                'tipo_cambio_aplicado',
+                                $tcReferencia?->valor ?? ''
+                            )
+                        ),
+
+                        formato(valor) {
+                            if (
+                                valor === ''
+                                || valor === null
+                                || isNaN(Number(valor))
+                            ) {
+                                return '—';
+                            }
+
+                            return Number(valor).toLocaleString(
+                                'es-BO',
+                                {
+                                    minimumFractionDigits: 2,
+                                    maximumFractionDigits: 2
+                                }
+                            );
+                        },
+
+                        equivalente() {
+                            if (
+                                this.precio === ''
+                                || this.moneda === ''
+                            ) {
+                                return '—';
+                            }
+
+                            if (this.moneda === 'BOB') {
+                                return 'Bs ' + this.formato(
+                                    this.precio
+                                );
+                            }
+
+                            if (
+                                this.moneda === 'USD'
+                                && this.tc !== ''
+                            ) {
+                                return 'Bs ' + this.formato(
+                                    Number(this.precio)
+                                    * Number(this.tc)
+                                );
+                            }
+
+                            return '—';
+                        }
+                    }"
                 >
                     @csrf
 
-                    <div class="grid gap-5 md:grid-cols-2 xl:grid-cols-4">
 
-                        <div class="xl:col-span-2">
+                    <div class="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
+
+                        {{-- Producto --}}
+                        <div>
 
                             <label class="mb-2 block text-sm font-semibold text-slate-700">
                                 Producto *
@@ -379,7 +545,6 @@
                                         @if($producto->modelo)
                                             — {{ $producto->modelo }}
                                         @endif
-
                                     </option>
 
                                 @endforeach
@@ -389,6 +554,7 @@
                         </div>
 
 
+                        {{-- Cantidad --}}
                         <div>
 
                             <label class="mb-2 block text-sm font-semibold text-slate-700">
@@ -407,6 +573,7 @@
                         </div>
 
 
+                        {{-- Moneda --}}
                         <div>
 
                             <label class="mb-2 block text-sm font-semibold text-slate-700">
@@ -416,63 +583,168 @@
                             <select
                                 name="moneda_id"
                                 class="w-full rounded-xl border-slate-300 focus:border-slate-900 focus:ring-slate-900"
+                                @change="
+                                    moneda =
+                                        $event.target
+                                            .selectedOptions[0]
+                                            ?.dataset.codigo
+                                        || ''
+                                "
                             >
 
-                                <option value="">
+                                <option
+                                    value=""
+                                    data-codigo=""
+                                >
                                     No definida
                                 </option>
 
                                 @foreach($monedas as $moneda)
+
                                     <option
                                         value="{{ $moneda->id }}"
+                                        data-codigo="{{ $moneda->codigo }}"
                                         @selected(old('moneda_id') == $moneda->id)
                                     >
                                         {{ $moneda->codigo }}
+                                        — {{ $moneda->nombre }}
                                     </option>
+
                                 @endforeach
 
                             </select>
 
-                        </div>
-
-
-                        <div>
-
-                            <label class="mb-2 block text-sm font-semibold text-slate-700">
-    Precio unitario de compra
-</label>
-
-                            <input
-                                type="number"
-                                step="0.01"
-                                min="0"
-                                name="costo_unitario_origen"
-                                value="{{ old('costo_unitario_origen') }}"
-                                class="w-full rounded-xl border-slate-300 focus:border-slate-900 focus:ring-slate-900"
-                            >
+                            <p class="mt-1 text-xs text-slate-500">
+                                Si registras precio, la moneda es obligatoria.
+                            </p>
 
                         </div>
 
 
+                        {{-- Precio --}}
                         <div>
 
                             <label class="mb-2 block text-sm font-semibold text-slate-700">
-                                Costo unitario Bs
+                                Precio unitario de compra
                             </label>
 
                             <input
                                 type="number"
                                 step="0.01"
                                 min="0"
-                                name="costo_unitario_bob"
-                                value="{{ old('costo_unitario_bob') }}"
+                                name="costo_unitario_origen"
+                                x-model="precio"
+                                value="{{ old('costo_unitario_origen') }}"
+                                placeholder="Ej. 233.00"
                                 class="w-full rounded-xl border-slate-300 focus:border-slate-900 focus:ring-slate-900"
                             >
+
+                            <p class="mt-1 text-xs text-slate-500">
+                                Precio pagado por unidad en la moneda seleccionada.
+                            </p>
 
                         </div>
 
 
-                        <div class="md:col-span-2">
+                        {{-- Tipo de cambio aplicado --}}
+                        <div
+                            x-show="moneda === 'USD'"
+                            x-transition
+                        >
+
+                            <label class="mb-2 block text-sm font-semibold text-slate-700">
+                                Tipo de cambio aplicado
+                            </label>
+
+
+                            @if($tcReferencia)
+
+                                <div class="mb-2 rounded-lg bg-slate-50 px-3 py-2">
+
+                                    <p class="text-xs text-slate-500">
+                                        Referencia disponible
+                                    </p>
+
+                                    <p class="mt-0.5 text-sm font-semibold text-slate-800">
+                                        Bs
+                                        {{ number_format(
+                                            (float) $tcReferencia->valor,
+                                            2,
+                                            ',',
+                                            '.'
+                                        ) }}
+                                        / USD
+                                    </p>
+
+                                    <p class="mt-1 text-[11px] text-slate-500">
+                                        BCB vía BCBO
+
+                                        @if($referenciaUsdBob['desactualizado'] ?? false)
+                                            · último valor local
+                                        @endif
+                                    </p>
+
+                                </div>
+
+                            @else
+
+                                <div class="mb-2 rounded-lg bg-amber-50 px-3 py-2">
+                                    <p class="text-xs font-medium text-amber-700">
+                                        No fue posible obtener una referencia automática.
+                                    </p>
+                                </div>
+
+                            @endif
+
+
+                            <input
+                                type="number"
+                                step="0.000001"
+                                min="0.000001"
+                                name="tipo_cambio_aplicado"
+                                x-model="tc"
+                                :disabled="moneda !== 'USD'"
+                                :required="
+                                    moneda === 'USD'
+                                    && precio !== ''
+                                "
+                                class="w-full rounded-xl border-slate-300 focus:border-slate-900 focus:ring-slate-900"
+                            >
+
+                            <p class="mt-1 text-xs text-slate-500">
+                                Confirma o modifica el TC según el valor realmente utilizado en la compra.
+                            </p>
+
+                        </div>
+
+
+                        {{-- Equivalente --}}
+                        <div>
+
+                            <label class="mb-2 block text-sm font-semibold text-slate-700">
+                                Equivalente unitario en Bs
+                            </label>
+
+                            <div class="flex min-h-[42px] items-center rounded-xl border border-slate-200 bg-slate-50 px-4">
+
+                                <span
+                                    class="text-sm font-bold text-slate-900"
+                                    x-text="equivalente()"
+                                >
+                                    —
+                                </span>
+
+                            </div>
+
+                            <p class="mt-1 text-xs text-slate-500">
+                                Vista previa. El servidor vuelve a calcularlo al guardar.
+                            </p>
+
+                        </div>
+
+
+                        {{-- Observación --}}
+                        <div class="md:col-span-2 xl:col-span-3">
 
                             <label class="mb-2 block text-sm font-semibold text-slate-700">
                                 Observación
@@ -482,6 +754,7 @@
                                 type="text"
                                 name="observacion"
                                 value="{{ old('observacion') }}"
+                                placeholder="Ej. segunda compra del mismo modelo, remate, oferta..."
                                 class="w-full rounded-xl border-slate-300 focus:border-slate-900 focus:ring-slate-900"
                             >
 

@@ -14,7 +14,7 @@ use App\Services\LoteService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Validation\ValidationException;
 use Tests\TestCase;
-
+use App\Models\Moneda;
 class LoteServiceTest extends TestCase
 {
     use RefreshDatabase;
@@ -178,25 +178,37 @@ class LoteServiceTest extends TestCase
     }
 
     public function test_proveedor_inactivo_no_puede_usarse(): void
-    {
-        $this->proveedor->update([
-            'activo' => false,
-        ]);
+{
+    $this->proveedor->update([
+        'activo' => false,
+    ]);
 
-        $this->expectException(
-            ReglaNegocioException::class
-        );
-
-        $this->expectExceptionMessage(
-            'proveedor no existe o se encuentra inactivo'
-        );
-
+    try {
         app(LoteService::class)
             ->crearLote(
                 $this->usuarioOperativo->id,
                 $this->datosLote()
             );
+
+        $this->fail(
+            'Se esperaba una excepción por proveedor inactivo.'
+        );
+
+    } catch (ReglaNegocioException $exception) {
+
+        $this->assertStringContainsString(
+            'se encuentra inactivo',
+            $exception->getMessage()
+        );
     }
+
+    $this->assertDatabaseMissing(
+        'lotes',
+        [
+            'codigo' => 'IMP-TEST-001',
+        ]
+    );
+}
 
     public function test_vendedor_no_puede_gestionar_importaciones(): void
     {
@@ -253,7 +265,16 @@ class LoteServiceTest extends TestCase
 
     public function test_permite_mismo_producto_en_dos_lineas_del_mismo_lote(): void
 {
-    $servicio = app(LoteService::class);
+    $bob = Moneda::query()
+        ->where(
+            'codigo',
+            'BOB'
+        )
+        ->firstOrFail();
+
+    $servicio = app(
+        LoteService::class
+    );
 
     $lote = $servicio->crearLote(
         $this->usuarioOperativo->id,
@@ -264,10 +285,20 @@ class LoteServiceTest extends TestCase
         $this->usuarioOperativo->id,
         $lote->id,
         [
-            'producto_id' => $this->producto->id,
-            'cantidad_esperada' => 2,
-            'costo_unitario_origen' => 220,
-            'observacion' => 'Primera operación de compra.',
+            'producto_id' =>
+                $this->producto->id,
+
+            'cantidad_esperada' =>
+                2,
+
+            'moneda_id' =>
+                $bob->id,
+
+            'costo_unitario_origen' =>
+                2200,
+
+            'observacion' =>
+                'Primera operación de compra.',
         ]
     );
 
@@ -275,10 +306,20 @@ class LoteServiceTest extends TestCase
         $this->usuarioOperativo->id,
         $lote->id,
         [
-            'producto_id' => $this->producto->id,
-            'cantidad_esperada' => 1,
-            'costo_unitario_origen' => 205,
-            'observacion' => 'Segunda operación de compra.',
+            'producto_id' =>
+                $this->producto->id,
+
+            'cantidad_esperada' =>
+                1,
+
+            'moneda_id' =>
+                $bob->id,
+
+            'costo_unitario_origen' =>
+                2050,
+
+            'observacion' =>
+                'Segunda operación de compra.',
         ]
     );
 
@@ -287,29 +328,64 @@ class LoteServiceTest extends TestCase
         $detalleDos->id
     );
 
-    $this->assertDatabaseCount(
-        'detalles_lotes',
-        2
-    );
-
     $this->assertDatabaseHas(
         'detalles_lotes',
         [
-            'id' => $detalleUno->id,
-            'producto_id' => $this->producto->id,
-            'cantidad_esperada' => 2,
-            'costo_unitario_origen' => 220,
+            'id' =>
+                $detalleUno->id,
+
+            'producto_id' =>
+                $this->producto->id,
+
+            'moneda_id' =>
+                $bob->id,
+
+            'cantidad_esperada' =>
+                2,
+
+            'costo_unitario_origen' =>
+                2200,
+
+            'costo_unitario_bob' =>
+                2200,
         ]
     );
 
     $this->assertDatabaseHas(
         'detalles_lotes',
         [
-            'id' => $detalleDos->id,
-            'producto_id' => $this->producto->id,
-            'cantidad_esperada' => 1,
-            'costo_unitario_origen' => 205,
+            'id' =>
+                $detalleDos->id,
+
+            'producto_id' =>
+                $this->producto->id,
+
+            'moneda_id' =>
+                $bob->id,
+
+            'cantidad_esperada' =>
+                1,
+
+            'costo_unitario_origen' =>
+                2050,
+
+            'costo_unitario_bob' =>
+                2050,
         ]
+    );
+
+    $this->assertSame(
+        2,
+        \App\Models\DetalleLote::query()
+            ->where(
+                'lote_id',
+                $lote->id
+            )
+            ->where(
+                'producto_id',
+                $this->producto->id
+            )
+            ->count()
     );
 }
 

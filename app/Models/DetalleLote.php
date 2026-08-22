@@ -23,12 +23,11 @@ class DetalleLote extends Model
     ];
 
     protected $casts = [
-            'cantidad_esperada' => 'integer',
-            'cantidad_recibida' => 'integer',
-
-            'costo_unitario_origen' => 'decimal:2',
-            'costo_unitario_bob' => 'decimal:2',
-        ];
+        'cantidad_esperada' => 'integer',
+        'cantidad_recibida' => 'integer',
+        'costo_unitario_origen' => 'decimal:2',
+        'costo_unitario_bob' => 'decimal:2',
+    ];
 
     public function lote(): BelongsTo
     {
@@ -40,26 +39,18 @@ class DetalleLote extends Model
         return $this->belongsTo(Producto::class);
     }
 
+    public function moneda(): BelongsTo
+    {
+        return $this->belongsTo(Moneda::class, 'moneda_id');
+    }
+
+    public function tipoCambioCompra(): BelongsTo
+    {
+        return $this->belongsTo(TipoCambio::class, 'tipo_cambio_compra_id');
+    }
+
     public function equipos(): HasMany
     {
-        return $this->hasMany(
-            Equipo::class,
-            'detalle_lote_id'
-        );
+        return $this->hasMany(Equipo::class, 'detalle_lote_id');
     }
-    public function moneda(): BelongsTo
-{
-    return $this->belongsTo(
-        Moneda::class,
-        'moneda_id'
-    );
-}
-
-public function tipoCambioCompra(): BelongsTo
-{
-    return $this->belongsTo(
-        TipoCambio::class,
-        'tipo_cambio_compra_id'
-    );
-}
 }
