@@ -5,6 +5,7 @@ use App\Http\Controllers\ProfileController;
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\ImportacionController;
 use App\Http\Controllers\CatalogoImportacionController;
+use App\Http\Controllers\RecepcionLoteController;
 Route::get('/', function () {
     return view('welcome');
 });
@@ -43,7 +44,26 @@ Route::middleware([
 | Importaciones
 |--------------------------------------------------------------------------
 */
+Route::get(
+    '/importaciones/{lote}/detalles/{detalle}/recepcion',
+    [RecepcionLoteController::class, 'create']
+)
+    ->middleware([
+        'permiso:importacion.gestionar',
+        'permiso:inventario.registrar',
+    ])
+    ->name('importaciones.recepcion.create');
 
+
+Route::post(
+    '/importaciones/{lote}/detalles/{detalle}/recepcion',
+    [RecepcionLoteController::class, 'store']
+)
+    ->middleware([
+        'permiso:importacion.gestionar',
+        'permiso:inventario.registrar',
+    ])
+    ->name('importaciones.recepcion.store');
 Route::get(
     '/importaciones',
     [ImportacionController::class, 'index']

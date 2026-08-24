@@ -5,7 +5,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
-
+use Illuminate\Database\Eloquent\Relations\HasOne;
 class DetalleLote extends Model
 {
     protected $table = 'detalles_lotes';
@@ -53,4 +53,26 @@ class DetalleLote extends Model
     {
         return $this->hasMany(Equipo::class, 'detalle_lote_id');
     }
+    public function especificacionEsperada(): HasOne
+{
+    return $this->hasOne(
+        EspecificacionEsperadaDetalleLote::class,
+        'detalle_lote_id'
+    );
+}
+
+public function componentesEsperados(): HasMany
+{
+    return $this->hasMany(
+        ComponenteEsperadoDetalleLote::class,
+        'detalle_lote_id'
+    );
+}
+public function unidadesAdquiridas(): HasMany
+{
+    return $this->hasMany(
+        UnidadAdquirida::class,
+        'detalle_lote_id'
+    );
+}
 }

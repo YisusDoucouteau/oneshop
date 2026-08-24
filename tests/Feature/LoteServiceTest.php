@@ -494,4 +494,434 @@ class LoteServiceTest extends TestCase
             \App\Models\TipoCambio::count()
         );
     }
+    public function test_compra_en_usdt_exige_tipo_de_cambio_aplicado(): void
+{
+    $usdt = Moneda::query()
+        ->where('codigo', 'USDT')
+        ->firstOrFail();
+
+    $lote = app(
+        LoteService::class
+    )->crearLote(
+        $this->usuarioOperativo->id,
+        [
+            'codigo' =>
+                'IMP-TEST-USDT-001',
+
+            'proveedor_id' =>
+                $this->proveedor->id,
+
+            'referencia_compra' =>
+                'Compra USDT sin TC',
+
+            'origen' =>
+                'Estados Unidos',
+        ]
+    );
+
+    try {
+        app(
+            LoteService::class
+        )->agregarDetalle(
+            $this->usuarioOperativo->id,
+            $lote->id,
+            [
+                'producto_id' =>
+                    $this->producto->id,
+
+                'moneda_id' =>
+                    $usdt->id,
+
+                'cantidad_esperada' =>
+                    1,
+
+                'costo_unitario_origen' =>
+                    233,
+            ]
+        );
+
+        $this->fail(
+            'Se esperaba ValidationException por falta de TC aplicado para USDT.'
+        );
+
+    } catch (ValidationException $exception) {
+
+        $this->assertArrayHasKey(
+            'tipo_cambio_aplicado',
+            $exception->errors()
+        );
+    }
+
+    $this->assertDatabaseMissing(
+        'detalles_lotes',
+        [
+            'lote_id' =>
+                $lote->id,
+
+            'producto_id' =>
+                $this->producto->id,
+        ]
+    );
+}
+
+
+public function test_compra_usdt_calcula_bob_y_guarda_tc_aplicado(): void
+{
+    $usdt = Moneda::query()
+        ->where('codigo', 'USDT')
+        ->firstOrFail();
+
+    $bob = Moneda::query()
+        ->where('codigo', 'BOB')
+        ->firstOrFail();
+
+    $lote = app(
+        LoteService::class
+    )->crearLote(
+        $this->usuarioOperativo->id,
+        [
+            'codigo' =>
+                'IMP-TEST-USDT-002',
+
+            'proveedor_id' =>
+                $this->proveedor->id,
+
+            'referencia_compra' =>
+                'Compra real USDT',
+
+            'origen' =>
+                'Estados Unidos',
+        ]
+    );
+
+    $detalle = app(
+        LoteService::class
+    )->agregarDetalle(
+        $this->usuarioOperativo->id,
+        $lote->id,
+        [
+            'producto_id' =>
+                $this->producto->id,
+
+            'moneda_id' =>
+                $usdt->id,
+
+            'cantidad_esperada' =>
+                1,
+
+            'costo_unitario_origen' =>
+                233,
+
+            'tipo_cambio_aplicado' =>
+                12.05,
+
+            /*
+             * Intentamos enviar un costo BOB falso.
+             * El backend debe ignorarlo.
+             */
+            'costo_unitario_bob' =>
+                999999,
+        ]
+    );
+
+    /*
+     * 233 × 12.05 = 2807.65
+     */
+    $this->assertEquals(
+        2807.65,
+        (float) $detalle->costo_unitario_bob
+    );
+
+    $this->assertNotNull(
+        $detalle->tipo_cambio_compra_id
+    );
+
+    $this->assertDatabaseHas(
+        'tipos_cambio',
+        [
+            'id' =>
+                $detalle->tipo_cambio_compra_id,
+
+            'moneda_origen_id' =>
+                $usdt->id,
+
+            'moneda_destino_id' =>
+                $bob->id,
+
+            'valor' =>
+                12.050000,
+
+            'fuente' =>
+                'MANUAL_OPERACION',
+
+            'registrado_por_id' =>
+                $this->usuarioOperativo->id,
+        ]
+    );
+
+    $this->assertDatabaseHas(
+        'detalles_lotes',
+        [
+            'id' =>
+                $detalle->id,
+
+            'moneda_id' =>
+                $usdt->id,
+
+            'costo_unitario_origen' =>
+                233.00,
+
+            'costo_unitario_bob' =>
+                2807.65,
+        ]
+    );
+
+    /*
+     * Verifica que jamás se haya confiado en
+     * costo_unitario_bob enviado por frontend.
+     */
+    $this->assertDatabaseMissing(
+        'detalles_lotes',
+        [
+            'id' =>
+                $detalle->id,
+
+            'costo_unitario_bob' =>
+                999999,
+        ]
+    );
+}
+public function test_guarda_especificaciones_esperadas_de_la_linea_de_compra(): void
+{
+    $servicio = app(LoteService::class);
+
+    $lote = $servicio->crearLote(
+        $this->usuarioOperativo->id,
+        $this->datosLote(
+            'IMP-TEST-ESP-001'
+        )
+    );
+
+    $detalle = $servicio->agregarDetalle(
+        $this->usuarioOperativo->id,
+        $lote->id,
+        [
+            'producto_id' =>
+                $this->producto->id,
+
+            'cantidad_esperada' =>
+                3,
+
+            'especificacion_esperada' => [
+                'procesador' =>
+                    'Intel Core i5-1145G7',
+
+                'generacion_procesador' =>
+                    '11',
+
+                'ram_gb' =>
+                    16,
+
+                'almacenamiento_gb' =>
+                    512,
+
+                'tipo_almacenamiento' =>
+                    'SSD',
+
+                'tarjeta_grafica' =>
+                    'Intel Iris Xe',
+
+                'pantalla_pulgadas' =>
+                    14,
+
+                'resolucion' =>
+                    '1920x1080',
+
+                'sistema_operativo' =>
+                    'Windows 11 Pro',
+            ],
+        ]
+    );
+
+    $this->assertDatabaseHas(
+        'especificaciones_esperadas_detalles_lotes',
+        [
+            'detalle_lote_id' =>
+                $detalle->id,
+
+            'procesador' =>
+                'Intel Core i5-1145G7',
+
+            'generacion_procesador' =>
+                '11',
+
+            'ram_gb' =>
+                16,
+
+            'almacenamiento_gb' =>
+                512,
+
+            'tipo_almacenamiento' =>
+                'SSD',
+
+            'tarjeta_grafica' =>
+                'Intel Iris Xe',
+
+            'pantalla_pulgadas' =>
+                14.0,
+
+            'resolucion' =>
+                '1920x1080',
+
+            'sistema_operativo' =>
+                'Windows 11 Pro',
+        ]
+    );
+
+    /*
+     * La especificación pertenece a la línea,
+     * no se duplica por cada una de las 3 unidades.
+     */
+    $this->assertSame(
+        1,
+        \App\Models\EspecificacionEsperadaDetalleLote::query()
+            ->where(
+                'detalle_lote_id',
+                $detalle->id
+            )
+            ->count()
+    );
+
+    $this->assertSame(
+        3,
+        $detalle->cantidad_esperada
+    );
+}
+
+
+public function test_guarda_componentes_esperados_por_unidad(): void
+{
+    $servicio = app(LoteService::class);
+
+    $lote = $servicio->crearLote(
+        $this->usuarioOperativo->id,
+        $this->datosLote(
+            'IMP-TEST-COMP-001'
+        )
+    );
+
+    $detalle = $servicio->agregarDetalle(
+        $this->usuarioOperativo->id,
+        $lote->id,
+        [
+            'producto_id' =>
+                $this->producto->id,
+
+            'cantidad_esperada' =>
+                3,
+
+            'componentes_esperados' => [
+                [
+                    'nombre' =>
+                        'Cargador',
+
+                    'cantidad_por_unidad' =>
+                        1,
+
+                    'incluido_en_compra' =>
+                        true,
+
+                    'observacion' =>
+                        'Cargador original informado por proveedor.',
+                ],
+                [
+                    'nombre' =>
+                        'Cable de poder',
+
+                    'cantidad_por_unidad' =>
+                        1,
+
+                    'incluido_en_compra' =>
+                        true,
+                ],
+            ],
+        ]
+    );
+
+    $this->assertDatabaseHas(
+        'componentes_esperados_detalles_lotes',
+        [
+            'detalle_lote_id' =>
+                $detalle->id,
+
+            'nombre' =>
+                'Cargador',
+
+            'cantidad_por_unidad' =>
+                1,
+
+            'incluido_en_compra' =>
+                1,
+
+            'observacion' =>
+                'Cargador original informado por proveedor.',
+        ]
+    );
+
+    $this->assertDatabaseHas(
+        'componentes_esperados_detalles_lotes',
+        [
+            'detalle_lote_id' =>
+                $detalle->id,
+
+            'nombre' =>
+                'Cable de poder',
+
+            'cantidad_por_unidad' =>
+                1,
+
+            'incluido_en_compra' =>
+                1,
+        ]
+    );
+
+    /*
+     * Son dos TIPOS de componentes esperados.
+     * No se crean tres cargadores físicamente.
+     */
+    $this->assertSame(
+        2,
+        \App\Models\ComponenteEsperadoDetalleLote::query()
+            ->where(
+                'detalle_lote_id',
+                $detalle->id
+            )
+            ->count()
+    );
+
+    /*
+     * Para cargador:
+     * 3 equipos × 1 por unidad = 3 esperados.
+     */
+    $cargador =
+        \App\Models\ComponenteEsperadoDetalleLote::query()
+            ->where(
+                'detalle_lote_id',
+                $detalle->id
+            )
+            ->where(
+                'nombre',
+                'Cargador'
+            )
+            ->firstOrFail();
+
+    $totalCargadoresEsperados =
+        $detalle->cantidad_esperada
+        * $cargador->cantidad_por_unidad;
+
+    $this->assertSame(
+        3,
+        $totalCargadoresEsperados
+    );
+}
 }

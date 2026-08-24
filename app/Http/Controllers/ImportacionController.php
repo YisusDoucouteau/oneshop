@@ -166,19 +166,21 @@ class ImportacionController extends Controller
         Lote $lote,
         TipoCambioService $tipoCambioService
     ): View {
-        $lote->load([
-            'proveedor',
+       $lote->load([
+         'proveedor',
 
-            'detalles.producto.marca',
-            'detalles.producto.categoria',
-            'detalles.moneda',
-            'detalles.tipoCambioCompra',
+       'detalles.producto.marca',
+        'detalles.producto.categoria',
+       'detalles.moneda',
+       'detalles.tipoCambioCompra',
+       'detalles.especificacionEsperada',
+       'detalles.componentesEsperados',
 
-            'eventosLogisticos.tipoEvento',
-            'eventosLogisticos.usuario',
+      'eventosLogisticos.tipoEvento',
+      'eventosLogisticos.usuario',
 
-            'costos.tipoCosto',
-            'costos.moneda',
+        'costos.tipoCosto',
+        'costos.moneda',
         ]);
 
         $productos = Producto::query()
@@ -205,8 +207,8 @@ class ImportacionController extends Controller
         $monedas = Moneda::query()
             ->where('activo', true)
             ->whereIn(
-                'codigo',
-                ['BOB', 'USD']
+                 'codigo',
+             ['BOB', 'USD', 'USDT']
             )
             ->orderBy('codigo')
             ->get();

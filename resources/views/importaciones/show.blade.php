@@ -253,7 +253,111 @@
                                     <p class="mt-1 text-xs text-slate-500">
                                         {{ $detalle->producto->modelo ?: $detalle->producto->codigo }}
                                     </p>
+                                        {{-- Información esperada de la compra --}}
+@php
+    $especificacionEsperada =
+        $detalle->especificacionEsperada;
 
+    $datosEsperados = [];
+
+    if ($especificacionEsperada?->procesador) {
+        $datosEsperados[] =
+            $especificacionEsperada->procesador;
+    }
+
+    if ($especificacionEsperada?->ram_gb) {
+        $datosEsperados[] =
+            $especificacionEsperada->ram_gb
+            . ' GB RAM';
+    }
+
+    if ($especificacionEsperada?->almacenamiento_gb) {
+        $almacenamiento =
+            $especificacionEsperada->almacenamiento_gb
+            . ' GB';
+
+        if (
+            $especificacionEsperada
+                ->tipo_almacenamiento
+        ) {
+            $almacenamiento .=
+                ' '
+                . $especificacionEsperada
+                    ->tipo_almacenamiento;
+        }
+
+        $datosEsperados[] =
+            $almacenamiento;
+    }
+
+    if ($especificacionEsperada?->pantalla_pulgadas) {
+        $datosEsperados[] =
+            number_format(
+                (float) $especificacionEsperada
+                    ->pantalla_pulgadas,
+                1,
+                ',',
+                '.'
+            )
+            . '"';
+    }
+@endphp
+
+@if(
+    count($datosEsperados) > 0
+    || $detalle->componentesEsperados->isNotEmpty()
+)
+    <div class="mt-3 space-y-2">
+
+        @if(count($datosEsperados) > 0)
+            <div>
+                <p
+                    class="text-[11px] font-semibold uppercase
+                           tracking-wide text-slate-400"
+                >
+                    Esperado
+                </p>
+
+                <p class="mt-1 text-xs font-medium text-slate-600">
+                    {{ implode(' · ', $datosEsperados) }}
+                </p>
+            </div>
+        @endif
+
+
+        @if($detalle->componentesEsperados->isNotEmpty())
+            <div>
+                <p
+                    class="text-[11px] font-semibold uppercase
+                           tracking-wide text-slate-400"
+                >
+                    Incluye
+                </p>
+
+                <div class="mt-1 flex flex-wrap gap-1.5">
+                    @foreach(
+                        $detalle->componentesEsperados
+                        as $componente
+                    )
+                        <span
+                            class="rounded-md bg-slate-100
+                                   px-2 py-1 text-[11px]
+                                   font-medium text-slate-600"
+                        >
+                            {{ $componente->nombre }}
+                            ×{{ $componente->cantidad_por_unidad }}/u
+                        </span>
+                    @endforeach
+                </div>
+            </div>
+        @endif
+
+    </div>
+@else
+    <p class="mt-2 text-xs italic text-slate-400">
+        Sin características informadas
+    </p>
+@endif
                                     @if($detalle->observacion)
                                         <p class="mt-2 max-w-sm text-xs text-slate-500">
                                             {{ $detalle->observacion }}
@@ -372,18 +476,41 @@
 
                                 <td class="px-6 py-5 text-right">
 
-                                    @if(
-                                        auth()->user()->tienePermiso('importacion.gestionar')
-                                        && $pendientes > 0
-                                    )
-                                        <span class="text-xs font-semibold text-slate-400">
-                                            Recibir equipo →
-                                        </span>
-                                    @else
-                                        <span class="text-xs text-slate-400">
-                                            Completo
-                                        </span>
-                                    @endif
+                                   @if(
+    auth()->user()->tienePermiso('importacion.gestionar')
+    && auth()->user()->tienePermiso('inventario.registrar')
+    && $pendientes > 0
+    && $detalle->producto->es_serializado
+)
+
+    <a
+        href="{{ route(
+            'importaciones.recepcion.create',
+            [
+                'lote' => $lote,
+                'detalle' => $detalle,
+            ]
+        ) }}"
+        class="text-xs font-semibold text-slate-600 hover:text-slate-950"
+    >
+        Recibir equipo →
+    </a>
+
+@elseif(
+    !$detalle->producto->es_serializado
+)
+
+    <span class="text-xs text-slate-400">
+        Recepción por existencias
+    </span>
+
+@else
+
+    <span class="text-xs text-slate-400">
+        Completo
+    </span>
+
+@endif
 
                                 </td>
 
@@ -484,33 +611,33 @@
                             );
                         },
 
-                        equivalente() {
-                            if (
-                                this.precio === ''
-                                || this.moneda === ''
-                            ) {
-                                return '—';
-                            }
+                       equivalente() {
+    if (
+        this.precio === ''
+        || this.moneda === ''
+    ) {
+        return '—';
+    }
 
-                            if (this.moneda === 'BOB') {
-                                return 'Bs ' + this.formato(
-                                    this.precio
-                                );
-                            }
+    if (this.moneda === 'BOB') {
+        return 'Bs ' + this.formato(
+            this.precio
+        );
+    }
 
-                            if (
-                                this.moneda === 'USD'
-                                && this.tc !== ''
-                            ) {
-                                return 'Bs ' + this.formato(
-                                    Number(this.precio)
-                                    * Number(this.tc)
-                                );
-                            }
+    if (
+        ['USD', 'USDT'].includes(this.moneda)
+        && this.tc !== ''
+    ) {
+        return 'Bs ' + this.formato(
+            Number(this.precio)
+            * Number(this.tc)
+        );
+    }
 
-                            return '—';
-                        }
-                    }"
+    return '—';
+}
+                   } "
                 >
                     @csrf
 
@@ -985,11 +1112,31 @@
                                 name="moneda_id"
                                 class="w-full rounded-xl border-slate-300 focus:border-slate-900 focus:ring-slate-900"
                                 @change="
-                                    moneda =
-                                        $event.target
-                                            .selectedOptions[0]
-                                            ?.dataset.codigo
-                                        || ''
+    const nuevaMoneda =
+        $event.target
+            .selectedOptions[0]
+            ?.dataset.codigo
+        || '';
+
+    moneda = nuevaMoneda;
+
+    if (nuevaMoneda === 'USD') {
+        tc = @js(
+            (string) (
+                $tcReferencia?->valor
+                ?? ''
+            )
+        );
+    }
+
+    if (nuevaMoneda === 'USDT') {
+        tc = '';
+    }
+
+    if (nuevaMoneda === 'BOB') {
+        tc = '';
+    }
+
                                 "
                             >
 
@@ -1047,77 +1194,129 @@
                         </div>
 
 
+                      
                         {{-- Tipo de cambio aplicado --}}
-                        <div
-                            x-show="moneda === 'USD'"
-                            x-transition
-                        >
+<div
+    x-show="
+        moneda === 'USD'
+        || moneda === 'USDT'
+    "
+    x-transition
+>
 
-                            <label class="mb-2 block text-sm font-semibold text-slate-700">
-                                Tipo de cambio aplicado
-                            </label>
-
-
-                            @if($tcReferencia)
-
-                                <div class="mb-2 rounded-lg bg-slate-50 px-3 py-2">
-
-                                    <p class="text-xs text-slate-500">
-                                        Referencia disponible
-                                    </p>
-
-                                    <p class="mt-0.5 text-sm font-semibold text-slate-800">
-                                        Bs
-                                        {{ number_format(
-                                            (float) $tcReferencia->valor,
-                                            2,
-                                            ',',
-                                            '.'
-                                        ) }}
-                                        / USD
-                                    </p>
-
-                                    <p class="mt-1 text-[11px] text-slate-500">
-                                        BCB vía BCBO
-
-                                        @if($referenciaUsdBob['desactualizado'] ?? false)
-                                            · último valor local
-                                        @endif
-                                    </p>
-
-                                </div>
-
-                            @else
-
-                                <div class="mb-2 rounded-lg bg-amber-50 px-3 py-2">
-                                    <p class="text-xs font-medium text-amber-700">
-                                        No fue posible obtener una referencia automática.
-                                    </p>
-                                </div>
-
-                            @endif
+    <label class="mb-2 block text-sm font-semibold text-slate-700">
+        Tipo de cambio aplicado
+    </label>
 
 
-                            <input
-                                type="number"
-                                step="0.000001"
-                                min="0.000001"
-                                name="tipo_cambio_aplicado"
-                                x-model="tc"
-                                :disabled="moneda !== 'USD'"
-                                :required="
-                                    moneda === 'USD'
-                                    && precio !== ''
-                                "
-                                class="w-full rounded-xl border-slate-300 focus:border-slate-900 focus:ring-slate-900"
-                            >
+    {{-- Referencia solamente para USD --}}
+    <template x-if="moneda === 'USD'">
 
-                            <p class="mt-1 text-xs text-slate-500">
-                                Confirma o modifica el TC según el valor realmente utilizado en la compra.
-                            </p>
+        <div>
 
-                        </div>
+            @if($tcReferencia)
 
+                <div class="mb-2 rounded-lg bg-slate-50 px-3 py-2">
+
+                    <p class="text-xs text-slate-500">
+                        Referencia USD/BOB disponible
+                    </p>
+
+                    <p class="mt-0.5 text-sm font-semibold text-slate-800">
+                        Bs
+                        {{ number_format(
+                            (float) $tcReferencia->valor,
+                            2,
+                            ',',
+                            '.'
+                        ) }}
+                        / USD
+                    </p>
+
+                    <p class="mt-1 text-[11px] text-slate-500">
+                        BCB vía BCBO
+
+                        @if($referenciaUsdBob['desactualizado'] ?? false)
+                            · último valor local
+                        @endif
+                    </p>
+
+                </div>
+
+            @else
+
+                <div class="mb-2 rounded-lg bg-amber-50 px-3 py-2">
+
+                    <p class="text-xs font-medium text-amber-700">
+                        No fue posible obtener una referencia USD/BOB automática.
+                    </p>
+
+                </div>
+
+            @endif
+
+        </div>
+
+    </template>
+
+
+    {{-- USDT no usa referencia BCB --}}
+    <template x-if="moneda === 'USDT'">
+
+        <div class="mb-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2">
+
+            <p class="text-xs font-semibold text-amber-800">
+                USDT usa el tipo de cambio real de la operación.
+            </p>
+
+            <p class="mt-1 text-[11px] text-amber-700">
+                La referencia USD/BOB del BCB no se utiliza para convertir compras realizadas con USDT.
+            </p>
+
+        </div>
+
+    </template>
+
+
+    <input
+        type="number"
+        step="0.000001"
+        min="0.000001"
+        name="tipo_cambio_aplicado"
+        x-model="tc"
+        :disabled="
+            moneda !== 'USD'
+            && moneda !== 'USDT'
+        "
+        :required="
+            (
+                moneda === 'USD'
+                || moneda === 'USDT'
+            )
+            && precio !== ''
+        "
+        class="w-full rounded-xl border-slate-300 focus:border-slate-900 focus:ring-slate-900"
+    >
+
+
+    <p
+        x-show="moneda === 'USD'"
+        class="mt-1 text-xs text-slate-500"
+    >
+        Confirma o modifica el TC según el valor realmente utilizado en la compra.
+    </p>
+
+
+    <p
+        x-show="moneda === 'USDT'"
+        class="mt-1 text-xs text-slate-500"
+    >
+        Ingresa cuántos bolivianos costó realmente cada USDT utilizado en esta operación.
+    </p>
+
+</div>
+
+                           
 
                         {{-- Equivalente --}}
                         <div>
@@ -1142,7 +1341,353 @@
                             </p>
 
                         </div>
+{{-- Información esperada de la compra --}}
+<div class="md:col-span-2 xl:col-span-3">
+    <details class="rounded-2xl border border-slate-200 bg-slate-50">
+        <summary
+            class="cursor-pointer select-none px-5 py-4 font-semibold text-slate-800"
+        >
+            Características y componentes informados en la compra
+            <span class="ml-2 text-xs font-normal text-slate-500">
+                Opcional
+            </span>
+        </summary>
 
+        <div class="space-y-6 border-t border-slate-200 p-5">
+
+            <div>
+                <p class="text-sm font-semibold text-slate-900">
+                    Características esperadas
+                </p>
+
+                <p class="mt-1 text-xs text-slate-500">
+                    Registra lo informado al momento de la compra.
+                    Estas características todavía no representan la
+                    verificación física del equipo en Oruro.
+                </p>
+            </div>
+
+            <div class="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+
+                <div>
+                    <label class="mb-2 block text-xs font-semibold text-slate-600">
+                        Procesador
+                    </label>
+
+                    <input
+                        type="text"
+                        name="especificacion_esperada[procesador]"
+                        value="{{ old('especificacion_esperada.procesador') }}"
+                        placeholder="Ej. Intel Core i5-1145G7"
+                        class="w-full rounded-xl border-slate-300
+                               focus:border-slate-900 focus:ring-slate-900"
+                    >
+                </div>
+
+                <div>
+                    <label class="mb-2 block text-xs font-semibold text-slate-600">
+                        Generación
+                    </label>
+
+                    <input
+                        type="text"
+                        name="especificacion_esperada[generacion_procesador]"
+                        value="{{ old('especificacion_esperada.generacion_procesador') }}"
+                        placeholder="Ej. 11"
+                        class="w-full rounded-xl border-slate-300
+                               focus:border-slate-900 focus:ring-slate-900"
+                    >
+                </div>
+
+                <div>
+                    <label class="mb-2 block text-xs font-semibold text-slate-600">
+                        RAM (GB)
+                    </label>
+
+                    <input
+                        type="number"
+                        min="0"
+                        name="especificacion_esperada[ram_gb]"
+                        value="{{ old('especificacion_esperada.ram_gb') }}"
+                        placeholder="Ej. 16"
+                        class="w-full rounded-xl border-slate-300
+                               focus:border-slate-900 focus:ring-slate-900"
+                    >
+                </div>
+
+                <div>
+                    <label class="mb-2 block text-xs font-semibold text-slate-600">
+                        Almacenamiento (GB)
+                    </label>
+
+                    <input
+                        type="number"
+                        min="0"
+                        name="especificacion_esperada[almacenamiento_gb]"
+                        value="{{ old('especificacion_esperada.almacenamiento_gb') }}"
+                        placeholder="Ej. 512"
+                        class="w-full rounded-xl border-slate-300
+                               focus:border-slate-900 focus:ring-slate-900"
+                    >
+                </div>
+
+                <div>
+                    <label class="mb-2 block text-xs font-semibold text-slate-600">
+                        Tipo de almacenamiento
+                    </label>
+
+                    <select
+                        name="especificacion_esperada[tipo_almacenamiento]"
+                        class="w-full rounded-xl border-slate-300
+                               focus:border-slate-900 focus:ring-slate-900"
+                    >
+                        <option value="">
+                            No definido
+                        </option>
+
+                        <option
+                            value="SSD"
+                            @selected(
+                                old(
+                                    'especificacion_esperada.tipo_almacenamiento'
+                                ) === 'SSD'
+                            )
+                        >
+                            SSD
+                        </option>
+
+                        <option
+                            value="HDD"
+                            @selected(
+                                old(
+                                    'especificacion_esperada.tipo_almacenamiento'
+                                ) === 'HDD'
+                            )
+                        >
+                            HDD
+                        </option>
+
+                        <option
+                            value="NVMe"
+                            @selected(
+                                old(
+                                    'especificacion_esperada.tipo_almacenamiento'
+                                ) === 'NVMe'
+                            )
+                        >
+                            NVMe
+                        </option>
+                    </select>
+                </div>
+
+                <div>
+                    <label class="mb-2 block text-xs font-semibold text-slate-600">
+                        Tarjeta gráfica
+                    </label>
+
+                    <input
+                        type="text"
+                        name="especificacion_esperada[tarjeta_grafica]"
+                        value="{{ old('especificacion_esperada.tarjeta_grafica') }}"
+                        placeholder="Ej. Intel Iris Xe"
+                        class="w-full rounded-xl border-slate-300
+                               focus:border-slate-900 focus:ring-slate-900"
+                    >
+                </div>
+
+                <div>
+                    <label class="mb-2 block text-xs font-semibold text-slate-600">
+                        Pantalla (pulgadas)
+                    </label>
+
+                    <input
+                        type="number"
+                        step="0.1"
+                        min="0"
+                        name="especificacion_esperada[pantalla_pulgadas]"
+                        value="{{ old('especificacion_esperada.pantalla_pulgadas') }}"
+                        placeholder="Ej. 14"
+                        class="w-full rounded-xl border-slate-300
+                               focus:border-slate-900 focus:ring-slate-900"
+                    >
+                </div>
+
+                <div>
+                    <label class="mb-2 block text-xs font-semibold text-slate-600">
+                        Resolución
+                    </label>
+
+                    <input
+                        type="text"
+                        name="especificacion_esperada[resolucion]"
+                        value="{{ old('especificacion_esperada.resolucion') }}"
+                        placeholder="Ej. 1920x1080"
+                        class="w-full rounded-xl border-slate-300
+                               focus:border-slate-900 focus:ring-slate-900"
+                    >
+                </div>
+
+                <div>
+                    <label class="mb-2 block text-xs font-semibold text-slate-600">
+                        Sistema operativo
+                    </label>
+
+                    <input
+                        type="text"
+                        name="especificacion_esperada[sistema_operativo]"
+                        value="{{ old('especificacion_esperada.sistema_operativo') }}"
+                        placeholder="Ej. Windows 11 Pro"
+                        class="w-full rounded-xl border-slate-300
+                               focus:border-slate-900 focus:ring-slate-900"
+                    >
+                </div>
+            </div>
+
+
+            {{-- Componentes --}}
+            <div
+                class="border-t border-slate-200 pt-5"
+                x-data="{
+                    componentes: [
+                        {
+                            nombre: '',
+                            cantidad: 1,
+                            observacion: ''
+                        }
+                    ],
+
+                    agregar() {
+                        this.componentes.push({
+                            nombre: '',
+                            cantidad: 1,
+                            observacion: ''
+                        });
+                    },
+
+                    eliminar(indice) {
+                        this.componentes.splice(indice, 1);
+
+                        if (this.componentes.length === 0) {
+                            this.agregar();
+                        }
+                    }
+                }"
+            >
+                <div class="flex items-start justify-between gap-4">
+                    <div>
+                        <p class="text-sm font-semibold text-slate-900">
+                            Componentes esperados
+                        </p>
+
+                        <p class="mt-1 text-xs text-slate-500">
+                            Ej. cargador, cable de poder, adaptador o base.
+                            La cantidad corresponde a cada equipo de esta línea.
+                        </p>
+                    </div>
+
+                    <button
+                        type="button"
+                        @click="agregar()"
+                        class="shrink-0 rounded-lg border border-slate-300
+                               bg-white px-3 py-2 text-xs font-semibold
+                               text-slate-700 hover:bg-slate-100"
+                    >
+                        + Agregar componente
+                    </button>
+                </div>
+
+                <div class="mt-4 space-y-3">
+                    <template
+                        x-for="(componente, indice) in componentes"
+                        :key="indice"
+                    >
+                        <div
+                            class="grid gap-3 rounded-xl border border-slate-200
+                                   bg-white p-4 md:grid-cols-12"
+                        >
+                            <div class="md:col-span-4">
+                                <label
+                                    class="mb-1 block text-xs font-semibold
+                                           text-slate-600"
+                                >
+                                    Componente
+                                </label>
+
+                                <input
+                                    type="text"
+                                    x-model="componente.nombre"
+                                    :name="`componentes_esperados[${indice}][nombre]`"
+                                    placeholder="Ej. Cargador"
+                                    class="w-full rounded-xl border-slate-300
+                                           focus:border-slate-900
+                                           focus:ring-slate-900"
+                                >
+                            </div>
+
+                            <div class="md:col-span-2">
+                                <label
+                                    class="mb-1 block text-xs font-semibold
+                                           text-slate-600"
+                                >
+                                    Por unidad
+                                </label>
+
+                                <input
+                                    type="number"
+                                    min="1"
+                                    x-model="componente.cantidad"
+                                    :name="`componentes_esperados[${indice}][cantidad_por_unidad]`"
+                                    class="w-full rounded-xl border-slate-300
+                                           focus:border-slate-900
+                                           focus:ring-slate-900"
+                                >
+                            </div>
+
+                            <div class="md:col-span-5">
+                                <label
+                                    class="mb-1 block text-xs font-semibold
+                                           text-slate-600"
+                                >
+                                    Observación
+                                </label>
+
+                                <input
+                                    type="text"
+                                    x-model="componente.observacion"
+                                    :name="`componentes_esperados[${indice}][observacion]`"
+                                    placeholder="Ej. cargador original incluido"
+                                    class="w-full rounded-xl border-slate-300
+                                           focus:border-slate-900
+                                           focus:ring-slate-900"
+                                >
+                            </div>
+
+                            <div class="flex items-end md:col-span-1">
+                                <input
+                                    type="hidden"
+                                    :name="`componentes_esperados[${indice}][incluido_en_compra]`"
+                                    value="1"
+                                >
+
+                                <button
+                                    type="button"
+                                    @click="eliminar(indice)"
+                                    class="w-full rounded-lg px-2 py-2
+                                           text-xs font-semibold text-red-600
+                                           hover:bg-red-50"
+                                    title="Eliminar componente"
+                                >
+                                    ✕
+                                </button>
+                            </div>
+                        </div>
+                    </template>
+                </div>
+            </div>
+
+        </div>
+    </details>
+</div>
 
                         {{-- Observación --}}
                         <div class="md:col-span-2 xl:col-span-3">

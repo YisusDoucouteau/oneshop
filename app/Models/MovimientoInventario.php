@@ -18,8 +18,8 @@ class MovimientoInventario extends Model
         'usuario_id',
         'cambio_disponible',
         'cambio_reservado',
-        'disponible_resultante',
-        'reservado_resultante',
+        'saldo_disponible_resultante',
+'saldo_reservado_resultante',
         'tipo_referencia',
         'referencia_id',
         'fecha_movimiento',
@@ -29,8 +29,8 @@ class MovimientoInventario extends Model
     protected $casts = [
             'cambio_disponible' => 'integer',
             'cambio_reservado' => 'integer',
-            'disponible_resultante' => 'integer',
-            'reservado_resultante' => 'integer',
+            'saldo_disponible_resultante' => 'integer',
+'saldo_reservado_resultante' => 'integer',
             'fecha_movimiento' => 'datetime',
         ];
 

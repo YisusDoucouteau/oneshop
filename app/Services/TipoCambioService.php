@@ -19,11 +19,15 @@ class TipoCambioService
     private const FUENTE_APLICADA =
         'MANUAL_OPERACION';
 
+
     /**
      * Obtiene la referencia oficial USD -> BOB.
      *
+     * Esta referencia aplica únicamente a USD.
+     * No debe utilizarse como referencia de USDT.
+     *
      * Si la API no responde, utiliza el último valor
-     * almacenado en la base de datos.
+     * almacenado localmente.
      */
     public function obtenerReferenciaUsdBob(
         bool $forzarActualizacion = false
@@ -51,14 +55,22 @@ class TipoCambioService
         );
     }
 
+
     /**
-     * Registra el TC que realmente fue utilizado
-     * en una operación de OneShop.
+     * Registra el tipo de cambio realmente utilizado
+     * en una operación.
      *
-     * Este valor no se modifica posteriormente.
+     * Soporta actualmente:
+     *
+     * USD  -> BOB
+     * USDT -> BOB
+     *
+     * El valor registrado representa el costo histórico
+     * real de la operación y no debe recalcularse después.
      */
-    public function registrarAplicadoUsdBob(
+    public function registrarAplicado(
         int $usuarioId,
+        string $codigoMonedaOrigen,
         float $valor,
         ?string $observacion = null
     ): TipoCambio {
@@ -78,19 +90,44 @@ class TipoCambioService
             );
         }
 
-        [$usd, $bob] =
-            $this->obtenerMonedasUsdBob();
+        $codigoMonedaOrigen = strtoupper(
+            trim($codigoMonedaOrigen)
+        );
+
+        if (!in_array(
+            $codigoMonedaOrigen,
+            ['USD', 'USDT'],
+            true
+        )) {
+            throw new ReglaNegocioException(
+                'Actualmente solo se permite registrar tipos de cambio aplicados para USD o USDT hacia BOB.'
+            );
+        }
+
+        $monedaOrigen =
+            $this->obtenerMonedaActiva(
+                $codigoMonedaOrigen
+            );
+
+        $bob =
+            $this->obtenerMonedaActiva(
+                'BOB'
+            );
 
         return TipoCambio::create([
-            'moneda_origen_id' => $usd->id,
-            'moneda_destino_id' => $bob->id,
+            'moneda_origen_id' =>
+                $monedaOrigen->id,
+
+            'moneda_destino_id' =>
+                $bob->id,
 
             'valor' => round(
                 $valor,
                 6
             ),
 
-            'fecha_vigencia' => now(),
+            'fecha_vigencia' =>
+                now(),
 
             'fuente' =>
                 self::FUENTE_APLICADA,
@@ -103,9 +140,55 @@ class TipoCambioService
         ]);
     }
 
+
     /**
-     * Convierte un importe a bolivianos empleando
-     * un TC concreto ya almacenado.
+     * Compatibilidad con el código ya existente.
+     *
+     * Internamente utiliza el nuevo método genérico.
+     */
+    public function registrarAplicadoUsdBob(
+        int $usuarioId,
+        float $valor,
+        ?string $observacion = null
+    ): TipoCambio {
+        return $this->registrarAplicado(
+            $usuarioId,
+            'USD',
+            $valor,
+            $observacion
+        );
+    }
+
+
+    /**
+     * Atajo explícito para operaciones realizadas
+     * mediante USDT.
+     */
+    public function registrarAplicadoUsdtBob(
+        int $usuarioId,
+        float $valor,
+        ?string $observacion = null
+    ): TipoCambio {
+        return $this->registrarAplicado(
+            $usuarioId,
+            'USDT',
+            $valor,
+            $observacion
+        );
+    }
+
+
+    /**
+     * Convierte un monto a bolivianos usando
+     * exclusivamente el TC histórico aplicado
+     * a esa operación.
+     *
+     * BOB:
+     * no requiere conversión.
+     *
+     * USD / USDT:
+     * requieren un TipoCambio almacenado que
+     * corresponda exactamente a la moneda origen.
      */
     public function convertirABob(
         float $monto,
@@ -122,19 +205,38 @@ class TipoCambioService
             trim($codigoMoneda)
         );
 
+        /*
+        |--------------------------------------------------------------------------
+        | BOB
+        |--------------------------------------------------------------------------
+        */
+
         if ($codigoMoneda === 'BOB') {
-            return round($monto, 2);
+            return round(
+                $monto,
+                2
+            );
         }
 
-        if ($codigoMoneda !== 'USD') {
+        /*
+        |--------------------------------------------------------------------------
+        | Monedas convertibles actualmente
+        |--------------------------------------------------------------------------
+        */
+
+        if (!in_array(
+            $codigoMoneda,
+            ['USD', 'USDT'],
+            true
+        )) {
             throw new ReglaNegocioException(
-                'La conversión automática solo está habilitada actualmente para USD y BOB.'
+                'La conversión a bolivianos solo está habilitada actualmente para BOB, USD y USDT.'
             );
         }
 
         if (!$tipoCambio) {
             throw new ReglaNegocioException(
-                'Debe especificarse el tipo de cambio aplicado para convertir USD a BOB.'
+                "Debe especificarse el tipo de cambio aplicado para convertir {$codigoMoneda} a BOB."
             );
         }
 
@@ -143,15 +245,27 @@ class TipoCambioService
             'monedaDestino',
         ]);
 
+        /*
+        |--------------------------------------------------------------------------
+        | Validación de par monetario
+        |--------------------------------------------------------------------------
+        |
+        | Esto evita utilizar accidentalmente:
+        |
+        | USD/BOB para una compra USDT
+        | USDT/BOB para una compra USD
+        |
+        */
+
         if (
             $tipoCambio->monedaOrigen?->codigo
-                !== 'USD'
+                !== $codigoMoneda
             ||
             $tipoCambio->monedaDestino?->codigo
                 !== 'BOB'
         ) {
             throw new ReglaNegocioException(
-                'El tipo de cambio seleccionado no corresponde a USD/BOB.'
+                "El tipo de cambio seleccionado no corresponde a {$codigoMoneda}/BOB."
             );
         }
 
@@ -162,6 +276,11 @@ class TipoCambioService
         );
     }
 
+
+    /**
+     * Consulta exclusivamente la referencia
+     * USD -> BOB mediante Frankfurter / BCBO.
+     */
     private function consultarReferenciaUsdBob(): array
     {
         [$usd, $bob] =
@@ -196,7 +315,8 @@ class TipoCambioService
                 );
             }
 
-            $valor = $response->json('rate');
+            $valor =
+                $response->json('rate');
 
             if (
                 !is_numeric($valor)
@@ -209,10 +329,9 @@ class TipoCambioService
 
             /*
              * Frankfurter trabaja con tasas diarias.
-             * Si devuelve fecha la conservamos como
-             * fecha oficial de la cotización.
              */
-            $fechaApi = $response->json('date');
+            $fechaApi =
+                $response->json('date');
 
             $fechaVigencia = $fechaApi
                 ? Carbon::parse(
@@ -222,9 +341,7 @@ class TipoCambioService
                 : now();
 
             /*
-             * Una sola referencia BCBO por día.
-             * Si el proveedor corrige el valor durante
-             * el mismo día, actualizamos esa referencia.
+             * Una referencia BCBO por día.
              */
             $tipoCambio = TipoCambio::query()
                 ->where(
@@ -272,7 +389,7 @@ class TipoCambioService
                     null,
 
                 'observacion' =>
-                    'Tipo de cambio de referencia obtenido automáticamente mediante Frankfurter, proveedor BCBO.',
+                    'Tipo de cambio de referencia USD/BOB obtenido automáticamente mediante Frankfurter, proveedor BCBO.',
             ]);
 
             $tipoCambio->save();
@@ -284,16 +401,18 @@ class TipoCambioService
                         'monedaDestino',
                     ]),
 
-                'origen' => 'API',
+                'origen' =>
+                    'API',
 
-                'desactualizado' => false,
+                'desactualizado' =>
+                    false,
             ];
 
         } catch (Throwable $exception) {
 
             /*
-             * El sistema NO debe dejar de funcionar
-             * porque el servicio externo esté caído.
+             * El sistema no debe detenerse porque
+             * el servicio externo esté temporalmente caído.
              */
             $ultimo = TipoCambio::query()
                 ->where(
@@ -308,12 +427,14 @@ class TipoCambioService
                     'fuente',
                     self::FUENTE_REFERENCIA
                 )
-                ->latest('fecha_vigencia')
+                ->latest(
+                    'fecha_vigencia'
+                )
                 ->first();
 
             if (!$ultimo) {
                 throw new ReglaNegocioException(
-                    'No fue posible obtener el tipo de cambio de referencia y todavía no existe un valor almacenado localmente.'
+                    'No fue posible obtener el tipo de cambio USD/BOB de referencia y todavía no existe un valor almacenado localmente.'
                 );
             }
 
@@ -324,31 +445,66 @@ class TipoCambioService
                         'monedaDestino',
                     ]),
 
-                'origen' => 'BD',
+                'origen' =>
+                    'BD',
 
-                'desactualizado' => true,
+                'desactualizado' =>
+                    true,
             ];
         }
     }
 
-    private function obtenerMonedasUsdBob(): array
-    {
-        $usd = Moneda::query()
-            ->where('codigo', 'USD')
-            ->where('activo', true)
+
+    /**
+     * Obtiene una moneda activa por su código.
+     */
+    private function obtenerMonedaActiva(
+        string $codigo
+    ): Moneda {
+        $codigo = strtoupper(
+            trim($codigo)
+        );
+
+        $moneda = Moneda::query()
+            ->where(
+                'codigo',
+                $codigo
+            )
+            ->where(
+                'activo',
+                true
+            )
             ->first();
 
-        $bob = Moneda::query()
-            ->where('codigo', 'BOB')
-            ->where('activo', true)
-            ->first();
-
-        if (!$usd || !$bob) {
+        if (!$moneda) {
             throw new ReglaNegocioException(
-                'Las monedas USD y BOB deben estar activas en el catálogo.'
+                "La moneda {$codigo} no existe o se encuentra inactiva."
             );
         }
 
-        return [$usd, $bob];
+        return $moneda;
+    }
+
+
+    /**
+     * Helper utilizado exclusivamente por
+     * la referencia oficial USD -> BOB.
+     */
+    private function obtenerMonedasUsdBob(): array
+    {
+        $usd =
+            $this->obtenerMonedaActiva(
+                'USD'
+            );
+
+        $bob =
+            $this->obtenerMonedaActiva(
+                'BOB'
+            );
+
+        return [
+            $usd,
+            $bob,
+        ];
     }
 }
