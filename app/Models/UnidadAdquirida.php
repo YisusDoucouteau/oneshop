@@ -3,10 +3,14 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
+
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
+
 class UnidadAdquirida extends Model
 {
+    
     protected $table = 'unidades_adquiridas';
 
     public const ESTADO_PENDIENTE_LLEGADA =
@@ -162,5 +166,11 @@ class UnidadAdquirida extends Model
         'unidad_adquirida_id'
     )->orderBy('fecha_inicio');
 }
-
+public function envioImportacionUnidad(): HasOne
+{
+    return $this->hasOne(
+        EnvioImportacionUnidad::class,
+        'unidad_adquirida_id'
+    );
+}
 }
