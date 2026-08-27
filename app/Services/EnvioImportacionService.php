@@ -15,11 +15,7 @@ use Illuminate\Validation\ValidationException;
 class EnvioImportacionService
 {
     /**
-     * Crea un envío en estado BORRADOR.
-     *
-     * Por ahora este flujo corresponde específicamente
-     * al traslado de preinventario:
-     *
+     * Crea un envío de preinventario
      * Cochabamba -> Oruro.
      */
     public function crearBorrador(
@@ -31,10 +27,9 @@ class EnvioImportacionService
                 $usuarioId,
                 $datos
             ) {
-                $usuario =
-                    $this->obtenerUsuarioAutorizado(
-                        $usuarioId
-                    );
+                $this->obtenerUsuarioAutorizado(
+                    $usuarioId
+                );
 
                 $validator =
                     Validator::make(
@@ -117,7 +112,10 @@ class EnvioImportacionService
                     );
                 }
 
-                if ($origen->id === $destino->id) {
+                if (
+                    $origen->id ===
+                    $destino->id
+                ) {
                     throw new ReglaNegocioException(
                         'El almacén de origen y destino no pueden ser el mismo.'
                     );
@@ -138,17 +136,21 @@ class EnvioImportacionService
                     'estado' =>
                         EnvioImportacion::ESTADO_BORRADOR,
 
+                    /*
+                     * Un BORRADOR todavía no fue
+                     * preparado, despachado ni recibido.
+                     */
                     'preparado_por_id' =>
-                     null,
+                        null,
 
                     'despachado_por_id' =>
-                       null,
+                        null,
 
                     'recibido_por_id' =>
-                     null,
+                        null,
 
                     'fecha_preparacion' =>
-                       null,
+                        null,
 
                     'fecha_despacho' =>
                         null,
@@ -189,16 +191,8 @@ class EnvioImportacionService
 
 
     /**
-     * Incluye una unidad física en un envío todavía
-     * no despachado.
-     *
-     * Reglas:
-     * - el envío debe estar en BORRADOR;
-     * - la unidad debe estar LISTA_ENVIO;
-     * - la unidad debe estar físicamente en el
-     *   almacén de origen del envío;
-     * - no puede estar incorporada al inventario;
-     * - no puede pertenecer a otro envío.
+     * Agrega una unidad física a un envío
+     * mientras se encuentra en BORRADOR.
      */
     public function agregarUnidad(
         int $usuarioId,
@@ -279,8 +273,8 @@ class EnvioImportacionService
                 }
 
                 /*
-                 * Bloqueamos cualquier asignación previa
-                 * de la misma unidad.
+                 * Una unidad física solamente puede
+                 * pertenecer a un envío.
                  */
                 $asignacionExistente =
                     EnvioImportacionUnidad::query()
@@ -332,387 +326,13 @@ class EnvioImportacionService
             3
         );
     }
-public function marcarPreparado(
-    int $usuarioId,
-    int $envioId
-): EnvioImportacion {
 
-    return DB::transaction(
-        function () use (
-            $usuarioId,
-            $envioId
-        ) {
-
-            $usuario =
-                $this->obtenerUsuarioAutorizado(
-                    $usuarioId
-                );
-
-            $envio =
-                EnvioImportacion::query()
-                    ->lockForUpdate()
-                    ->with('unidadesEnvio')
-                    ->find($envioId);
-
-
-            if (!$envio) {
-                throw new ReglaNegocioException(
-                    'El envío no existe.'
-                );
-            }
-
-
-            if (
-                !$envio->estaEnBorrador()
-            ) {
-                throw new ReglaNegocioException(
-                    'Solo pueden prepararse envíos en estado BORRADOR.'
-                );
-            }
-
-
-            if (
-                $envio->unidadesEnvio->isEmpty()
-            ) {
-                throw new ReglaNegocioException(
-                    'No se puede preparar un envío sin unidades.'
-                );
-            }
-
-
-            foreach (
-                $envio->unidadesEnvio
-                as $detalle
-            ) {
-
-                $unidad =
-                    $detalle->unidadAdquirida;
-
-
-                if (
-                    $unidad->estado !==
-                    UnidadAdquirida::ESTADO_LISTA_ENVIO
-                ) {
-                    throw new ReglaNegocioException(
-                        "La unidad {$unidad->id} no está lista para envío."
-                    );
-                }
-            }
-
-
-            $envio->update([
-
-                'estado' =>
-                    EnvioImportacion::ESTADO_PREPARADO,
-
-                'preparado_por_id' =>
-                    $usuario->id,
-
-                'fecha_preparacion' =>
-                    now(),
-
-            ]);
-
-
-            return $envio;
-        },
-        3
-    );
-}
-public function marcarDespachado(
-    int $usuarioId,
-    int $envioId,
-    array $datos = []
-): EnvioImportacion {
-
-    return DB::transaction(
-        function () use (
-            $usuarioId,
-            $envioId,
-            $datos
-        ) {
-
-            $usuario =
-                $this->obtenerUsuarioAutorizado(
-                    $usuarioId
-                );
-
-
-            $envio =
-                EnvioImportacion::query()
-                    ->lockForUpdate()
-                    ->with('unidadesEnvio.unidadAdquirida')
-                    ->find($envioId);
-
-
-            if (!$envio) {
-                throw new ReglaNegocioException(
-                    'El envío no existe.'
-                );
-            }
-
-
-            if (
-                !$envio->estaPreparado()
-            ) {
-                throw new ReglaNegocioException(
-                    'Solo pueden despacharse envíos en estado PREPARADO.'
-                );
-            }
-
-
-            if (
-                $envio->unidadesEnvio->isEmpty()
-            ) {
-                throw new ReglaNegocioException(
-                    'No se puede despachar un envío sin unidades.'
-                );
-            }
-
-
-            foreach (
-                $envio->unidadesEnvio
-                as $detalle
-            ) {
-
-                $unidad =
-                    $detalle->unidadAdquirida;
-
-
-                if (!$unidad) {
-                    throw new ReglaNegocioException(
-                        'Existe una unidad inválida dentro del envío.'
-                    );
-                }
-
-
-                if (
-                    $unidad->estado !==
-                    UnidadAdquirida::ESTADO_LISTA_ENVIO
-                ) {
-                    throw new ReglaNegocioException(
-                        "La unidad {$unidad->id} no está lista para despacho."
-                    );
-                }
-
-            }
-
-
-            $envio->update([
-
-                'estado' =>
-                    EnvioImportacion::ESTADO_DESPACHADO,
-
-                'despachado_por_id' =>
-                    $usuario->id,
-
-                'fecha_despacho' =>
-                    now(),
-
-                'transportista' =>
-                    $datos['transportista']
-                    ?? $envio->transportista,
-
-                'numero_guia' =>
-                    $datos['numero_guia']
-                    ?? $envio->numero_guia,
-
-            ]);
-
-
-            foreach (
-                $envio->unidadesEnvio
-                as $detalle
-            ) {
-
-                $detalle
-                    ->unidadAdquirida()
-                    ->update([
-
-                        'estado' =>
-                            UnidadAdquirida::ESTADO_ENVIADA,
-
-                    ]);
-
-            }
-
-
-            return $envio->fresh();
-
-        },
-        3
-    );
-}
-public function marcarUnidadFaltante(
-    int $usuarioId,
-    int $envioId,
-    int $unidadId,
-    string $observacion
-): EnvioImportacionUnidad {
-
-    return DB::transaction(
-        function () use (
-            $usuarioId,
-            $envioId,
-            $unidadId,
-            $observacion
-        ) {
-
-            $this->obtenerUsuarioAutorizado(
-                $usuarioId
-            );
-
-
-            $validator =
-                Validator::make(
-                    [
-                        'observacion' =>
-                            $observacion,
-                    ],
-                    [
-                        'observacion' => [
-                            'required',
-                            'string',
-                            'max:1000',
-                        ],
-                    ]
-                );
-
-
-            if ($validator->fails()) {
-                throw new ValidationException(
-                    $validator
-                );
-            }
-
-
-            $validados =
-                $validator->validated();
-
-
-            $envio =
-                EnvioImportacion::query()
-                    ->lockForUpdate()
-                    ->find($envioId);
-
-
-            if (!$envio) {
-                throw new ReglaNegocioException(
-                    'El envío no existe.'
-                );
-            }
-
-
-            if (
-                !in_array(
-                    $envio->estado,
-                    [
-                        EnvioImportacion::ESTADO_DESPACHADO,
-                        EnvioImportacion::ESTADO_RECIBIDO_PARCIAL,
-                    ],
-                    true
-                )
-            ) {
-                throw new ReglaNegocioException(
-                    'Solo pueden registrarse unidades faltantes en envíos despachados o con recepción parcial.'
-                );
-            }
-
-
-            $detalle =
-                EnvioImportacionUnidad::query()
-                    ->where(
-                        'envio_importacion_id',
-                        $envio->id
-                    )
-                    ->where(
-                        'unidad_adquirida_id',
-                        $unidadId
-                    )
-                    ->lockForUpdate()
-                    ->first();
-
-
-            if (!$detalle) {
-                throw new ReglaNegocioException(
-                    'La unidad no pertenece a este envío.'
-                );
-            }
-
-
-            if (!$detalle->estaPendiente()) {
-                throw new ReglaNegocioException(
-                    'La unidad ya fue procesada durante la recepción.'
-                );
-            }
-
-
-            $unidad =
-                UnidadAdquirida::query()
-                    ->lockForUpdate()
-                    ->find($unidadId);
-
-
-            if (!$unidad) {
-                throw new ReglaNegocioException(
-                    'La unidad adquirida no existe.'
-                );
-            }
-
-
-            if (
-                $unidad->estado !==
-                UnidadAdquirida::ESTADO_ENVIADA
-            ) {
-                throw new ReglaNegocioException(
-                    'Solo puede marcarse como faltante una unidad que se encuentre enviada.'
-                );
-            }
-
-
-            $detalle->update([
-
-                'estado_recepcion' =>
-                    EnvioImportacionUnidad::ESTADO_FALTANTE,
-
-                /*
-                 * No se registra fecha de recepción
-                 * porque físicamente la unidad no llegó.
-                 */
-                'fecha_recepcion' =>
-                    null,
-
-                'recibido_por_id' =>
-                    null,
-
-                'observacion_recepcion' =>
-                    trim(
-                        $validados['observacion']
-                    ),
-
-            ]);
-
-
-            /*
-             * La UnidadAdquirida continúa ENVIADA.
-             *
-             * No debe moverse a Oruro porque precisamente
-             * todavía no se confirmó su recepción física.
-             */
-            return $detalle->fresh();
-
-        },
-        3
-    );
-}
 
     /**
-     * Retira una unidad de un envío mientras todavía
-     * se encuentra en BORRADOR.
+     * Retira una unidad del envío.
      *
-     * La UnidadAdquirida no cambia de estado:
-     * continúa LISTA_ENVIO y puede incluirse luego
-     * en otro despacho.
+     * Solo puede realizarse mientras
+     * el envío esté en BORRADOR.
      */
     public function quitarUnidad(
         int $usuarioId,
@@ -746,7 +366,7 @@ public function marcarUnidadFaltante(
                     !$envio->puedeModificarse()
                 ) {
                     throw new ReglaNegocioException(
-                        'No pueden retirarse unidades después de despachar el envío.'
+                        'Solo pueden retirarse unidades de envíos en estado BORRADOR.'
                     );
                 }
 
@@ -790,266 +410,758 @@ public function marcarUnidadFaltante(
     }
 
 
-   private function obtenerUsuarioAutorizado(
-    int $usuarioId
-): User {
-
-    $usuario =
-        User::query()
-            ->where(
-                'activo',
-                true
-            )
-            ->find(
-                $usuarioId
-            );
-
-    if (!$usuario) {
-        throw new ReglaNegocioException(
-            'El usuario no existe o se encuentra inactivo.'
-        );
-    }
-
-    if (
-        !$usuario->tienePermiso(
-            'importacion.gestionar'
-        )
-    ) {
-        throw new ReglaNegocioException(
-            'El usuario no tiene permiso para gestionar importaciones.'
-        );
-    }
-
-    return $usuario;
-}
-public function recibirUnidad(
-    int $usuarioId,
-    int $envioId,
-    int $unidadId,
-    ?string $observacion = null
-): EnvioImportacionUnidad {
-
-    return DB::transaction(
-        function () use (
-            $usuarioId,
-            $envioId,
-            $unidadId,
-            $observacion
-        ) {
-
-            $usuario =
-                $this->obtenerUsuarioAutorizado(
-                    $usuarioId
-                );
-
-
-            $envio =
-                EnvioImportacion::query()
-                    ->lockForUpdate()
-                    ->find($envioId);
-
-
-            if (!$envio) {
-                throw new ReglaNegocioException(
-                    'El envío no existe.'
-                );
-            }
-
-
-            if (
-                !$envio->estaDespachado()
+    /**
+     * Confirma que el envío se encuentra
+     * preparado para su despacho.
+     */
+    public function marcarPreparado(
+        int $usuarioId,
+        int $envioId
+    ): EnvioImportacion {
+        return DB::transaction(
+            function () use (
+                $usuarioId,
+                $envioId
             ) {
-                throw new ReglaNegocioException(
-                    'Solo pueden recibirse envíos en estado DESPACHADO.'
-                );
-            }
+                $usuario =
+                    $this->obtenerUsuarioAutorizado(
+                        $usuarioId
+                    );
 
+                $envio =
+                    EnvioImportacion::query()
+                        ->lockForUpdate()
+                        ->with(
+                            'unidadesEnvio.unidadAdquirida'
+                        )
+                        ->find(
+                            $envioId
+                        );
 
-            $detalle =
-                EnvioImportacionUnidad::query()
-                    ->where(
-                        'envio_importacion_id',
-                        $envio->id
-                    )
-                    ->where(
-                        'unidad_adquirida_id',
-                        $unidadId
-                    )
-                    ->lockForUpdate()
-                    ->first();
-
-
-            if (!$detalle) {
-                throw new ReglaNegocioException(
-                    'La unidad no pertenece a este envío.'
-                );
-            }
-
-
-            if (
-                !$detalle->estaPendiente()
-            ) {
-                throw new ReglaNegocioException(
-                    'La unidad ya fue procesada en recepción.'
-                );
-            }
-
-
-            $unidad =
-                UnidadAdquirida::query()
-                    ->lockForUpdate()
-                    ->find($unidadId);
-
-
-            if (!$unidad) {
-                throw new ReglaNegocioException(
-                    'La unidad adquirida no existe.'
-                );
-            }
-
-
-            if (
-                $unidad->estado !==
-                UnidadAdquirida::ESTADO_ENVIADA
-            ) {
-                throw new ReglaNegocioException(
-                    'La unidad no se encuentra enviada.'
-                );
-            }
-
-
-            $detalle->update([
-
-                'estado_recepcion' =>
-                    EnvioImportacionUnidad::ESTADO_RECIBIDA,
-
-                'fecha_recepcion' =>
-                    now(),
-
-                'recibido_por_id' =>
-                    $usuario->id,
-
-                'observacion_recepcion' =>
-                    $observacion,
-
-            ]);
-
-
-            $unidad->update([
-
-                'almacen_actual_id' =>
-                    $envio->almacen_destino_id,
-
-                'estado' =>
-                    UnidadAdquirida::ESTADO_RECIBIDA_ORURO,
-
-            ]);
-
-
-            return $detalle->fresh();
-
-        },
-        3
-    );
-}
-   public function cerrarRecepcion(
-    int $usuarioId,
-    int $envioId
-): EnvioImportacion {
-
-    return DB::transaction(
-        function () use (
-            $usuarioId,
-            $envioId
-        ) {
-
-            $usuario =
-                $this->obtenerUsuarioAutorizado(
-                    $usuarioId
-                );
-
-
-            $envio =
-                EnvioImportacion::query()
-                    ->lockForUpdate()
-                    ->with('unidadesEnvio')
-                    ->find($envioId);
-
-
-            if (!$envio) {
-                throw new ReglaNegocioException(
-                    'El envío no existe.'
-                );
-            }
-
-
-            if (
-                !$envio->estaDespachado()
-            ) {
-                throw new ReglaNegocioException(
-                    'Solo pueden cerrarse recepciones de envíos despachados.'
-                );
-            }
-
-
-            if (
-                $envio->unidadesEnvio->isEmpty()
-            ) {
-                throw new ReglaNegocioException(
-                    'No se puede cerrar un envío sin unidades.'
-                );
-            }
-
-
-            foreach (
-                $envio->unidadesEnvio as $detalle
-            ) {
-
-                if (
-                    !$detalle->estaResueltaEnRecepcion()
-                ) {
+                if (!$envio) {
                     throw new ReglaNegocioException(
-                        'Existen unidades pendientes de recepción.'
+                        'El envío no existe.'
                     );
                 }
-            }
+
+                if (
+                    !$envio->estaEnBorrador()
+                ) {
+                    throw new ReglaNegocioException(
+                        'Solo pueden prepararse envíos en estado BORRADOR.'
+                    );
+                }
+
+                if (
+                    $envio->unidadesEnvio->isEmpty()
+                ) {
+                    throw new ReglaNegocioException(
+                        'No se puede preparar un envío sin unidades.'
+                    );
+                }
+
+                foreach (
+                    $envio->unidadesEnvio
+                    as $detalle
+                ) {
+                    $unidad =
+                        $detalle->unidadAdquirida;
+
+                    if (!$unidad) {
+                        throw new ReglaNegocioException(
+                            'Existe una unidad inválida dentro del envío.'
+                        );
+                    }
+
+                    if (
+                        $unidad->estado !==
+                        UnidadAdquirida::ESTADO_LISTA_ENVIO
+                    ) {
+                        throw new ReglaNegocioException(
+                            "La unidad {$unidad->id} no está lista para envío."
+                        );
+                    }
+
+                    if (
+                        $unidad->almacen_actual_id !==
+                        $envio->almacen_origen_id
+                    ) {
+                        throw new ReglaNegocioException(
+                            "La unidad {$unidad->id} ya no se encuentra en el almacén de origen."
+                        );
+                    }
+                }
+
+                $envio->update([
+                    'estado' =>
+                        EnvioImportacion::ESTADO_PREPARADO,
+
+                    'preparado_por_id' =>
+                        $usuario->id,
+
+                    'fecha_preparacion' =>
+                        now(),
+                ]);
+
+                return $envio->fresh();
+            },
+            3
+        );
+    }
 
 
-            $todasRecibidas =
-                $envio->unidadesEnvio
-                    ->every(
-                        fn ($detalle) =>
-                            $detalle->estado_recepcion ===
-                            EnvioImportacionUnidad::ESTADO_RECIBIDA
+    /**
+     * Despacha físicamente las unidades.
+     *
+     * Las unidades pasan:
+     * LISTA_ENVIO -> ENVIADA.
+     */
+    public function marcarDespachado(
+        int $usuarioId,
+        int $envioId,
+        array $datos = []
+    ): EnvioImportacion {
+        return DB::transaction(
+            function () use (
+                $usuarioId,
+                $envioId,
+                $datos
+            ) {
+                $usuario =
+                    $this->obtenerUsuarioAutorizado(
+                        $usuarioId
                     );
 
+                $envio =
+                    EnvioImportacion::query()
+                        ->lockForUpdate()
+                        ->with(
+                            'unidadesEnvio.unidadAdquirida'
+                        )
+                        ->find(
+                            $envioId
+                        );
 
-            $nuevoEstado =
-                $todasRecibidas
-                    ? EnvioImportacion::ESTADO_RECIBIDO
-                    : EnvioImportacion::ESTADO_RECIBIDO_PARCIAL;
+                if (!$envio) {
+                    throw new ReglaNegocioException(
+                        'El envío no existe.'
+                    );
+                }
+
+                if (
+                    !$envio->estaPreparado()
+                ) {
+                    throw new ReglaNegocioException(
+                        'Solo pueden despacharse envíos en estado PREPARADO.'
+                    );
+                }
+
+                if (
+                    $envio->unidadesEnvio->isEmpty()
+                ) {
+                    throw new ReglaNegocioException(
+                        'No se puede despachar un envío sin unidades.'
+                    );
+                }
+
+                foreach (
+                    $envio->unidadesEnvio
+                    as $detalle
+                ) {
+                    $unidad =
+                        $detalle->unidadAdquirida;
+
+                    if (!$unidad) {
+                        throw new ReglaNegocioException(
+                            'Existe una unidad inválida dentro del envío.'
+                        );
+                    }
+
+                    if (
+                        $unidad->estado !==
+                        UnidadAdquirida::ESTADO_LISTA_ENVIO
+                    ) {
+                        throw new ReglaNegocioException(
+                            "La unidad {$unidad->id} no está lista para despacho."
+                        );
+                    }
+
+                    if (
+                        $unidad->almacen_actual_id !==
+                        $envio->almacen_origen_id
+                    ) {
+                        throw new ReglaNegocioException(
+                            "La unidad {$unidad->id} ya no se encuentra en el almacén de origen."
+                        );
+                    }
+                }
+
+                $envio->update([
+                    'estado' =>
+                        EnvioImportacion::ESTADO_DESPACHADO,
+
+                    'despachado_por_id' =>
+                        $usuario->id,
+
+                    'fecha_despacho' =>
+                        now(),
+
+                    'transportista' =>
+                        $datos['transportista']
+                        ?? $envio->transportista,
+
+                    'numero_guia' =>
+                        $datos['numero_guia']
+                        ?? $envio->numero_guia,
+                ]);
+
+                foreach (
+                    $envio->unidadesEnvio
+                    as $detalle
+                ) {
+                    $detalle
+                        ->unidadAdquirida()
+                        ->update([
+                            'estado' =>
+                                UnidadAdquirida::ESTADO_ENVIADA,
+                        ]);
+                }
+
+                return $envio->fresh();
+            },
+            3
+        );
+    }
 
 
-            $envio->update([
+    /**
+     * Registra la recepción física de una unidad.
+     *
+     * Soporta:
+     *
+     * PENDIENTE -> RECIBIDA
+     *
+     * y también:
+     *
+     * FALTANTE -> RECIBIDA
+     *
+     * cuando una unidad llega posteriormente.
+     */
+    public function recibirUnidad(
+        int $usuarioId,
+        int $envioId,
+        int $unidadId,
+        ?string $observacion = null
+    ): EnvioImportacionUnidad {
+        return DB::transaction(
+            function () use (
+                $usuarioId,
+                $envioId,
+                $unidadId,
+                $observacion
+            ) {
+                $usuario =
+                    $this->obtenerUsuarioAutorizado(
+                        $usuarioId
+                    );
 
-    'estado' =>
-        $nuevoEstado,
+                $envio =
+                    EnvioImportacion::query()
+                        ->lockForUpdate()
+                        ->find(
+                            $envioId
+                        );
 
-    'recibido_por_id' =>
-        $todasRecibidas
-            ? $usuario->id
-            : null,
+                if (!$envio) {
+                    throw new ReglaNegocioException(
+                        'El envío no existe.'
+                    );
+                }
 
-    'fecha_recepcion' =>
-        $todasRecibidas
-            ? now()
-            : null,
+                /*
+                 * Una recepción normal ocurre cuando
+                 * el envío está DESPACHADO.
+                 *
+                 * Una recepción tardía puede ocurrir
+                 * cuando el envío ya fue cerrado
+                 * parcialmente.
+                 */
+                if (
+                    !in_array(
+                        $envio->estado,
+                        [
+                            EnvioImportacion::ESTADO_DESPACHADO,
+                            EnvioImportacion::ESTADO_RECIBIDO_PARCIAL,
+                        ],
+                        true
+                    )
+                ) {
+                    throw new ReglaNegocioException(
+                        'Solo pueden recibirse unidades de envíos DESPACHADOS o con RECEPCIÓN PARCIAL.'
+                    );
+                }
 
-]);
+                $detalle =
+                    EnvioImportacionUnidad::query()
+                        ->where(
+                            'envio_importacion_id',
+                            $envio->id
+                        )
+                        ->where(
+                            'unidad_adquirida_id',
+                            $unidadId
+                        )
+                        ->lockForUpdate()
+                        ->first();
 
-            return $envio->fresh();
-        },
-        3
-    );
-}
+                if (!$detalle) {
+                    throw new ReglaNegocioException(
+                        'La unidad no pertenece a este envío.'
+                    );
+                }
+
+                /*
+                 * Una unidad FALTANTE puede aparecer
+                 * posteriormente.
+                 */
+                $esRecepcionTardia =
+                    $detalle->estaFaltante();
+
+                if (
+                    !$detalle->estaPendiente() &&
+                    !$esRecepcionTardia
+                ) {
+                    throw new ReglaNegocioException(
+                        'La unidad ya fue procesada en recepción y no puede registrarse nuevamente.'
+                    );
+                }
+
+                $unidad =
+                    UnidadAdquirida::query()
+                        ->lockForUpdate()
+                        ->find(
+                            $unidadId
+                        );
+
+                if (!$unidad) {
+                    throw new ReglaNegocioException(
+                        'La unidad adquirida no existe.'
+                    );
+                }
+
+                if (
+                    $unidad->estado !==
+                    UnidadAdquirida::ESTADO_ENVIADA
+                ) {
+                    throw new ReglaNegocioException(
+                        'La unidad no se encuentra enviada.'
+                    );
+                }
+
+                /*
+                 * Conservamos el historial descriptivo
+                 * cuando previamente estuvo FALTANTE.
+                 */
+                $observacionFinal =
+                    $observacion !== null
+                        ? trim(
+                            $observacion
+                        )
+                        : null;
+
+                if ($esRecepcionTardia) {
+                    $observacionAnterior =
+                        $detalle->observacion_recepcion !== null &&
+                        trim(
+                            $detalle->observacion_recepcion
+                        ) !== ''
+                            ? trim(
+                                $detalle->observacion_recepcion
+                            ) . "\n"
+                            : '';
+
+                    $notaTardia =
+                        $observacion !== null &&
+                        trim(
+                            $observacion
+                        ) !== ''
+                            ? trim(
+                                $observacion
+                            )
+                            : 'La unidad fue recibida posteriormente.';
+
+                    $observacionFinal =
+                        $observacionAnterior .
+                        '[RECEPCIÓN TARDÍA] ' .
+                        $notaTardia;
+                }
+
+                $detalle->update([
+                    'estado_recepcion' =>
+                        EnvioImportacionUnidad::ESTADO_RECIBIDA,
+
+                    'fecha_recepcion' =>
+                        now(),
+
+                    'recibido_por_id' =>
+                        $usuario->id,
+
+                    'observacion_recepcion' =>
+                        $observacionFinal,
+                ]);
+
+                /*
+                 * Solo ahora que físicamente llegó
+                 * se mueve la unidad al almacén Oruro.
+                 */
+                $unidad->update([
+                    'almacen_actual_id' =>
+                        $envio->almacen_destino_id,
+
+                    'estado' =>
+                        UnidadAdquirida::ESTADO_RECIBIDA_ORURO,
+                ]);
+
+                return $detalle->fresh();
+            },
+            3
+        );
+    }
+
+
+    /**
+     * Marca una unidad como faltante durante
+     * la recepción del envío.
+     *
+     * Importante:
+     * La unidad NO se mueve a Oruro.
+     * Continúa en estado ENVIADA hasta que
+     * se resuelva la situación.
+     */
+    public function marcarUnidadFaltante(
+        int $usuarioId,
+        int $envioId,
+        int $unidadId,
+        string $observacion
+    ): EnvioImportacionUnidad {
+        return DB::transaction(
+            function () use (
+                $usuarioId,
+                $envioId,
+                $unidadId,
+                $observacion
+            ) {
+                $this->obtenerUsuarioAutorizado(
+                    $usuarioId
+                );
+
+                $validator =
+                    Validator::make(
+                        [
+                            'observacion' =>
+                                $observacion,
+                        ],
+                        [
+                            'observacion' => [
+                                'required',
+                                'string',
+                                'max:1000',
+                            ],
+                        ]
+                    );
+
+                if ($validator->fails()) {
+                    throw new ValidationException(
+                        $validator
+                    );
+                }
+
+                $validados =
+                    $validator->validated();
+
+                $envio =
+                    EnvioImportacion::query()
+                        ->lockForUpdate()
+                        ->find(
+                            $envioId
+                        );
+
+                if (!$envio) {
+                    throw new ReglaNegocioException(
+                        'El envío no existe.'
+                    );
+                }
+
+                if (
+                    !in_array(
+                        $envio->estado,
+                        [
+                            EnvioImportacion::ESTADO_DESPACHADO,
+                            EnvioImportacion::ESTADO_RECIBIDO_PARCIAL,
+                        ],
+                        true
+                    )
+                ) {
+                    throw new ReglaNegocioException(
+                        'Solo pueden registrarse unidades faltantes en envíos despachados o con recepción parcial.'
+                    );
+                }
+
+                $detalle =
+                    EnvioImportacionUnidad::query()
+                        ->where(
+                            'envio_importacion_id',
+                            $envio->id
+                        )
+                        ->where(
+                            'unidad_adquirida_id',
+                            $unidadId
+                        )
+                        ->lockForUpdate()
+                        ->first();
+
+                if (!$detalle) {
+                    throw new ReglaNegocioException(
+                        'La unidad no pertenece a este envío.'
+                    );
+                }
+
+                /*
+                 * Solo una unidad todavía PENDIENTE
+                 * puede declararse FALTANTE.
+                 */
+                if (
+                    !$detalle->estaPendiente()
+                ) {
+                    throw new ReglaNegocioException(
+                        'La unidad ya fue procesada durante la recepción.'
+                    );
+                }
+
+                $unidad =
+                    UnidadAdquirida::query()
+                        ->lockForUpdate()
+                        ->find(
+                            $unidadId
+                        );
+
+                if (!$unidad) {
+                    throw new ReglaNegocioException(
+                        'La unidad adquirida no existe.'
+                    );
+                }
+
+                if (
+                    $unidad->estado !==
+                    UnidadAdquirida::ESTADO_ENVIADA
+                ) {
+                    throw new ReglaNegocioException(
+                        'Solo puede marcarse como faltante una unidad que se encuentre enviada.'
+                    );
+                }
+
+                $detalle->update([
+                    'estado_recepcion' =>
+                        EnvioImportacionUnidad::ESTADO_FALTANTE,
+
+                    /*
+                     * No existe recepción física.
+                     */
+                    'fecha_recepcion' =>
+                        null,
+
+                    'recibido_por_id' =>
+                        null,
+
+                    'observacion_recepcion' =>
+                        trim(
+                            $validados['observacion']
+                        ),
+                ]);
+
+                /*
+                 * La UnidadAdquirida permanece:
+                 *
+                 * estado = ENVIADA
+                 * almacen_actual_id = origen
+                 *
+                 * porque todavía no existe evidencia
+                 * de recepción física en Oruro.
+                 */
+                return $detalle->fresh();
+            },
+            3
+        );
+    }
+
+
+    /**
+     * Cierra la recepción del envío.
+     *
+     * Todas RECIBIDAS:
+     *      -> RECIBIDO
+     *
+     * Existe FALTANTE o INCIDENCIA:
+     *      -> RECIBIDO_PARCIAL
+     *
+     * Existe PENDIENTE:
+     *      -> no permite cerrar
+     */
+    public function cerrarRecepcion(
+        int $usuarioId,
+        int $envioId
+    ): EnvioImportacion {
+        return DB::transaction(
+            function () use (
+                $usuarioId,
+                $envioId
+            ) {
+                $usuario =
+                    $this->obtenerUsuarioAutorizado(
+                        $usuarioId
+                    );
+
+                $envio =
+                    EnvioImportacion::query()
+                        ->lockForUpdate()
+                        ->with(
+                            'unidadesEnvio'
+                        )
+                        ->find(
+                            $envioId
+                        );
+
+                if (!$envio) {
+                    throw new ReglaNegocioException(
+                        'El envío no existe.'
+                    );
+                }
+
+                /*
+                 * También puede volver a cerrarse una
+                 * recepción parcial después de que una
+                 * unidad faltante llegue posteriormente.
+                 */
+                if (
+                    !in_array(
+                        $envio->estado,
+                        [
+                            EnvioImportacion::ESTADO_DESPACHADO,
+                            EnvioImportacion::ESTADO_RECIBIDO_PARCIAL,
+                        ],
+                        true
+                    )
+                ) {
+                    throw new ReglaNegocioException(
+                        'Solo pueden cerrarse envíos despachados o con recepción parcial.'
+                    );
+                }
+
+                if (
+                    $envio->unidadesEnvio->isEmpty()
+                ) {
+                    throw new ReglaNegocioException(
+                        'No se puede cerrar un envío sin unidades.'
+                    );
+                }
+
+                /*
+                 * No permitimos cerrar mientras alguna
+                 * unidad todavía siga PENDIENTE.
+                 */
+                foreach (
+                    $envio->unidadesEnvio
+                    as $detalle
+                ) {
+                    if (
+                        !$detalle
+                            ->estaResueltaEnRecepcion()
+                    ) {
+                        throw new ReglaNegocioException(
+                            'Existen unidades pendientes de recepción.'
+                        );
+                    }
+                }
+
+                /*
+                 * Solo se considera RECIBIDO cuando
+                 * todas las unidades llegaron físicamente.
+                 */
+                $todasRecibidas =
+                    $envio->unidadesEnvio
+                        ->every(
+                            fn ($detalle) =>
+                                $detalle
+                                    ->estado_recepcion ===
+                                EnvioImportacionUnidad::ESTADO_RECIBIDA
+                        );
+
+                $nuevoEstado =
+                    $todasRecibidas
+                        ? EnvioImportacion::ESTADO_RECIBIDO
+                        : EnvioImportacion::ESTADO_RECIBIDO_PARCIAL;
+
+                $envio->update([
+                    'estado' =>
+                        $nuevoEstado,
+
+                    /*
+                     * Estos campos generales significan
+                     * recepción completa del envío.
+                     *
+                     * En una recepción parcial quedan NULL.
+                     */
+                    'recibido_por_id' =>
+                        $todasRecibidas
+                            ? $usuario->id
+                            : null,
+
+                    'fecha_recepcion' =>
+                        $todasRecibidas
+                            ? now()
+                            : null,
+                ]);
+
+                return $envio->fresh();
+            },
+            3
+        );
+    }
+
+
+    /**
+     * Obtiene un usuario habilitado para
+     * gestionar importaciones.
+     */
+    private function obtenerUsuarioAutorizado(
+        int $usuarioId
+    ): User {
+        $usuario =
+            User::query()
+                ->where(
+                    'activo',
+                    true
+                )
+                ->find(
+                    $usuarioId
+                );
+
+        if (!$usuario) {
+            throw new ReglaNegocioException(
+                'El usuario no existe o se encuentra inactivo.'
+            );
+        }
+
+        if (
+            !$usuario->tienePermiso(
+                'importacion.gestionar'
+            )
+        ) {
+            throw new ReglaNegocioException(
+                'El usuario no tiene permiso para gestionar importaciones.'
+            );
+        }
+
+        return $usuario;
+    }
 }

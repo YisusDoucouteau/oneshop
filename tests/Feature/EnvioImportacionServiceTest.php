@@ -1244,4 +1244,352 @@ public function test_cierra_envio_como_recibido_parcial_cuando_existe_unidad_fal
         ]
     );
 }
+public function test_recibe_unidad_faltante_tardiamente_y_completa_el_envio(): void
+{
+    $usuario =
+        $this->usuarioOperativo;
+
+    $servicio =
+        app(EnvioImportacionService::class);
+
+
+    /*
+     * ---------------------------------------------------------
+     * 1. Crear envío
+     * ---------------------------------------------------------
+     */
+    $envio =
+        $servicio->crearBorrador(
+            $usuario->id,
+            [
+                'codigo' =>
+                    'ENV-TARDIO-001',
+
+                'cantidad_bultos' =>
+                    1,
+            ]
+        );
+
+
+    /*
+     * ---------------------------------------------------------
+     * 2. Crear producto de prueba
+     * ---------------------------------------------------------
+     */
+    $categoria =
+        CategoriaProducto::create([
+            'codigo' =>
+                'LAPTOP-TARDIO',
+
+            'nombre' =>
+                'Laptops recepción tardía',
+
+            'activo' =>
+                true,
+        ]);
+
+
+    $producto =
+        Producto::create([
+            'categoria_producto_id' =>
+                $categoria->id,
+
+            'codigo' =>
+                'LAP-TARDIO-001',
+
+            'nombre' =>
+                'Laptop prueba recepción tardía',
+
+            'modelo' =>
+                'Latitude Tardio Test',
+
+            'es_serializado' =>
+                true,
+
+            'activo' =>
+                true,
+        ]);
+
+
+    /*
+     * ---------------------------------------------------------
+     * 3. Crear dos unidades físicas
+     * ---------------------------------------------------------
+     */
+    $unidadRecibida =
+        UnidadAdquirida::create([
+            'producto_id' =>
+                $producto->id,
+
+            'almacen_actual_id' =>
+                $envio->almacen_origen_id,
+
+            'estado' =>
+                UnidadAdquirida::ESTADO_LISTA_ENVIO,
+
+            'serial_fabricante' =>
+                'TARDIO-RECIBIDA-001',
+
+            'enciende' =>
+                true,
+
+            'tiene_sistema_operativo' =>
+                true,
+
+            'tiene_cargador' =>
+                true,
+
+            'requiere_servicio' =>
+                false,
+        ]);
+
+
+    $unidadTardia =
+        UnidadAdquirida::create([
+            'producto_id' =>
+                $producto->id,
+
+            'almacen_actual_id' =>
+                $envio->almacen_origen_id,
+
+            'estado' =>
+                UnidadAdquirida::ESTADO_LISTA_ENVIO,
+
+            'serial_fabricante' =>
+                'TARDIO-FALTANTE-001',
+
+            'enciende' =>
+                true,
+
+            'tiene_sistema_operativo' =>
+                true,
+
+            'tiene_cargador' =>
+                true,
+
+            'requiere_servicio' =>
+                false,
+        ]);
+
+
+    /*
+     * ---------------------------------------------------------
+     * 4. Agregar ambas unidades al envío
+     * ---------------------------------------------------------
+     */
+    $servicio->agregarUnidad(
+        $usuario->id,
+        $envio->id,
+        $unidadRecibida->id
+    );
+
+    $servicio->agregarUnidad(
+        $usuario->id,
+        $envio->id,
+        $unidadTardia->id
+    );
+
+
+    /*
+     * ---------------------------------------------------------
+     * 5. Preparar y despachar
+     * ---------------------------------------------------------
+     */
+    $servicio->marcarPreparado(
+        $usuario->id,
+        $envio->id
+    );
+
+    $servicio->marcarDespachado(
+        $usuario->id,
+        $envio->id
+    );
+
+
+    /*
+     * ---------------------------------------------------------
+     * 6. Una unidad llega normalmente
+     * ---------------------------------------------------------
+     */
+    $servicio->recibirUnidad(
+        $usuario->id,
+        $envio->id,
+        $unidadRecibida->id,
+        'Unidad recibida correctamente.'
+    );
+
+
+    /*
+     * ---------------------------------------------------------
+     * 7. La segunda unidad se declara faltante
+     * ---------------------------------------------------------
+     */
+    $servicio->marcarUnidadFaltante(
+        $usuario->id,
+        $envio->id,
+        $unidadTardia->id,
+        'La unidad no fue encontrada durante la recepción inicial.'
+    );
+
+
+    /*
+     * ---------------------------------------------------------
+     * 8. Cerrar inicialmente como RECIBIDO_PARCIAL
+     * ---------------------------------------------------------
+     */
+    $envioParcial =
+        $servicio->cerrarRecepcion(
+            $usuario->id,
+            $envio->id
+        );
+
+
+    $this->assertEquals(
+        EnvioImportacion::ESTADO_RECIBIDO_PARCIAL,
+        $envioParcial->estado
+    );
+
+
+    /*
+     * ---------------------------------------------------------
+     * 9. La unidad faltante aparece posteriormente
+     * ---------------------------------------------------------
+     */
+    $detalleTardio =
+        $servicio->recibirUnidad(
+            $usuario->id,
+            $envio->id,
+            $unidadTardia->id,
+            'La transportadora entregó la unidad posteriormente.'
+        );
+
+
+    /*
+     * El detalle debe pasar:
+     *
+     * FALTANTE -> RECIBIDA
+     */
+    $this->assertEquals(
+        EnvioImportacionUnidad::ESTADO_RECIBIDA,
+        $detalleTardio->estado_recepcion
+    );
+
+
+    $this->assertNotNull(
+        $detalleTardio->fecha_recepcion
+    );
+
+
+    $this->assertEquals(
+        $usuario->id,
+        $detalleTardio->recibido_por_id
+    );
+
+
+    /*
+     * ---------------------------------------------------------
+     * 10. Debe conservarse la historia del faltante
+     * ---------------------------------------------------------
+     */
+    $this->assertStringContainsString(
+        'La unidad no fue encontrada durante la recepción inicial.',
+        $detalleTardio->observacion_recepcion
+    );
+
+
+    $this->assertStringContainsString(
+        '[RECEPCIÓN TARDÍA]',
+        $detalleTardio->observacion_recepcion
+    );
+
+
+    $this->assertStringContainsString(
+        'La transportadora entregó la unidad posteriormente.',
+        $detalleTardio->observacion_recepcion
+    );
+
+
+    /*
+     * ---------------------------------------------------------
+     * 11. La unidad debe estar físicamente en Oruro
+     * ---------------------------------------------------------
+     */
+    $this->assertDatabaseHas(
+        'unidades_adquiridas',
+        [
+            'id' =>
+                $unidadTardia->id,
+
+            'estado' =>
+                UnidadAdquirida::ESTADO_RECIBIDA_ORURO,
+
+            'almacen_actual_id' =>
+                $envio->almacen_destino_id,
+        ]
+    );
+
+
+    /*
+     * ---------------------------------------------------------
+     * 12. Cerrar nuevamente la recepción
+     * ---------------------------------------------------------
+     */
+    $envioCompleto =
+        $servicio->cerrarRecepcion(
+            $usuario->id,
+            $envio->id
+        );
+
+
+    /*
+     * Ahora las dos unidades llegaron.
+     *
+     * RECIBIDO_PARCIAL -> RECIBIDO
+     */
+    $this->assertEquals(
+        EnvioImportacion::ESTADO_RECIBIDO,
+        $envioCompleto->estado
+    );
+
+
+    $this->assertEquals(
+        $usuario->id,
+        $envioCompleto->recibido_por_id
+    );
+
+
+    $this->assertNotNull(
+        $envioCompleto->fecha_recepcion
+    );
+
+
+    $this->assertDatabaseHas(
+        'envios_importacion',
+        [
+            'id' =>
+                $envio->id,
+
+            'estado' =>
+                EnvioImportacion::ESTADO_RECIBIDO,
+
+            'recibido_por_id' =>
+                $usuario->id,
+        ]
+    );
+
+
+    $this->assertDatabaseHas(
+        'envios_importacion_unidades',
+        [
+            'envio_importacion_id' =>
+                $envio->id,
+
+            'unidad_adquirida_id' =>
+                $unidadTardia->id,
+
+            'estado_recepcion' =>
+                EnvioImportacionUnidad::ESTADO_RECIBIDA,
+        ]
+    );
+}
 }
