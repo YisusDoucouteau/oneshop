@@ -4,7 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
-
+use Illuminate\Database\Eloquent\Relations\HasMany;
 class EnvioImportacionUnidad extends Model
 {
     protected $table =
@@ -76,7 +76,13 @@ class EnvioImportacionUnidad extends Model
         );
     }
 
-
+    public function incidencias(): HasMany
+{
+    return $this->hasMany(
+        IncidenciaLogisticaImportacion::class,
+        'envio_importacion_unidad_id'
+    )->orderBy('fecha_apertura');
+}
     /*
     |--------------------------------------------------------------------------
     | Helpers
