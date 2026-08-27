@@ -993,7 +993,176 @@ class EnvioImportacionService
             3
         );
     }
+    /**
+ * Registra una incidencia detectada durante
+ * la recepción física de una unidad.
+ *
+ * A diferencia de FALTANTE, la unidad sí
+ * llegó al almacén destino, pero presenta
+ * alguna anomalía.
+ */
+public function registrarIncidenciaRecepcion(
+    int $usuarioId,
+    int $envioId,
+    int $unidadId,
+    string $observacion
+): EnvioImportacionUnidad {
+    return DB::transaction(
+        function () use (
+            $usuarioId,
+            $envioId,
+            $unidadId,
+            $observacion
+        ) {
+            $usuario =
+                $this->obtenerUsuarioAutorizado(
+                    $usuarioId
+                );
 
+            $validator =
+                Validator::make(
+                    [
+                        'observacion' =>
+                            $observacion,
+                    ],
+                    [
+                        'observacion' => [
+                            'required',
+                            'string',
+                            'max:1000',
+                        ],
+                    ]
+                );
+
+            if ($validator->fails()) {
+                throw new ValidationException(
+                    $validator
+                );
+            }
+
+            $validados =
+                $validator->validated();
+
+            $envio =
+                EnvioImportacion::query()
+                    ->lockForUpdate()
+                    ->find(
+                        $envioId
+                    );
+
+            if (!$envio) {
+                throw new ReglaNegocioException(
+                    'El envío no existe.'
+                );
+            }
+
+            if (
+                !in_array(
+                    $envio->estado,
+                    [
+                        EnvioImportacion::ESTADO_DESPACHADO,
+                        EnvioImportacion::ESTADO_RECIBIDO_PARCIAL,
+                    ],
+                    true
+                )
+            ) {
+                throw new ReglaNegocioException(
+                    'Solo pueden registrarse incidencias en envíos despachados o con recepción parcial.'
+                );
+            }
+
+            $detalle =
+                EnvioImportacionUnidad::query()
+                    ->where(
+                        'envio_importacion_id',
+                        $envio->id
+                    )
+                    ->where(
+                        'unidad_adquirida_id',
+                        $unidadId
+                    )
+                    ->lockForUpdate()
+                    ->first();
+
+            if (!$detalle) {
+                throw new ReglaNegocioException(
+                    'La unidad no pertenece a este envío.'
+                );
+            }
+
+            /*
+             * Por ahora la incidencia corresponde
+             * a una anomalía detectada en la primera
+             * recepción física.
+             */
+            if (
+                !$detalle->estaPendiente()
+            ) {
+                throw new ReglaNegocioException(
+                    'La unidad ya fue procesada durante la recepción.'
+                );
+            }
+
+            $unidad =
+                UnidadAdquirida::query()
+                    ->lockForUpdate()
+                    ->find(
+                        $unidadId
+                    );
+
+            if (!$unidad) {
+                throw new ReglaNegocioException(
+                    'La unidad adquirida no existe.'
+                );
+            }
+
+            if (
+                $unidad->estado !==
+                UnidadAdquirida::ESTADO_ENVIADA
+            ) {
+                throw new ReglaNegocioException(
+                    'Solo puede registrarse una incidencia de recepción para una unidad enviada.'
+                );
+            }
+
+            /*
+             * La unidad sí llegó físicamente.
+             * Por eso registramos fecha y receptor.
+             */
+            $detalle->update([
+                'estado_recepcion' =>
+                    EnvioImportacionUnidad::ESTADO_INCIDENCIA,
+
+                'fecha_recepcion' =>
+                    now(),
+
+                'recibido_por_id' =>
+                    $usuario->id,
+
+                'observacion_recepcion' =>
+                    trim(
+                        $validados['observacion']
+                    ),
+            ]);
+
+            /*
+             * Aunque exista una incidencia,
+             * físicamente la unidad ya se encuentra
+             * en Oruro.
+             */
+            $unidad->update([
+                'almacen_actual_id' =>
+                    $envio->almacen_destino_id,
+
+                'estado' =>
+                    UnidadAdquirida::ESTADO_RECIBIDA_ORURO,
+            ]);
+
+            return $detalle->fresh();
+        },
+        3
+    );
+}
 
     /**
      * Cierra la recepción del envío.

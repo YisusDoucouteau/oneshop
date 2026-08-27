@@ -1592,4 +1592,315 @@ public function test_recibe_unidad_faltante_tardiamente_y_completa_el_envio(): v
         ]
     );
 }
+public function test_registra_incidencia_de_recepcion_y_cierra_envio_como_parcial(): void
+{
+    $usuario =
+        $this->usuarioOperativo;
+
+    $servicio =
+        app(EnvioImportacionService::class);
+
+
+    /*
+     * ---------------------------------------------------------
+     * 1. Crear envío
+     * ---------------------------------------------------------
+     */
+    $envio =
+        $servicio->crearBorrador(
+            $usuario->id,
+            [
+                'codigo' =>
+                    'ENV-INCIDENCIA-001',
+
+                'cantidad_bultos' =>
+                    1,
+            ]
+        );
+
+
+    /*
+     * ---------------------------------------------------------
+     * 2. Crear producto
+     * ---------------------------------------------------------
+     */
+    $categoria =
+        CategoriaProducto::create([
+            'codigo' =>
+                'LAPTOP-INCIDENCIA',
+
+            'nombre' =>
+                'Laptops incidencia recepción',
+
+            'activo' =>
+                true,
+        ]);
+
+
+    $producto =
+        Producto::create([
+            'categoria_producto_id' =>
+                $categoria->id,
+
+            'codigo' =>
+                'LAP-INCIDENCIA-001',
+
+            'nombre' =>
+                'Laptop prueba incidencia',
+
+            'modelo' =>
+                'Latitude Incidencia Test',
+
+            'es_serializado' =>
+                true,
+
+            'activo' =>
+                true,
+        ]);
+
+
+    /*
+     * ---------------------------------------------------------
+     * 3. Crear dos unidades
+     * ---------------------------------------------------------
+     */
+    $unidadNormal =
+        UnidadAdquirida::create([
+            'producto_id' =>
+                $producto->id,
+
+            'almacen_actual_id' =>
+                $envio->almacen_origen_id,
+
+            'estado' =>
+                UnidadAdquirida::ESTADO_LISTA_ENVIO,
+
+            'serial_fabricante' =>
+                'INC-NORMAL-001',
+
+            'enciende' =>
+                true,
+
+            'tiene_sistema_operativo' =>
+                true,
+
+            'tiene_cargador' =>
+                true,
+
+            'requiere_servicio' =>
+                false,
+        ]);
+
+
+    $unidadConIncidencia =
+        UnidadAdquirida::create([
+            'producto_id' =>
+                $producto->id,
+
+            'almacen_actual_id' =>
+                $envio->almacen_origen_id,
+
+            'estado' =>
+                UnidadAdquirida::ESTADO_LISTA_ENVIO,
+
+            'serial_fabricante' =>
+                'INC-GOLPE-001',
+
+            'enciende' =>
+                true,
+
+            'tiene_sistema_operativo' =>
+                true,
+
+            'tiene_cargador' =>
+                true,
+
+            'requiere_servicio' =>
+                false,
+        ]);
+
+
+    /*
+     * ---------------------------------------------------------
+     * 4. Agregar unidades al envío
+     * ---------------------------------------------------------
+     */
+    $servicio->agregarUnidad(
+        $usuario->id,
+        $envio->id,
+        $unidadNormal->id
+    );
+
+    $servicio->agregarUnidad(
+        $usuario->id,
+        $envio->id,
+        $unidadConIncidencia->id
+    );
+
+
+    /*
+     * ---------------------------------------------------------
+     * 5. Preparar y despachar
+     * ---------------------------------------------------------
+     */
+    $servicio->marcarPreparado(
+        $usuario->id,
+        $envio->id
+    );
+
+    $servicio->marcarDespachado(
+        $usuario->id,
+        $envio->id
+    );
+
+
+    /*
+     * ---------------------------------------------------------
+     * 6. Primera unidad: recepción normal
+     * ---------------------------------------------------------
+     */
+    $servicio->recibirUnidad(
+        $usuario->id,
+        $envio->id,
+        $unidadNormal->id,
+        'Unidad recibida correctamente.'
+    );
+
+
+    /*
+     * ---------------------------------------------------------
+     * 7. Segunda unidad: llegó, pero con incidencia
+     * ---------------------------------------------------------
+     */
+    $detalleIncidencia =
+        $servicio->registrarIncidenciaRecepcion(
+            $usuario->id,
+            $envio->id,
+            $unidadConIncidencia->id,
+            'El equipo llegó con un golpe visible en la carcasa.'
+        );
+
+
+    /*
+     * El detalle debe quedar como INCIDENCIA.
+     */
+    $this->assertEquals(
+        EnvioImportacionUnidad::ESTADO_INCIDENCIA,
+        $detalleIncidencia->estado_recepcion
+    );
+
+
+    /*
+     * Como físicamente sí llegó,
+     * debe existir fecha de recepción.
+     */
+    $this->assertNotNull(
+        $detalleIncidencia->fecha_recepcion
+    );
+
+
+    $this->assertEquals(
+        $usuario->id,
+        $detalleIncidencia->recibido_por_id
+    );
+
+
+    $this->assertStringContainsString(
+        'golpe visible',
+        $detalleIncidencia->observacion_recepcion
+    );
+
+
+    /*
+     * ---------------------------------------------------------
+     * 8. La unidad sí debe estar físicamente en Oruro
+     * ---------------------------------------------------------
+     */
+    $this->assertDatabaseHas(
+        'unidades_adquiridas',
+        [
+            'id' =>
+                $unidadConIncidencia->id,
+
+            'estado' =>
+                UnidadAdquirida::ESTADO_RECIBIDA_ORURO,
+
+            'almacen_actual_id' =>
+                $envio->almacen_destino_id,
+        ]
+    );
+
+
+    /*
+     * ---------------------------------------------------------
+     * 9. Cerrar recepción
+     * ---------------------------------------------------------
+     */
+    $envioParcial =
+        $servicio->cerrarRecepcion(
+            $usuario->id,
+            $envio->id
+        );
+
+
+    /*
+     * Aunque ambas unidades llegaron físicamente,
+     * una presenta incidencia.
+     *
+     * El envío todavía NO está completamente resuelto.
+     */
+    $this->assertEquals(
+        EnvioImportacion::ESTADO_RECIBIDO_PARCIAL,
+        $envioParcial->estado
+    );
+
+
+    /*
+     * Los campos generales de recepción completa
+     * deben continuar vacíos.
+     */
+    $this->assertNull(
+        $envioParcial->fecha_recepcion
+    );
+
+
+    $this->assertNull(
+        $envioParcial->recibido_por_id
+    );
+
+
+    /*
+     * ---------------------------------------------------------
+     * 10. Verificar detalle en base de datos
+     * ---------------------------------------------------------
+     */
+    $this->assertDatabaseHas(
+        'envios_importacion_unidades',
+        [
+            'envio_importacion_id' =>
+                $envio->id,
+
+            'unidad_adquirida_id' =>
+                $unidadConIncidencia->id,
+
+            'estado_recepcion' =>
+                EnvioImportacionUnidad::ESTADO_INCIDENCIA,
+
+            'recibido_por_id' =>
+                $usuario->id,
+        ]
+    );
+
+
+    $this->assertDatabaseHas(
+        'envios_importacion',
+        [
+            'id' =>
+                $envio->id,
+
+            'estado' =>
+                EnvioImportacion::ESTADO_RECIBIDO_PARCIAL,
+        ]
+    );
+}
 }
