@@ -65,10 +65,10 @@ class IncidenciaLogisticaImportacionService
 
                 $detalle =
                     EnvioImportacionUnidad::query()
-                        ->lockForUpdate()
-                        ->find(
-                            $envioImportacionUnidadId
-                        );
+                    ->lockForUpdate()
+                    ->find(
+                        $envioImportacionUnidadId
+                    );
 
                 if (!$detalle) {
                     throw new ReglaNegocioException(
@@ -104,19 +104,19 @@ class IncidenciaLogisticaImportacionService
                  */
                 $incidenciaActiva =
                     IncidenciaLogisticaImportacion::query()
-                        ->where(
-                            'envio_importacion_unidad_id',
-                            $detalle->id
-                        )
-                        ->whereIn(
-                            'estado',
-                            [
-                                IncidenciaLogisticaImportacion::ESTADO_ABIERTA,
-                                IncidenciaLogisticaImportacion::ESTADO_EN_GESTION,
-                            ]
-                        )
-                        ->lockForUpdate()
-                        ->first();
+                    ->where(
+                        'envio_importacion_unidad_id',
+                        $detalle->id
+                    )
+                    ->whereIn(
+                        'estado',
+                        [
+                            IncidenciaLogisticaImportacion::ESTADO_ABIERTA,
+                            IncidenciaLogisticaImportacion::ESTADO_EN_GESTION,
+                        ]
+                    )
+                    ->lockForUpdate()
+                    ->first();
 
                 if ($incidenciaActiva) {
                     throw new ReglaNegocioException(
@@ -126,38 +126,38 @@ class IncidenciaLogisticaImportacionService
 
                 return IncidenciaLogisticaImportacion::create([
                     'envio_importacion_unidad_id' =>
-                        $detalle->id,
+                    $detalle->id,
 
                     'tipo' =>
-                        trim(
-                            $validados['tipo']
-                        ),
+                    trim(
+                        $validados['tipo']
+                    ),
 
                     'estado' =>
-                        IncidenciaLogisticaImportacion::ESTADO_ABIERTA,
+                    IncidenciaLogisticaImportacion::ESTADO_ABIERTA,
 
                     'descripcion' =>
-                        trim(
-                            $validados['descripcion']
-                        ),
+                    trim(
+                        $validados['descripcion']
+                    ),
 
                     'fecha_apertura' =>
-                        now(),
+                    now(),
 
                     'abierta_por_id' =>
-                        $usuario->id,
+                    $usuario->id,
 
                     'resultado' =>
-                        null,
+                    null,
 
                     'detalle_resolucion' =>
-                        null,
+                    null,
 
                     'fecha_resolucion' =>
-                        null,
+                    null,
 
                     'resuelta_por_id' =>
-                        null,
+                    null,
                 ]);
             },
             3
@@ -185,10 +185,10 @@ class IncidenciaLogisticaImportacionService
 
                 $incidencia =
                     IncidenciaLogisticaImportacion::query()
-                        ->lockForUpdate()
-                        ->find(
-                            $incidenciaId
-                        );
+                    ->lockForUpdate()
+                    ->find(
+                        $incidenciaId
+                    );
 
                 if (!$incidencia) {
                     throw new ReglaNegocioException(
@@ -206,7 +206,7 @@ class IncidenciaLogisticaImportacionService
 
                 $incidencia->update([
                     'estado' =>
-                        IncidenciaLogisticaImportacion::ESTADO_EN_GESTION,
+                    IncidenciaLogisticaImportacion::ESTADO_EN_GESTION,
                 ]);
 
                 return $incidencia->fresh();
@@ -271,10 +271,10 @@ class IncidenciaLogisticaImportacionService
 
                 $incidencia =
                     IncidenciaLogisticaImportacion::query()
-                        ->lockForUpdate()
-                        ->find(
-                            $incidenciaId
-                        );
+                    ->lockForUpdate()
+                    ->find(
+                        $incidenciaId
+                    );
 
                 if (!$incidencia) {
                     throw new ReglaNegocioException(
@@ -283,32 +283,32 @@ class IncidenciaLogisticaImportacionService
                 }
 
                 if (
-                    !$incidencia->puedeGestionarse()
+                    !$incidencia->estaEnGestion()
                 ) {
                     throw new ReglaNegocioException(
-                        'La incidencia ya se encuentra resuelta.'
+                        'Solo pueden resolverse incidencias que se encuentren EN_GESTION.'
                     );
                 }
 
                 $incidencia->update([
                     'estado' =>
-                        IncidenciaLogisticaImportacion::ESTADO_RESUELTA,
+                    IncidenciaLogisticaImportacion::ESTADO_RESUELTA,
 
                     'resultado' =>
-                        trim(
-                            $validados['resultado']
-                        ),
+                    trim(
+                        $validados['resultado']
+                    ),
 
                     'detalle_resolucion' =>
-                        trim(
-                            $validados['detalle_resolucion']
-                        ),
+                    trim(
+                        $validados['detalle_resolucion']
+                    ),
 
                     'fecha_resolucion' =>
-                        now(),
+                    now(),
 
                     'resuelta_por_id' =>
-                        $usuario->id,
+                    $usuario->id,
                 ]);
 
                 return $incidencia->fresh();
@@ -327,13 +327,13 @@ class IncidenciaLogisticaImportacionService
     ): User {
         $usuario =
             User::query()
-                ->where(
-                    'activo',
-                    true
-                )
-                ->find(
-                    $usuarioId
-                );
+            ->where(
+                'activo',
+                true
+            )
+            ->find(
+                $usuarioId
+            );
 
         if (!$usuario) {
             throw new ReglaNegocioException(
