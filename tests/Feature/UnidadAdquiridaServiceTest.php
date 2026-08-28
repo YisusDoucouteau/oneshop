@@ -798,4 +798,175 @@ public function test_unidad_funcional_queda_lista_para_envio(): void
         $unidad->fecha_lista_envio
     );
 }
+public function test_genera_codigos_de_trazabilidad_correlativos_en_una_llegada(): void
+{
+    $servicio =
+        app(
+            UnidadAdquiridaService::class
+        );
+
+    $unidades =
+        $servicio->registrarLlegadaCochabamba(
+            $this->usuarioOperativo->id,
+            $this->detalle->id,
+            3,
+            '2026-08-27 09:30:00'
+        );
+
+    $this->assertSame(
+        [
+            'OS-260827-0001',
+            'OS-260827-0002',
+            'OS-260827-0003',
+        ],
+        $unidades
+            ->pluck('codigo_trazabilidad')
+            ->all()
+    );
+
+    foreach ($unidades as $unidad) {
+        $this->assertNotNull(
+            $unidad->codigo_trazabilidad
+        );
+
+        $this->assertDatabaseHas(
+            'unidades_adquiridas',
+            [
+                'id' =>
+                    $unidad->id,
+
+                'codigo_trazabilidad' =>
+                    $unidad->codigo_trazabilidad,
+            ]
+        );
+    }
+}
+
+
+public function test_segunda_llegada_del_mismo_dia_continua_correlativo(): void
+{
+    $servicio =
+        app(
+            UnidadAdquiridaService::class
+        );
+
+    $primeraLlegada =
+        $servicio->registrarLlegadaCochabamba(
+            $this->usuarioOperativo->id,
+            $this->detalle->id,
+            3,
+            '2026-08-27 09:00:00'
+        );
+
+    $segundaLlegada =
+        $servicio->registrarLlegadaCochabamba(
+            $this->usuarioOperativo->id,
+            $this->detalle->id,
+            2,
+            '2026-08-27 16:00:00'
+        );
+
+    $this->assertSame(
+        [
+            'OS-260827-0001',
+            'OS-260827-0002',
+            'OS-260827-0003',
+        ],
+        $primeraLlegada
+            ->pluck('codigo_trazabilidad')
+            ->all()
+    );
+
+    $this->assertSame(
+        [
+            'OS-260827-0004',
+            'OS-260827-0005',
+        ],
+        $segundaLlegada
+            ->pluck('codigo_trazabilidad')
+            ->all()
+    );
+
+    $codigos =
+        UnidadAdquirida::query()
+            ->where(
+                'detalle_lote_id',
+                $this->detalle->id
+            )
+            ->pluck(
+                'codigo_trazabilidad'
+            );
+
+    $this->assertSame(
+        $codigos->count(),
+        $codigos->unique()->count()
+    );
+}
+
+
+public function test_correlativo_de_trazabilidad_reinicia_en_nueva_fecha(): void
+{
+    $servicio =
+        app(
+            UnidadAdquiridaService::class
+        );
+
+    $diaUno =
+        $servicio->registrarLlegadaCochabamba(
+            $this->usuarioOperativo->id,
+            $this->detalle->id,
+            2,
+            '2026-08-27 17:30:00'
+        );
+
+    $diaDos =
+        $servicio->registrarLlegadaCochabamba(
+            $this->usuarioOperativo->id,
+            $this->detalle->id,
+            2,
+            '2026-08-28 08:15:00'
+        );
+
+    $this->assertSame(
+        [
+            'OS-260827-0001',
+            'OS-260827-0002',
+        ],
+        $diaUno
+            ->pluck('codigo_trazabilidad')
+            ->all()
+    );
+
+    $this->assertSame(
+        [
+            'OS-260828-0001',
+            'OS-260828-0002',
+        ],
+        $diaDos
+            ->pluck('codigo_trazabilidad')
+            ->all()
+    );
+
+    $this->assertDatabaseHas(
+        'correlativos_trazabilidad_unidades',
+        [
+            'fecha' =>
+                '2026-08-27',
+
+            'ultimo_correlativo' =>
+                2,
+        ]
+    );
+
+    $this->assertDatabaseHas(
+        'correlativos_trazabilidad_unidades',
+        [
+            'fecha' =>
+                '2026-08-28',
+
+            'ultimo_correlativo' =>
+                2,
+        ]
+    );
+}
 }

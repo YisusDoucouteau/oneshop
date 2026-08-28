@@ -12,8 +12,9 @@ use App\Models\User;
 use Carbon\Carbon;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Validation\ValidationException;
 use Illuminate\Support\Facades\Validator;
+use Illuminate\Validation\ValidationException;
+
 class UnidadAdquiridaService
 {
     /**
@@ -62,13 +63,14 @@ class UnidadAdquiridaService
                 |--------------------------------------------------------------------------
                 */
 
-                $detalle = DetalleLote::query()
-                    ->with([
-                        'lote',
-                        'producto',
-                    ])
-                    ->lockForUpdate()
-                    ->find($detalleLoteId);
+                $detalle =
+                    DetalleLote::query()
+                        ->with([
+                            'lote',
+                            'producto',
+                        ])
+                        ->lockForUpdate()
+                        ->find($detalleLoteId);
 
                 if (!$detalle) {
                     throw new ReglaNegocioException(
@@ -151,6 +153,19 @@ class UnidadAdquiridaService
                     );
                 }
 
+                /*
+                |--------------------------------------------------------------------------
+                | Fecha real de llegada
+                |--------------------------------------------------------------------------
+                |
+                | Esta fecha representa el ingreso físico de la unidad
+                | al depósito de Cochabamba.
+                |
+                | También será utilizada como parte del código
+                | temporal de trazabilidad.
+                |
+                */
+
                 $fecha =
                     $fechaLlegada
                         ? Carbon::parse(
@@ -160,17 +175,143 @@ class UnidadAdquiridaService
 
                 /*
                 |--------------------------------------------------------------------------
+                | Reservar correlativos de trazabilidad
+                |--------------------------------------------------------------------------
+                |
+                | El código visible nace cuando la unidad llega físicamente
+                | a Cochabamba.
+                |
+                | Formato:
+                |
+                | OS-YYMMDD-NNNN
+                |
+                | Ejemplo:
+                |
+                | OS-260827-0023
+                |
+                | No corresponde al serial del fabricante ni al código
+                | interno comercial que posteriormente se asigna en Oruro.
+                |
+                | Se reserva el bloque completo de correlativos dentro
+                | de la misma transacción para evitar códigos duplicados.
+                |
+                */
+
+                $fechaCorrelativo =
+                    $fecha
+                        ->copy()
+                        ->startOfDay()
+                        ->toDateString();
+
+                /*
+                 * Si todavía no existe contador para esta fecha,
+                 * se crea inicialmente en cero.
+                 *
+                 * insertOrIgnore evita error si otra transacción
+                 * intenta crear simultáneamente la misma fecha.
+                 */
+                DB::table(
+                    'correlativos_trazabilidad_unidades'
+                )->insertOrIgnore([
+                    'fecha' =>
+                        $fechaCorrelativo,
+
+                    'ultimo_correlativo' =>
+                        0,
+
+                    'created_at' =>
+                        now(),
+
+                    'updated_at' =>
+                        now(),
+                ]);
+
+                /*
+                 * Se bloquea el contador del día durante esta
+                 * transacción para impedir que dos procesos
+                 * reserven el mismo rango.
+                 */
+                $correlativo =
+                    DB::table(
+                        'correlativos_trazabilidad_unidades'
+                    )
+                        ->where(
+                            'fecha',
+                            $fechaCorrelativo
+                        )
+                        ->lockForUpdate()
+                        ->first();
+
+                if (!$correlativo) {
+                    throw new ReglaNegocioException(
+                        'No fue posible obtener el correlativo de trazabilidad.'
+                    );
+                }
+
+                $primerCorrelativo =
+                    ((int) $correlativo->ultimo_correlativo)
+                    + 1;
+
+                $ultimoCorrelativo =
+                    $primerCorrelativo
+                    + $cantidad
+                    - 1;
+
+                /*
+                 * El formato utiliza cuatro posiciones.
+                 * Por tanto admite hasta 9.999 registros
+                 * físicos en una misma fecha.
+                 */
+                if ($ultimoCorrelativo > 9999) {
+                    throw new ReglaNegocioException(
+                        'Se alcanzó el límite diario de códigos de trazabilidad.'
+                    );
+                }
+
+                /*
+                 * Se reserva anticipadamente todo el rango
+                 * correspondiente a esta llegada.
+                 */
+                DB::table(
+                    'correlativos_trazabilidad_unidades'
+                )
+                    ->where(
+                        'fecha',
+                        $fechaCorrelativo
+                    )
+                    ->update([
+                        'ultimo_correlativo' =>
+                            $ultimoCorrelativo,
+
+                        'updated_at' =>
+                            now(),
+                    ]);
+
+                /*
+                |--------------------------------------------------------------------------
                 | Crear unidades físicas
                 |--------------------------------------------------------------------------
                 */
 
-                $unidades = collect();
+                $unidades =
+                    collect();
 
                 for (
                     $indice = 0;
                     $indice < $cantidad;
                     $indice++
                 ) {
+                    $numeroCorrelativo =
+                        $primerCorrelativo
+                        + $indice;
+
+                    $codigoTrazabilidad =
+                        sprintf(
+                            'OS-%s-%04d',
+                            $fecha->format('ymd'),
+                            $numeroCorrelativo
+                        );
+
                     $unidad =
                         UnidadAdquirida::create([
                             'detalle_lote_id' =>
@@ -187,6 +328,9 @@ class UnidadAdquiridaService
 
                             'estado' =>
                                 UnidadAdquirida::ESTADO_RECIBIDA_ORIGEN,
+
+                            'codigo_trazabilidad' =>
+                                $codigoTrazabilidad,
 
                             'fecha_llegada' =>
                                 $fecha,
@@ -286,438 +430,439 @@ class UnidadAdquiridaService
 
         return $descripcion;
     }
-public function registrarRevisionPreliminar(
-    int $usuarioId,
-    int $unidadId,
-    array $datos
-): UnidadAdquirida {
-    return DB::transaction(
-        function () use (
-            $usuarioId,
-            $unidadId,
-            $datos
-        ) {
-            $usuario =
-                $this->obtenerUsuarioAutorizado(
-                    $usuarioId
-                );
 
-            /*
-            |--------------------------------------------------------------------------
-            | Unidad
-            |--------------------------------------------------------------------------
-            */
-
-            $unidad =
-                UnidadAdquirida::query()
-                    ->lockForUpdate()
-                    ->find($unidadId);
-
-            if (!$unidad) {
-                throw new ReglaNegocioException(
-                    'La unidad adquirida no existe.'
-                );
-            }
-
-            /*
-             * La revisión preliminar corresponde a la etapa
-             * previa al despacho hacia Oruro.
-             */
-            if (
-                in_array(
-                    $unidad->estado,
-                    [
-                        UnidadAdquirida::ESTADO_ENVIADA,
-                        UnidadAdquirida::ESTADO_RECIBIDA_ORURO,
-                        UnidadAdquirida::ESTADO_INCORPORADA,
-                    ],
-                    true
-                )
+    public function registrarRevisionPreliminar(
+        int $usuarioId,
+        int $unidadId,
+        array $datos
+    ): UnidadAdquirida {
+        return DB::transaction(
+            function () use (
+                $usuarioId,
+                $unidadId,
+                $datos
             ) {
-                throw new ReglaNegocioException(
-                    'La unidad ya salió de la etapa de revisión preliminar.'
-                );
-            }
+                $usuario =
+                    $this->obtenerUsuarioAutorizado(
+                        $usuarioId
+                    );
 
-            $almacenCochabamba =
-                Almacen::query()
-                    ->where(
-                        'codigo',
-                        'COCHABAMBA'
-                    )
-                    ->where(
-                        'activo',
+                /*
+                |--------------------------------------------------------------------------
+                | Unidad
+                |--------------------------------------------------------------------------
+                */
+
+                $unidad =
+                    UnidadAdquirida::query()
+                        ->lockForUpdate()
+                        ->find($unidadId);
+
+                if (!$unidad) {
+                    throw new ReglaNegocioException(
+                        'La unidad adquirida no existe.'
+                    );
+                }
+
+                /*
+                 * La revisión preliminar corresponde a la etapa
+                 * previa al despacho hacia Oruro.
+                 */
+                if (
+                    in_array(
+                        $unidad->estado,
+                        [
+                            UnidadAdquirida::ESTADO_ENVIADA,
+                            UnidadAdquirida::ESTADO_RECIBIDA_ORURO,
+                            UnidadAdquirida::ESTADO_INCORPORADA,
+                        ],
                         true
                     )
-                    ->first();
+                ) {
+                    throw new ReglaNegocioException(
+                        'La unidad ya salió de la etapa de revisión preliminar.'
+                    );
+                }
 
-            if (!$almacenCochabamba) {
-                throw new ReglaNegocioException(
-                    'No se encuentra disponible el depósito de Cochabamba.'
-                );
-            }
+                $almacenCochabamba =
+                    Almacen::query()
+                        ->where(
+                            'codigo',
+                            'COCHABAMBA'
+                        )
+                        ->where(
+                            'activo',
+                            true
+                        )
+                        ->first();
 
-            if (
-                $unidad->almacen_actual_id
-                !== $almacenCochabamba->id
-            ) {
-                throw new ReglaNegocioException(
-                    'La revisión preliminar solo puede realizarse mientras la unidad se encuentra en Cochabamba.'
-                );
-            }
+                if (!$almacenCochabamba) {
+                    throw new ReglaNegocioException(
+                        'No se encuentra disponible el depósito de Cochabamba.'
+                    );
+                }
 
-            /*
-            |--------------------------------------------------------------------------
-            | Validación
-            |--------------------------------------------------------------------------
-            */
+                if (
+                    $unidad->almacen_actual_id
+                    !== $almacenCochabamba->id
+                ) {
+                    throw new ReglaNegocioException(
+                        'La revisión preliminar solo puede realizarse mientras la unidad se encuentra en Cochabamba.'
+                    );
+                }
 
-            $validator = Validator::make(
-                $datos,
-                [
-                    'procesador' => [
-                        'nullable',
-                        'string',
-                        'max:150',
-                    ],
+                /*
+                |--------------------------------------------------------------------------
+                | Validación
+                |--------------------------------------------------------------------------
+                */
 
-                    'generacion_procesador' => [
-                        'nullable',
-                        'string',
-                        'max:80',
-                    ],
+                $validator =
+                    Validator::make(
+                        $datos,
+                        [
+                            'procesador' => [
+                                'nullable',
+                                'string',
+                                'max:150',
+                            ],
 
-                    'ram_gb' => [
-                        'nullable',
-                        'integer',
-                        'min:0',
-                        'max:65535',
-                    ],
+                            'generacion_procesador' => [
+                                'nullable',
+                                'string',
+                                'max:80',
+                            ],
 
-                    'almacenamiento_gb' => [
-                        'nullable',
-                        'integer',
-                        'min:0',
-                    ],
+                            'ram_gb' => [
+                                'nullable',
+                                'integer',
+                                'min:0',
+                                'max:65535',
+                            ],
 
-                    'tipo_almacenamiento' => [
-                        'nullable',
-                        'string',
-                        'max:50',
-                    ],
+                            'almacenamiento_gb' => [
+                                'nullable',
+                                'integer',
+                                'min:0',
+                            ],
 
-                    'tarjeta_grafica' => [
-                        'nullable',
-                        'string',
-                        'max:150',
-                    ],
+                            'tipo_almacenamiento' => [
+                                'nullable',
+                                'string',
+                                'max:50',
+                            ],
 
-                    'pantalla_pulgadas' => [
-                        'nullable',
-                        'numeric',
-                        'min:0',
-                        'max:999.9',
-                    ],
+                            'tarjeta_grafica' => [
+                                'nullable',
+                                'string',
+                                'max:150',
+                            ],
 
-                    'resolucion' => [
-                        'nullable',
-                        'string',
-                        'max:50',
-                    ],
+                            'pantalla_pulgadas' => [
+                                'nullable',
+                                'numeric',
+                                'min:0',
+                                'max:999.9',
+                            ],
 
-                    'sistema_operativo' => [
-                        'nullable',
-                        'string',
-                        'max:100',
-                    ],
+                            'resolucion' => [
+                                'nullable',
+                                'string',
+                                'max:50',
+                            ],
 
-                    'serial_fabricante' => [
-                        'nullable',
-                        'string',
-                        'max:150',
-                    ],
+                            'sistema_operativo' => [
+                                'nullable',
+                                'string',
+                                'max:100',
+                            ],
 
-                    'enciende' => [
-                        'nullable',
-                        'boolean',
-                    ],
+                            'serial_fabricante' => [
+                                'nullable',
+                                'string',
+                                'max:150',
+                            ],
 
-                    'tiene_sistema_operativo' => [
-                        'nullable',
-                        'boolean',
-                    ],
+                            'enciende' => [
+                                'nullable',
+                                'boolean',
+                            ],
 
-                    'tiene_cargador' => [
-                        'nullable',
-                        'boolean',
-                    ],
+                            'tiene_sistema_operativo' => [
+                                'nullable',
+                                'boolean',
+                            ],
 
-                    'requiere_servicio' => [
-                        'nullable',
-                        'boolean',
-                    ],
+                            'tiene_cargador' => [
+                                'nullable',
+                                'boolean',
+                            ],
 
-                    'servicio_requerido' => [
-                        'nullable',
-                        'string',
-                    ],
+                            'requiere_servicio' => [
+                                'nullable',
+                                'boolean',
+                            ],
 
-                    'observacion_revision' => [
-                        'nullable',
-                        'string',
-                    ],
-                ]
-            );
+                            'servicio_requerido' => [
+                                'nullable',
+                                'string',
+                            ],
 
-            if ($validator->fails()) {
-                throw new ValidationException(
-                    $validator
-                );
-            }
+                            'observacion_revision' => [
+                                'nullable',
+                                'string',
+                            ],
+                        ]
+                    );
 
-            $validados =
-                $validator->validated();
+                if ($validator->fails()) {
+                    throw new ValidationException(
+                        $validator
+                    );
+                }
 
-            /*
-            |--------------------------------------------------------------------------
-            | Regla de preparación
-            |--------------------------------------------------------------------------
-            |
-            | Hugo no hace aquí la inspección profunda de Oruro.
-            |
-            | Solo necesitamos saber si la unidad está suficientemente
-            | funcional para continuar hacia Oruro:
-            |
-            | - enciende
-            | - tiene sistema operativo
-            | - tiene cargador
-            | - no requiere servicio pendiente
-            |
-            */
+                $validados =
+                    $validator->validated();
 
-            $enciende =
-                array_key_exists(
-                    'enciende',
-                    $validados
-                )
-                    ? $validados['enciende']
-                    : $unidad->enciende;
+                /*
+                |--------------------------------------------------------------------------
+                | Regla de preparación
+                |--------------------------------------------------------------------------
+                |
+                | Hugo no hace aquí la inspección profunda de Oruro.
+                |
+                | Solo necesitamos saber si la unidad está suficientemente
+                | funcional para continuar hacia Oruro:
+                |
+                | - enciende
+                | - tiene sistema operativo
+                | - tiene cargador
+                | - no requiere servicio pendiente
+                |
+                */
 
-            $tieneSistema =
-                array_key_exists(
-                    'tiene_sistema_operativo',
-                    $validados
-                )
-                    ? $validados[
-                        'tiene_sistema_operativo'
-                    ]
-                    : $unidad
-                        ->tiene_sistema_operativo;
+                $enciende =
+                    array_key_exists(
+                        'enciende',
+                        $validados
+                    )
+                        ? $validados['enciende']
+                        : $unidad->enciende;
 
-            $tieneCargador =
-                array_key_exists(
-                    'tiene_cargador',
-                    $validados
-                )
-                    ? $validados[
-                        'tiene_cargador'
-                    ]
-                    : $unidad->tiene_cargador;
+                $tieneSistema =
+                    array_key_exists(
+                        'tiene_sistema_operativo',
+                        $validados
+                    )
+                        ? $validados[
+                            'tiene_sistema_operativo'
+                        ]
+                        : $unidad
+                            ->tiene_sistema_operativo;
 
-            $requiereServicio =
-                array_key_exists(
-                    'requiere_servicio',
-                    $validados
-                )
-                    ? $validados[
-                        'requiere_servicio'
-                    ]
-                    : $unidad
-                        ->requiere_servicio;
+                $tieneCargador =
+                    array_key_exists(
+                        'tiene_cargador',
+                        $validados
+                    )
+                        ? $validados[
+                            'tiene_cargador'
+                        ]
+                        : $unidad->tiene_cargador;
 
-            /*
-             * Si se marca servicio requerido,
-             * debe existir una explicación.
-             */
-            $servicioRequerido =
-                $validados[
-                    'servicio_requerido'
-                ]
-                ?? $unidad->servicio_requerido;
+                $requiereServicio =
+                    array_key_exists(
+                        'requiere_servicio',
+                        $validados
+                    )
+                        ? $validados[
+                            'requiere_servicio'
+                        ]
+                        : $unidad
+                            ->requiere_servicio;
 
-            if (
-                $requiereServicio
-                && (
-                    $servicioRequerido === null
-                    || trim(
-                        $servicioRequerido
-                    ) === ''
-                )
-            ) {
-                throw ValidationException::withMessages([
-                    'servicio_requerido' =>
-                        'Debe indicar qué servicio o preparación necesita la unidad.',
-                ]);
-            }
-
-            /*
-            |--------------------------------------------------------------------------
-            | Determinar estado
-            |--------------------------------------------------------------------------
-            */
-
-            $listaEnvio =
-                $enciende === true
-                && $tieneSistema === true
-                && $tieneCargador === true
-                && $requiereServicio === false;
-
-            $tieneProblemaConocido =
-                $requiereServicio === true
-                || $enciende === false
-                || $tieneSistema === false
-                || $tieneCargador === false;
-
-            if ($listaEnvio) {
-                $estado =
-                    UnidadAdquirida::ESTADO_LISTA_ENVIO;
-
-                $fechaListaEnvio =
-                    $unidad->fecha_lista_envio
-                    ?? now();
-
-            } elseif ($tieneProblemaConocido) {
-                $estado =
-                    UnidadAdquirida::ESTADO_EN_PREPARACION;
-
-                $fechaListaEnvio =
-                    null;
-
-            } else {
-                $estado =
-                    UnidadAdquirida::ESTADO_EN_REVISION;
-
-                $fechaListaEnvio =
-                    null;
-            }
-
-            /*
-            |--------------------------------------------------------------------------
-            | Actualización
-            |--------------------------------------------------------------------------
-            */
-
-            $unidad->fill([
-                'serial_fabricante' =>
+                /*
+                 * Si se marca servicio requerido,
+                 * debe existir una explicación.
+                 */
+                $servicioRequerido =
                     $validados[
-                        'serial_fabricante'
+                        'servicio_requerido'
                     ]
-                    ?? $unidad
-                        ->serial_fabricante,
+                    ?? $unidad->servicio_requerido;
 
-                'procesador' =>
-                    $validados['procesador']
-                    ?? $unidad->procesador,
-
-                'generacion_procesador' =>
-                    $validados[
-                        'generacion_procesador'
-                    ]
-                    ?? $unidad
-                        ->generacion_procesador,
-
-                'ram_gb' =>
-                    $validados['ram_gb']
-                    ?? $unidad->ram_gb,
-
-                'almacenamiento_gb' =>
-                    $validados[
-                        'almacenamiento_gb'
-                    ]
-                    ?? $unidad
-                        ->almacenamiento_gb,
-
-                'tipo_almacenamiento' =>
-                    $validados[
-                        'tipo_almacenamiento'
-                    ]
-                    ?? $unidad
-                        ->tipo_almacenamiento,
-
-                'tarjeta_grafica' =>
-                    $validados[
-                        'tarjeta_grafica'
-                    ]
-                    ?? $unidad
-                        ->tarjeta_grafica,
-
-                'pantalla_pulgadas' =>
-                    $validados[
-                        'pantalla_pulgadas'
-                    ]
-                    ?? $unidad
-                        ->pantalla_pulgadas,
-
-                'resolucion' =>
-                    $validados['resolucion']
-                    ?? $unidad->resolucion,
-
-                'sistema_operativo' =>
-                    $validados[
-                        'sistema_operativo'
-                    ]
-                    ?? $unidad
-                        ->sistema_operativo,
-
-                'enciende' =>
-                    $enciende,
-
-                'tiene_sistema_operativo' =>
-                    $tieneSistema,
-
-                'tiene_cargador' =>
-                    $tieneCargador,
-
-                'requiere_servicio' =>
-                    $requiereServicio,
-
-                'servicio_requerido' =>
+                if (
                     $requiereServicio
-                        ? $servicioRequerido
-                        : null,
+                    && (
+                        $servicioRequerido === null
+                        || trim(
+                            $servicioRequerido
+                        ) === ''
+                    )
+                ) {
+                    throw ValidationException::withMessages([
+                        'servicio_requerido' =>
+                            'Debe indicar qué servicio o preparación necesita la unidad.',
+                    ]);
+                }
 
-                'observacion_revision' =>
-                    $validados[
-                        'observacion_revision'
-                    ]
-                    ?? $unidad
-                        ->observacion_revision,
+                /*
+                |--------------------------------------------------------------------------
+                | Determinar estado
+                |--------------------------------------------------------------------------
+                */
 
-                'estado' =>
-                    $estado,
+                $listaEnvio =
+                    $enciende === true
+                    && $tieneSistema === true
+                    && $tieneCargador === true
+                    && $requiereServicio === false;
 
-                'fecha_revision' =>
-                    now(),
+                $tieneProblemaConocido =
+                    $requiereServicio === true
+                    || $enciende === false
+                    || $tieneSistema === false
+                    || $tieneCargador === false;
 
-                'fecha_lista_envio' =>
-                    $fechaListaEnvio,
+                if ($listaEnvio) {
+                    $estado =
+                        UnidadAdquirida::ESTADO_LISTA_ENVIO;
 
-                'revisado_por_id' =>
-                    $usuario->id,
-            ]);
+                    $fechaListaEnvio =
+                        $unidad->fecha_lista_envio
+                        ?? now();
+                } elseif ($tieneProblemaConocido) {
+                    $estado =
+                        UnidadAdquirida::ESTADO_EN_PREPARACION;
 
-            $unidad->save();
+                    $fechaListaEnvio =
+                        null;
+                } else {
+                    $estado =
+                        UnidadAdquirida::ESTADO_EN_REVISION;
 
-            return $unidad->fresh([
-                'producto.marca',
-                'almacenActual',
-                'detalleLote.lote',
-                'revisadoPor',
-            ]);
-        },
-        3
-    );
-}
+                    $fechaListaEnvio =
+                        null;
+                }
+
+                /*
+                |--------------------------------------------------------------------------
+                | Actualización
+                |--------------------------------------------------------------------------
+                */
+
+                $unidad->fill([
+                    'serial_fabricante' =>
+                        $validados[
+                            'serial_fabricante'
+                        ]
+                        ?? $unidad
+                            ->serial_fabricante,
+
+                    'procesador' =>
+                        $validados['procesador']
+                        ?? $unidad->procesador,
+
+                    'generacion_procesador' =>
+                        $validados[
+                            'generacion_procesador'
+                        ]
+                        ?? $unidad
+                            ->generacion_procesador,
+
+                    'ram_gb' =>
+                        $validados['ram_gb']
+                        ?? $unidad->ram_gb,
+
+                    'almacenamiento_gb' =>
+                        $validados[
+                            'almacenamiento_gb'
+                        ]
+                        ?? $unidad
+                            ->almacenamiento_gb,
+
+                    'tipo_almacenamiento' =>
+                        $validados[
+                            'tipo_almacenamiento'
+                        ]
+                        ?? $unidad
+                            ->tipo_almacenamiento,
+
+                    'tarjeta_grafica' =>
+                        $validados[
+                            'tarjeta_grafica'
+                        ]
+                        ?? $unidad
+                            ->tarjeta_grafica,
+
+                    'pantalla_pulgadas' =>
+                        $validados[
+                            'pantalla_pulgadas'
+                        ]
+                        ?? $unidad
+                            ->pantalla_pulgadas,
+
+                    'resolucion' =>
+                        $validados['resolucion']
+                        ?? $unidad->resolucion,
+
+                    'sistema_operativo' =>
+                        $validados[
+                            'sistema_operativo'
+                        ]
+                        ?? $unidad
+                            ->sistema_operativo,
+
+                    'enciende' =>
+                        $enciende,
+
+                    'tiene_sistema_operativo' =>
+                        $tieneSistema,
+
+                    'tiene_cargador' =>
+                        $tieneCargador,
+
+                    'requiere_servicio' =>
+                        $requiereServicio,
+
+                    'servicio_requerido' =>
+                        $requiereServicio
+                            ? $servicioRequerido
+                            : null,
+
+                    'observacion_revision' =>
+                        $validados[
+                            'observacion_revision'
+                        ]
+                        ?? $unidad
+                            ->observacion_revision,
+
+                    'estado' =>
+                        $estado,
+
+                    'fecha_revision' =>
+                        now(),
+
+                    'fecha_lista_envio' =>
+                        $fechaListaEnvio,
+
+                    'revisado_por_id' =>
+                        $usuario->id,
+                ]);
+
+                $unidad->save();
+
+                return $unidad->fresh([
+                    'producto.marca',
+                    'almacenActual',
+                    'detalleLote.lote',
+                    'revisadoPor',
+                ]);
+            },
+            3
+        );
+    }
+
     private function obtenerUsuarioAutorizado(
         int $usuarioId
     ): User {

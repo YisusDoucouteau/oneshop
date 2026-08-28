@@ -42,8 +42,8 @@ class UnidadAdquirida extends Model
         'adquisicion_directa_id',
         'producto_id',
         'almacen_actual_id',
-        'estado',
-
+        'estado' ,
+        'codigo_trazabilidad',
         'fecha_llegada',
         'fecha_revision',
         'fecha_lista_envio',
