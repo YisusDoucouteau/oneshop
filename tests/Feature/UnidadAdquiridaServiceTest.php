@@ -93,28 +93,28 @@ class UnidadAdquiridaServiceTest extends TestCase
         $this->proveedor =
             Proveedor::create([
                 'nombre' =>
-                    'Proveedor Unidad Adquirida Test',
+                'Proveedor Unidad Adquirida Test',
 
                 'pais' =>
-                    'Estados Unidos',
+                'Estados Unidos',
 
                 'ciudad' =>
-                    'Miami',
+                'Miami',
 
                 'telefono' =>
-                    null,
+                null,
 
                 'correo' =>
-                    null,
+                null,
 
                 'contacto' =>
-                    null,
+                null,
 
                 'observacion' =>
-                    null,
+                null,
 
                 'activo' =>
-                    true,
+                true,
             ]);
 
         /*
@@ -125,48 +125,48 @@ class UnidadAdquiridaServiceTest extends TestCase
 
         $categoria =
             CategoriaProducto::query()
-                ->where(
-                    'codigo',
-                    'LAPTOP'
-                )
-                ->firstOrFail();
+            ->where(
+                'codigo',
+                'LAPTOP'
+            )
+            ->firstOrFail();
 
         $marca = Marca::create([
             'nombre' =>
-                'Dell Unidad Test',
+            'Dell Unidad Test',
 
             'descripcion' =>
-                null,
+            null,
 
             'activo' =>
-                true,
+            true,
         ]);
 
         $this->producto =
             Producto::create([
                 'categoria_producto_id' =>
-                    $categoria->id,
+                $categoria->id,
 
                 'marca_id' =>
-                    $marca->id,
+                $marca->id,
 
                 'codigo' =>
-                    'UNIDAD-TEST-P001',
+                'UNIDAD-TEST-P001',
 
                 'nombre' =>
-                    'Dell Latitude',
+                'Dell Latitude',
 
                 'modelo' =>
-                    '5420',
+                '5420',
 
                 'descripcion' =>
-                    null,
+                null,
 
                 'es_serializado' =>
-                    true,
+                true,
 
                 'activo' =>
-                    true,
+                true,
             ]);
 
         /*
@@ -183,19 +183,19 @@ class UnidadAdquiridaServiceTest extends TestCase
                 $this->usuarioOperativo->id,
                 [
                     'proveedor_id' =>
-                        $this->proveedor->id,
+                    $this->proveedor->id,
 
                     'codigo' =>
-                        'IMP-UNIDAD-TEST-001',
+                    'IMP-UNIDAD-TEST-001',
 
                     'referencia_compra' =>
-                        'REF-UNIDAD-001',
+                    'REF-UNIDAD-001',
 
                     'origen' =>
-                        'Miami, Estados Unidos',
+                    'Miami, Estados Unidos',
 
                     'observacion' =>
-                        'Lote para pruebas de llegada a Cochabamba.',
+                    'Lote para pruebas de llegada a Cochabamba.',
                 ]
             );
 
@@ -205,10 +205,10 @@ class UnidadAdquiridaServiceTest extends TestCase
                 $lote->id,
                 [
                     'producto_id' =>
-                        $this->producto->id,
+                    $this->producto->id,
 
                     'cantidad_esperada' =>
-                        10,
+                    10,
                 ]
             );
     }
@@ -223,26 +223,36 @@ class UnidadAdquiridaServiceTest extends TestCase
 
         $unidades =
             $servicio
-                ->registrarLlegadaCochabamba(
-                    $this->usuarioOperativo->id,
-                    $this->detalle->id,
-                    3,
-                    '2026-08-24 09:30:00',
-                    'Primera llegada parcial.'
-                );
+            ->registrarLlegadaCochabamba(
+                $this->usuarioOperativo->id,
+                $this->detalle->id,
+                3,
+                '2026-08-24 09:30:00',
+                'Primera llegada parcial.'
+            );
 
         $this->assertCount(
             3,
             $unidades
         );
-
+        $this->assertSame(
+            [
+                'OS-260824-0001',
+                'OS-260824-0002',
+                'OS-260824-0003',
+            ],
+            $unidades
+                ->pluck('codigo_trazabilidad')
+                ->values()
+                ->all()
+        );
         $almacenCochabamba =
             Almacen::query()
-                ->where(
-                    'codigo',
-                    'COCHABAMBA'
-                )
-                ->firstOrFail();
+            ->where(
+                'codigo',
+                'COCHABAMBA'
+            )
+            ->firstOrFail();
 
         $this->assertSame(
             3,
@@ -294,7 +304,8 @@ class UnidadAdquiridaServiceTest extends TestCase
                 UnidadAdquiridaService::class
             );
 
-        $servicio
+        $primeraLlegada =
+            $servicio
             ->registrarLlegadaCochabamba(
                 $this->usuarioOperativo->id,
                 $this->detalle->id,
@@ -302,13 +313,39 @@ class UnidadAdquiridaServiceTest extends TestCase
                 '2026-08-20 10:00:00'
             );
 
-        $servicio
+        $segundaLlegada =
+            $servicio
             ->registrarLlegadaCochabamba(
                 $this->usuarioOperativo->id,
                 $this->detalle->id,
                 4,
                 '2026-08-22 15:00:00'
             );
+
+        $this->assertSame(
+            [
+                'OS-260820-0001',
+                'OS-260820-0002',
+                'OS-260820-0003',
+            ],
+            $primeraLlegada
+                ->pluck('codigo_trazabilidad')
+                ->values()
+                ->all()
+        );
+
+        $this->assertSame(
+            [
+                'OS-260822-0001',
+                'OS-260822-0002',
+                'OS-260822-0003',
+                'OS-260822-0004',
+            ],
+            $segundaLlegada
+                ->pluck('codigo_trazabilidad')
+                ->values()
+                ->all()
+        );
 
         $this->assertSame(
             7,
@@ -348,7 +385,78 @@ class UnidadAdquiridaServiceTest extends TestCase
                 ->count()
         );
     }
+    public function test_continua_correlativo_en_segunda_llegada_del_mismo_dia(): void
+{
+    $servicio =
+        app(
+            UnidadAdquiridaService::class
+        );
 
+    $primeraLlegada =
+        $servicio
+            ->registrarLlegadaCochabamba(
+                $this->usuarioOperativo->id,
+                $this->detalle->id,
+                2,
+                '2026-08-24 09:00:00'
+            );
+
+    $segundaLlegada =
+        $servicio
+            ->registrarLlegadaCochabamba(
+                $this->usuarioOperativo->id,
+                $this->detalle->id,
+                3,
+                '2026-08-24 16:30:00'
+            );
+
+    $this->assertSame(
+        [
+            'OS-260824-0001',
+            'OS-260824-0002',
+        ],
+        $primeraLlegada
+            ->pluck('codigo_trazabilidad')
+            ->values()
+            ->all()
+    );
+
+    $this->assertSame(
+        [
+            'OS-260824-0003',
+            'OS-260824-0004',
+            'OS-260824-0005',
+        ],
+        $segundaLlegada
+            ->pluck('codigo_trazabilidad')
+            ->values()
+            ->all()
+    );
+
+    $this->assertSame(
+        5,
+        UnidadAdquirida::query()
+            ->where(
+                'detalle_lote_id',
+                $this->detalle->id
+            )
+            ->distinct()
+            ->count(
+                'codigo_trazabilidad'
+            )
+    );
+
+    $this->assertDatabaseHas(
+        'correlativos_trazabilidad_unidades',
+        [
+            'fecha' =>
+                '2026-08-24',
+
+            'ultimo_correlativo' =>
+                5,
+        ]
+    );
+}
 
     public function test_no_permite_superar_cantidad_comprada(): void
     {
@@ -378,7 +486,6 @@ class UnidadAdquiridaServiceTest extends TestCase
             $this->fail(
                 'Se esperaba validación porque solamente queda una unidad pendiente.'
             );
-
         } catch (
             ValidationException $exception
         ) {
@@ -448,13 +555,13 @@ class UnidadAdquiridaServiceTest extends TestCase
             'detalles_lotes',
             [
                 'id' =>
-                    $this->detalle->id,
+                $this->detalle->id,
 
                 'cantidad_esperada' =>
-                    10,
+                10,
 
                 'cantidad_recibida' =>
-                    0,
+                0,
             ]
         );
     }
@@ -478,41 +585,41 @@ class UnidadAdquiridaServiceTest extends TestCase
 
         $tipoEvento =
             TipoEventoLogistico::query()
-                ->where(
-                    'codigo',
-                    'RECEPCION_COCHABAMBA'
-                )
-                ->firstOrFail();
+            ->where(
+                'codigo',
+                'RECEPCION_COCHABAMBA'
+            )
+            ->firstOrFail();
 
         $this->assertDatabaseHas(
             'eventos_logisticos_lotes',
             [
                 'lote_id' =>
-                    $this->detalle->lote_id,
+                $this->detalle->lote_id,
 
                 'tipo_evento_logistico_id' =>
-                    $tipoEvento->id,
+                $tipoEvento->id,
 
                 'usuario_id' =>
-                    $this->usuarioOperativo->id,
+                $this->usuarioOperativo->id,
 
                 'ubicacion' =>
-                    'Depósito Cochabamba',
+                'Depósito Cochabamba',
             ]
         );
 
         $evento =
             EventoLogisticoLote::query()
-                ->where(
-                    'lote_id',
-                    $this->detalle->lote_id
-                )
-                ->where(
-                    'tipo_evento_logistico_id',
-                    $tipoEvento->id
-                )
-                ->latest('id')
-                ->firstOrFail();
+            ->where(
+                'lote_id',
+                $this->detalle->lote_id
+            )
+            ->where(
+                'tipo_evento_logistico_id',
+                $tipoEvento->id
+            )
+            ->latest('id')
+            ->firstOrFail();
 
         $this->assertStringContainsString(
             '2 unidad(es)',
@@ -550,7 +657,6 @@ class UnidadAdquiridaServiceTest extends TestCase
             $this->fail(
                 'Se esperaba rechazo porque el vendedor no gestiona importaciones.'
             );
-
         } catch (
             ReglaNegocioException $exception
         ) {
@@ -564,17 +670,17 @@ class UnidadAdquiridaServiceTest extends TestCase
             'unidades_adquiridas',
             [
                 'detalle_lote_id' =>
-                    $this->detalle->id,
+                $this->detalle->id,
             ]
         );
     }
     public function test_revision_incompleta_deja_unidad_en_revision(): void
-{
-    $servicio =
-        app(UnidadAdquiridaService::class);
+    {
+        $servicio =
+            app(UnidadAdquiridaService::class);
 
-    $unidad =
-        $servicio
+        $unidad =
+            $servicio
             ->registrarLlegadaCochabamba(
                 $this->usuarioOperativo->id,
                 $this->detalle->id,
@@ -583,57 +689,57 @@ class UnidadAdquiridaServiceTest extends TestCase
             )
             ->firstOrFail();
 
-    $unidad =
-        $servicio
+        $unidad =
+            $servicio
             ->registrarRevisionPreliminar(
                 $this->usuarioOperativo->id,
                 $unidad->id,
                 [
                     'procesador' =>
-                        'Intel Core i5',
+                    'Intel Core i5',
 
                     'ram_gb' =>
-                        16,
+                    16,
                 ]
             );
 
-    $this->assertSame(
-        UnidadAdquirida::ESTADO_EN_REVISION,
-        $unidad->estado
-    );
+        $this->assertSame(
+            UnidadAdquirida::ESTADO_EN_REVISION,
+            $unidad->estado
+        );
 
-    $this->assertSame(
-        'Intel Core i5',
-        $unidad->procesador
-    );
+        $this->assertSame(
+            'Intel Core i5',
+            $unidad->procesador
+        );
 
-    $this->assertSame(
-        16,
-        $unidad->ram_gb
-    );
+        $this->assertSame(
+            16,
+            $unidad->ram_gb
+        );
 
-    $this->assertNotNull(
-        $unidad->fecha_revision
-    );
+        $this->assertNotNull(
+            $unidad->fecha_revision
+        );
 
-    $this->assertNull(
-        $unidad->fecha_lista_envio
-    );
+        $this->assertNull(
+            $unidad->fecha_lista_envio
+        );
 
-    $this->assertSame(
-        $this->usuarioOperativo->id,
-        $unidad->revisado_por_id
-    );
-}
+        $this->assertSame(
+            $this->usuarioOperativo->id,
+            $unidad->revisado_por_id
+        );
+    }
 
 
-public function test_unidad_con_problema_queda_en_preparacion(): void
-{
-    $servicio =
-        app(UnidadAdquiridaService::class);
+    public function test_unidad_con_problema_queda_en_preparacion(): void
+    {
+        $servicio =
+            app(UnidadAdquiridaService::class);
 
-    $unidad =
-        $servicio
+        $unidad =
+            $servicio
             ->registrarLlegadaCochabamba(
                 $this->usuarioOperativo->id,
                 $this->detalle->id,
@@ -642,83 +748,83 @@ public function test_unidad_con_problema_queda_en_preparacion(): void
             )
             ->firstOrFail();
 
-    $unidad =
-        $servicio
+        $unidad =
+            $servicio
             ->registrarRevisionPreliminar(
                 $this->usuarioOperativo->id,
                 $unidad->id,
                 [
                     'procesador' =>
-                        'Intel Core i5',
+                    'Intel Core i5',
 
                     'ram_gb' =>
-                        16,
+                    16,
 
                     'almacenamiento_gb' =>
-                        512,
+                    512,
 
                     'tipo_almacenamiento' =>
-                        'SSD',
+                    'SSD',
 
                     'enciende' =>
-                        true,
+                    true,
 
                     'tiene_sistema_operativo' =>
-                        true,
+                    true,
 
                     'tiene_cargador' =>
-                        false,
+                    false,
 
                     'requiere_servicio' =>
-                        true,
+                    true,
 
                     'servicio_requerido' =>
-                        'Comprar cargador compatible.',
+                    'Comprar cargador compatible.',
 
                     'observacion_revision' =>
-                        'Equipo funcional, llegó sin cargador.',
+                    'Equipo funcional, llegó sin cargador.',
                 ]
             );
 
-    $this->assertSame(
-        UnidadAdquirida::ESTADO_EN_PREPARACION,
-        $unidad->estado
-    );
+        $this->assertSame(
+            UnidadAdquirida::ESTADO_EN_PREPARACION,
+            $unidad->estado
+        );
 
-    $this->assertTrue(
-        $unidad->enciende
-    );
+        $this->assertTrue(
+            $unidad->enciende
+        );
 
-    $this->assertTrue(
-        $unidad->tiene_sistema_operativo
-    );
+        $this->assertTrue(
+            $unidad->tiene_sistema_operativo
+        );
 
-    $this->assertFalse(
-        $unidad->tiene_cargador
-    );
+        $this->assertFalse(
+            $unidad->tiene_cargador
+        );
 
-    $this->assertTrue(
-        $unidad->requiere_servicio
-    );
+        $this->assertTrue(
+            $unidad->requiere_servicio
+        );
 
-    $this->assertSame(
-        'Comprar cargador compatible.',
-        $unidad->servicio_requerido
-    );
+        $this->assertSame(
+            'Comprar cargador compatible.',
+            $unidad->servicio_requerido
+        );
 
-    $this->assertNull(
-        $unidad->fecha_lista_envio
-    );
-}
+        $this->assertNull(
+            $unidad->fecha_lista_envio
+        );
+    }
 
 
-public function test_unidad_funcional_queda_lista_para_envio(): void
-{
-    $servicio =
-        app(UnidadAdquiridaService::class);
+    public function test_unidad_funcional_queda_lista_para_envio(): void
+    {
+        $servicio =
+            app(UnidadAdquiridaService::class);
 
-    $unidad =
-        $servicio
+        $unidad =
+            $servicio
             ->registrarLlegadaCochabamba(
                 $this->usuarioOperativo->id,
                 $this->detalle->id,
@@ -727,168 +833,168 @@ public function test_unidad_funcional_queda_lista_para_envio(): void
             )
             ->firstOrFail();
 
-    $unidad =
-        $servicio
+        $unidad =
+            $servicio
             ->registrarRevisionPreliminar(
                 $this->usuarioOperativo->id,
                 $unidad->id,
                 [
                     'procesador' =>
-                        'Intel Core i5-1145G7',
+                    'Intel Core i5-1145G7',
 
                     'generacion_procesador' =>
-                        '11',
+                    '11',
 
                     'ram_gb' =>
-                        16,
+                    16,
 
                     'almacenamiento_gb' =>
-                        512,
+                    512,
 
                     'tipo_almacenamiento' =>
-                        'SSD',
+                    'SSD',
 
                     'sistema_operativo' =>
-                        'Windows 11 Pro',
+                    'Windows 11 Pro',
 
                     'enciende' =>
-                        true,
+                    true,
 
                     'tiene_sistema_operativo' =>
-                        true,
+                    true,
 
                     'tiene_cargador' =>
-                        true,
+                    true,
 
                     'requiere_servicio' =>
-                        false,
+                    false,
                 ]
             );
 
-    $this->assertSame(
-        UnidadAdquirida::ESTADO_LISTA_ENVIO,
-        $unidad->estado
-    );
-
-    $this->assertTrue(
-        $unidad->enciende
-    );
-
-    $this->assertTrue(
-        $unidad->tiene_sistema_operativo
-    );
-
-    $this->assertTrue(
-        $unidad->tiene_cargador
-    );
-
-    $this->assertFalse(
-        $unidad->requiere_servicio
-    );
-
-    $this->assertNull(
-        $unidad->servicio_requerido
-    );
-
-    $this->assertNotNull(
-        $unidad->fecha_revision
-    );
-
-    $this->assertNotNull(
-        $unidad->fecha_lista_envio
-    );
-}
-public function test_genera_codigos_de_trazabilidad_correlativos_en_una_llegada(): void
-{
-    $servicio =
-        app(
-            UnidadAdquiridaService::class
+        $this->assertSame(
+            UnidadAdquirida::ESTADO_LISTA_ENVIO,
+            $unidad->estado
         );
 
-    $unidades =
-        $servicio->registrarLlegadaCochabamba(
-            $this->usuarioOperativo->id,
-            $this->detalle->id,
-            3,
-            '2026-08-27 09:30:00'
+        $this->assertTrue(
+            $unidad->enciende
         );
 
-    $this->assertSame(
-        [
-            'OS-260827-0001',
-            'OS-260827-0002',
-            'OS-260827-0003',
-        ],
-        $unidades
-            ->pluck('codigo_trazabilidad')
-            ->all()
-    );
+        $this->assertTrue(
+            $unidad->tiene_sistema_operativo
+        );
 
-    foreach ($unidades as $unidad) {
+        $this->assertTrue(
+            $unidad->tiene_cargador
+        );
+
+        $this->assertFalse(
+            $unidad->requiere_servicio
+        );
+
+        $this->assertNull(
+            $unidad->servicio_requerido
+        );
+
         $this->assertNotNull(
-            $unidad->codigo_trazabilidad
+            $unidad->fecha_revision
         );
 
-        $this->assertDatabaseHas(
-            'unidades_adquiridas',
-            [
-                'id' =>
-                    $unidad->id,
-
-                'codigo_trazabilidad' =>
-                    $unidad->codigo_trazabilidad,
-            ]
+        $this->assertNotNull(
+            $unidad->fecha_lista_envio
         );
     }
-}
+    public function test_genera_codigos_de_trazabilidad_correlativos_en_una_llegada(): void
+    {
+        $servicio =
+            app(
+                UnidadAdquiridaService::class
+            );
 
+        $unidades =
+            $servicio->registrarLlegadaCochabamba(
+                $this->usuarioOperativo->id,
+                $this->detalle->id,
+                3,
+                '2026-08-27 09:30:00'
+            );
 
-public function test_segunda_llegada_del_mismo_dia_continua_correlativo(): void
-{
-    $servicio =
-        app(
-            UnidadAdquiridaService::class
+        $this->assertSame(
+            [
+                'OS-260827-0001',
+                'OS-260827-0002',
+                'OS-260827-0003',
+            ],
+            $unidades
+                ->pluck('codigo_trazabilidad')
+                ->all()
         );
 
-    $primeraLlegada =
-        $servicio->registrarLlegadaCochabamba(
-            $this->usuarioOperativo->id,
-            $this->detalle->id,
-            3,
-            '2026-08-27 09:00:00'
+        foreach ($unidades as $unidad) {
+            $this->assertNotNull(
+                $unidad->codigo_trazabilidad
+            );
+
+            $this->assertDatabaseHas(
+                'unidades_adquiridas',
+                [
+                    'id' =>
+                    $unidad->id,
+
+                    'codigo_trazabilidad' =>
+                    $unidad->codigo_trazabilidad,
+                ]
+            );
+        }
+    }
+
+
+    public function test_segunda_llegada_del_mismo_dia_continua_correlativo(): void
+    {
+        $servicio =
+            app(
+                UnidadAdquiridaService::class
+            );
+
+        $primeraLlegada =
+            $servicio->registrarLlegadaCochabamba(
+                $this->usuarioOperativo->id,
+                $this->detalle->id,
+                3,
+                '2026-08-27 09:00:00'
+            );
+
+        $segundaLlegada =
+            $servicio->registrarLlegadaCochabamba(
+                $this->usuarioOperativo->id,
+                $this->detalle->id,
+                2,
+                '2026-08-27 16:00:00'
+            );
+
+        $this->assertSame(
+            [
+                'OS-260827-0001',
+                'OS-260827-0002',
+                'OS-260827-0003',
+            ],
+            $primeraLlegada
+                ->pluck('codigo_trazabilidad')
+                ->all()
         );
 
-    $segundaLlegada =
-        $servicio->registrarLlegadaCochabamba(
-            $this->usuarioOperativo->id,
-            $this->detalle->id,
-            2,
-            '2026-08-27 16:00:00'
+        $this->assertSame(
+            [
+                'OS-260827-0004',
+                'OS-260827-0005',
+            ],
+            $segundaLlegada
+                ->pluck('codigo_trazabilidad')
+                ->all()
         );
 
-    $this->assertSame(
-        [
-            'OS-260827-0001',
-            'OS-260827-0002',
-            'OS-260827-0003',
-        ],
-        $primeraLlegada
-            ->pluck('codigo_trazabilidad')
-            ->all()
-    );
-
-    $this->assertSame(
-        [
-            'OS-260827-0004',
-            'OS-260827-0005',
-        ],
-        $segundaLlegada
-            ->pluck('codigo_trazabilidad')
-            ->all()
-    );
-
-    $codigos =
-        UnidadAdquirida::query()
+        $codigos =
+            UnidadAdquirida::query()
             ->where(
                 'detalle_lote_id',
                 $this->detalle->id
@@ -897,76 +1003,76 @@ public function test_segunda_llegada_del_mismo_dia_continua_correlativo(): void
                 'codigo_trazabilidad'
             );
 
-    $this->assertSame(
-        $codigos->count(),
-        $codigos->unique()->count()
-    );
-}
+        $this->assertSame(
+            $codigos->count(),
+            $codigos->unique()->count()
+        );
+    }
 
 
-public function test_correlativo_de_trazabilidad_reinicia_en_nueva_fecha(): void
-{
-    $servicio =
-        app(
-            UnidadAdquiridaService::class
+    public function test_correlativo_de_trazabilidad_reinicia_en_nueva_fecha(): void
+    {
+        $servicio =
+            app(
+                UnidadAdquiridaService::class
+            );
+
+        $diaUno =
+            $servicio->registrarLlegadaCochabamba(
+                $this->usuarioOperativo->id,
+                $this->detalle->id,
+                2,
+                '2026-08-27 17:30:00'
+            );
+
+        $diaDos =
+            $servicio->registrarLlegadaCochabamba(
+                $this->usuarioOperativo->id,
+                $this->detalle->id,
+                2,
+                '2026-08-28 08:15:00'
+            );
+
+        $this->assertSame(
+            [
+                'OS-260827-0001',
+                'OS-260827-0002',
+            ],
+            $diaUno
+                ->pluck('codigo_trazabilidad')
+                ->all()
         );
 
-    $diaUno =
-        $servicio->registrarLlegadaCochabamba(
-            $this->usuarioOperativo->id,
-            $this->detalle->id,
-            2,
-            '2026-08-27 17:30:00'
+        $this->assertSame(
+            [
+                'OS-260828-0001',
+                'OS-260828-0002',
+            ],
+            $diaDos
+                ->pluck('codigo_trazabilidad')
+                ->all()
         );
 
-    $diaDos =
-        $servicio->registrarLlegadaCochabamba(
-            $this->usuarioOperativo->id,
-            $this->detalle->id,
-            2,
-            '2026-08-28 08:15:00'
-        );
-
-    $this->assertSame(
-        [
-            'OS-260827-0001',
-            'OS-260827-0002',
-        ],
-        $diaUno
-            ->pluck('codigo_trazabilidad')
-            ->all()
-    );
-
-    $this->assertSame(
-        [
-            'OS-260828-0001',
-            'OS-260828-0002',
-        ],
-        $diaDos
-            ->pluck('codigo_trazabilidad')
-            ->all()
-    );
-
-    $this->assertDatabaseHas(
-        'correlativos_trazabilidad_unidades',
-        [
-            'fecha' =>
+        $this->assertDatabaseHas(
+            'correlativos_trazabilidad_unidades',
+            [
+                'fecha' =>
                 '2026-08-27',
 
-            'ultimo_correlativo' =>
+                'ultimo_correlativo' =>
                 2,
-        ]
-    );
+            ]
+        );
 
-    $this->assertDatabaseHas(
-        'correlativos_trazabilidad_unidades',
-        [
-            'fecha' =>
+        $this->assertDatabaseHas(
+            'correlativos_trazabilidad_unidades',
+            [
+                'fecha' =>
                 '2026-08-28',
 
-            'ultimo_correlativo' =>
+                'ultimo_correlativo' =>
                 2,
-        ]
-    );
-}
+            ]
+        );
+    }
 }
