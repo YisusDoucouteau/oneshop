@@ -173,4 +173,11 @@ public function envioImportacionUnidad(): HasOne
         'unidad_adquirida_id'
     );
 }
+public function asignacionesCostos(): HasMany
+{
+    return $this->hasMany(
+        AsignacionCostoUnidadAdquirida::class,
+        'unidad_adquirida_id'
+    );
+}
 }

@@ -70,4 +70,11 @@ class CostoLote extends Model
             'costo_lote_id'
         );
     }
+    public function asignacionesUnidades(): HasMany
+{
+    return $this->hasMany(
+        AsignacionCostoUnidadAdquirida::class,
+        'costo_lote_id'
+    );
+}
 }
