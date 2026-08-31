@@ -180,4 +180,11 @@ public function asignacionesCostos(): HasMany
         'unidad_adquirida_id'
     );
 }
+public function historialCostos()
+{
+    return $this->hasMany(
+        HistorialCostoUnidad::class,
+        'unidad_adquirida_id'
+    );
+}
 }
