@@ -252,20 +252,19 @@ class IncorporacionUnidadAdquiridaServiceTest extends TestCase
         $this->unidad->refresh();
 
         /*
-         * El objetivo de estas pruebas es la incorporación.
+         * Para estas pruebas aislamos la responsabilidad
+         * del servicio de incorporación.
          *
-         * El flujo de traslado/recepción de importación ya cuenta
-         * con sus propias pruebas. Por eso colocamos la unidad en
-         * RECIBIDA_ORURO para aislar la responsabilidad de este
-         * servicio.
+         * El flujo de traslado y recepción a Oruro ya cuenta
+         * con sus propias pruebas.
          */
 
         $this->unidad->estado =
             UnidadAdquirida::ESTADO_RECIBIDA_ORURO;
 
         /*
-         * La incorporación exige que exista un almacén actual.
-         * Para la prueba utilizamos el almacén principal de Oruro.
+         * La unidad debe encontrarse en el almacén principal
+         * de Oruro antes de incorporarse al inventario.
          */
 
         $almacenOruro =
@@ -293,7 +292,7 @@ class IncorporacionUnidadAdquiridaServiceTest extends TestCase
 
     /*
     |--------------------------------------------------------------------------
-    | Pruebas
+    | Pruebas de incorporación
     |--------------------------------------------------------------------------
     */
 
@@ -452,11 +451,6 @@ class IncorporacionUnidadAdquiridaServiceTest extends TestCase
     {
         $this->unidad->refresh();
 
-        /*
-         * La unidad recién creada por el servicio de llegada
-         * todavía no está en RECIBIDA_ORURO.
-         */
-
         $this->assertNotSame(
             UnidadAdquirida::ESTADO_RECIBIDA_ORURO,
             $this->unidad->estado
@@ -519,7 +513,7 @@ class IncorporacionUnidadAdquiridaServiceTest extends TestCase
             );
 
         $this->expectException(
-        ValidationException::class
+            ValidationException::class
         );
 
         $servicio->incorporar(
@@ -527,6 +521,93 @@ class IncorporacionUnidadAdquiridaServiceTest extends TestCase
             $unidad->id,
             '   ',
             $this->obtenerCondicionFisicaId()
+        );
+    }
+
+    /*
+    |--------------------------------------------------------------------------
+    | Pruebas de integración con costeo
+    |--------------------------------------------------------------------------
+    */
+
+    public function test_registra_historial_de_costo_al_incorporar(): void
+    {
+        $unidad =
+            $this->prepararUnidadRecibidaEnOruro();
+
+        $servicio =
+            app(
+                IncorporacionUnidadAdquiridaService::class
+            );
+
+        $unidad =
+            $servicio->incorporar(
+                $this->usuarioOperativo->id,
+                $unidad->id,
+                '1550',
+                $this->obtenerCondicionFisicaId()
+            );
+
+        $this->assertDatabaseHas(
+            'historial_costos_unidades',
+            [
+                'unidad_adquirida_id' =>
+                    $unidad->id,
+
+                'calculado_por_id' =>
+                    $this->usuarioOperativo->id,
+            ]
+        );
+
+        $this->assertNotNull(
+            $unidad
+                ->historialCostos()
+                ->latest('fecha_calculo')
+                ->first()
+        );
+    }
+
+    public function test_conserva_el_historial_de_costo_si_la_incorporacion_es_exitosa(): void
+    {
+        $unidad =
+            $this->prepararUnidadRecibidaEnOruro();
+
+        $servicio =
+            app(
+                IncorporacionUnidadAdquiridaService::class
+            );
+
+        $unidad =
+            $servicio->incorporar(
+                $this->usuarioOperativo->id,
+                $unidad->id,
+                '1551',
+                $this->obtenerCondicionFisicaId()
+            );
+
+        $historial =
+            $unidad
+                ->historialCostos()
+                ->latest('fecha_calculo')
+                ->first();
+
+        $this->assertNotNull(
+            $historial
+        );
+
+        $this->assertSame(
+            $unidad->id,
+            $historial->unidad_adquirida_id
+        );
+
+        $this->assertSame(
+            $this->usuarioOperativo->id,
+            $historial->calculado_por_id
+        );
+
+        $this->assertGreaterThanOrEqual(
+            0,
+            (float) $historial->costo_total
         );
     }
 }

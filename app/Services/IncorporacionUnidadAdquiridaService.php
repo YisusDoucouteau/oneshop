@@ -13,7 +13,8 @@ use Illuminate\Validation\Rule;
 class IncorporacionUnidadAdquiridaService
 {
     public function __construct(
-        private RegistroEquipoService $registroEquipoService
+        private RegistroEquipoService $registroEquipoService,
+        private RegistroCostoUnidadService $registroCostoUnidadService
     ) {
     }
 
@@ -21,8 +22,13 @@ class IncorporacionUnidadAdquiridaService
      * Incorpora una unidad adquirida al inventario formal.
      *
      * La unidad debe encontrarse previamente en RECIBIDA_ORURO.
+     *
+     * Antes de crear el equipo formal se registra una fotografía
+     * del costo real de la unidad. El costo puede encontrarse
+     * completo o incompleto; esto no impide la incorporación.
+     *
      * El equipo formal se registra mediante RegistroEquipoService
-     * para reutilizar todas las reglas de inventario existentes.
+     * para reutilizar las reglas centrales de inventario.
      */
     public function incorporar(
         int $usuarioId,
@@ -221,12 +227,32 @@ class IncorporacionUnidadAdquiridaService
 
             /*
             |--------------------------------------------------------------------------
+            | Registro del costo real
+            |--------------------------------------------------------------------------
+            |
+            | Antes de incorporar formalmente la unidad registramos
+            | una fotografía del costo real calculado.
+            |
+            | El historial conserva si el cálculo está completo
+            | o incompleto. Un costo incompleto no bloquea la
+            | incorporación del equipo.
+            |
+            */
+
+            $this->registroCostoUnidadService
+                ->registrar(
+                    $unidad,
+                    $usuario->id
+                );
+
+            /*
+            |--------------------------------------------------------------------------
             | Especificaciones
             |--------------------------------------------------------------------------
             |
             | Copiamos a la ficha formal del equipo la información
-            | técnica que ya fue obtenida durante la revisión de
-            | la unidad adquirida.
+            | técnica que ya fue obtenida durante la revisión
+            | de la unidad adquirida.
             |
             */
 
@@ -341,6 +367,7 @@ class IncorporacionUnidadAdquiridaService
                 'equipo.condicionFisica',
                 'equipo.especificacion',
                 'equipo.historialEstados.estadoDestino',
+                'historialCostos',
             ]);
         }, 3);
     }
