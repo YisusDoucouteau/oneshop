@@ -17,7 +17,7 @@ class PoliticaDescuento extends Model
         'dias_desde',
         'dias_hasta',
         'porcentaje_maximo',
-        'ganancia_minima',
+        'utilidad_minima_bob',
         'permite_precio_costo',
         'requiere_autorizacion',
         'vigente_desde',
@@ -26,16 +26,16 @@ class PoliticaDescuento extends Model
     ];
 
     protected $casts = [
-            'dias_desde' => 'integer',
-            'dias_hasta' => 'integer',
-            'porcentaje_maximo' => 'decimal:4',
-            'ganancia_minima' => 'decimal:2',
-            'permite_precio_costo' => 'boolean',
-            'requiere_autorizacion' => 'boolean',
-            'vigente_desde' => 'date',
-            'vigente_hasta' => 'date',
-            'activo' => 'boolean',
-        ];
+        'dias_desde' => 'integer',
+        'dias_hasta' => 'integer',
+        'porcentaje_maximo' => 'decimal:2',
+        'utilidad_minima_bob' => 'decimal:2',
+        'permite_precio_costo' => 'boolean',
+        'requiere_autorizacion' => 'boolean',
+        'vigente_desde' => 'date',
+        'vigente_hasta' => 'date',
+        'activo' => 'boolean',
+    ];
 
     public function categoria(): BelongsTo
     {
