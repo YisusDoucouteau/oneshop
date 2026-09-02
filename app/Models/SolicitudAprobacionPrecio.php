@@ -14,29 +14,31 @@ class SolicitudAprobacionPrecio extends Model
 
     protected $fillable = [
 
-        'equipo_id',
+    'equipo_id',
 
-        'usuario_solicitante_id',
+    'usuario_solicitante_id',
 
-        'precio_publicado',
+    'precio_publicado',
 
-        'precio_propuesto',
+    'precio_propuesto',
 
-        'descuento_solicitado',
+    'descuento_solicitado',
 
-        'ganancia_estimada',
+    'ganancia_estimada',
 
-        'motivo',
+    'motivo',
 
-        'estado',
+    'estado',
 
-        'usuario_aprobador_id',
+    'usuario_aprobador_id',
 
-        'fecha_aprobacion',
+    'fecha_aprobacion',
 
-        'observacion_aprobacion',
+    'observacion_aprobacion',
 
-    ];
+    'medio_aprobacion',
+
+];
 
 
     protected $casts = [
