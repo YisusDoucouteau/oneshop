@@ -15,7 +15,10 @@ use Illuminate\Support\Str;
 class ReservaService
 {
     public function __construct(
-        private readonly EstadoEquipoService $estadoEquipoService
+          private readonly EstadoEquipoService $estadoEquipoService,
+    private readonly MovimientoInventarioService $movimientoInventarioService
+
+
     ) {
     }
 
@@ -144,13 +147,16 @@ class ReservaService
                     'observacion' => null,
                 ]);
 
-                $this->estadoEquipoService->cambiarEstado(
-                    equipoId: $equipo->id,
-                    codigoEstadoDestino: 'RESERVADO',
-                    usuarioId: $usuarioId,
-                    autorizadoPorId: null,
-                    motivo: "Reserva {$reserva->numero}"
-                );
+                $this->movimientoInventarioService
+    ->registrarReserva(
+        productoId: $equipo->producto_id,
+        almacenId: $equipo->almacen_actual_id,
+        cantidad: 1,
+        usuarioId: $usuarioId,
+        tipoReferencia: 'RESERVA',
+        referenciaId: $reserva->id,
+        observacion: "Reserva {$reserva->numero}"
+    );
             }
 
            return $reserva->fresh([
