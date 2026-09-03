@@ -12,6 +12,7 @@ use App\Models\PrecioEquipo;
 use App\Models\Producto;
 use App\Models\TransicionEstadoEquipo;
 use App\Models\User;
+use App\Models\PoliticaGarantia;
 use App\Services\ProcesadorVentaService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Str;
@@ -41,7 +42,37 @@ class ProcesadorVentaServiceTest extends TestCase
             'es_serializado' => true,
             'activo' => true,
         ]);
+         PoliticaGarantia::create([
 
+    'codigo' => 'GAR-' . Str::uuid(),
+
+    'nombre' => 'Garantía equipo prueba',
+
+    'categoria_producto_id' =>
+        $categoria->id,
+
+    'producto_id' =>
+        $producto->id,
+
+    'duracion_meses' =>
+        6,
+
+    'condiciones' =>
+        'Garantía estándar.',
+
+    'exclusiones' =>
+        'Daños físicos.',
+
+    'vigente_desde' =>
+        now()->subDay(),
+
+    'vigente_hasta' =>
+        null,
+
+    'activo' =>
+        true,
+
+]);   
 
         $almacen = Almacen::create([
             'codigo' => 'ORU',

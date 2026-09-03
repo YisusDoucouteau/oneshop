@@ -169,4 +169,11 @@ public function costos(): HasMany
         'equipo_id'
     );
 }
+public function casosGarantia(): HasMany
+{
+    return $this->hasMany(
+        CasoGarantia::class,
+        'equipo_afectado_id'
+    );
+}
 }

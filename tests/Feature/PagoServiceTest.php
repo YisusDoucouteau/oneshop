@@ -14,6 +14,7 @@ use App\Models\ParametroSistema;
 use App\Models\PrecioEquipo;
 use App\Models\Producto;
 use App\Models\User;
+use App\Models\PoliticaGarantia;
 use App\Services\PagoService;
 use App\Services\ReservaService;
 use App\Services\VentaService;
@@ -305,7 +306,34 @@ class PagoServiceTest extends TestCase
             'es_serializado' => true,
             'activo' => true,
         ]);
+        PoliticaGarantia::create([
 
+    'codigo' => 'GAR-' . Str::uuid(),
+
+    'nombre' => 'Garantía laptop prueba',
+
+    'categoria_producto_id' => $categoria->id,
+
+    'producto_id' => $producto->id,
+
+    'duracion_meses' => 6,
+
+    'condiciones' =>
+        'Garantía estándar de prueba.',
+
+    'exclusiones' =>
+        'Golpes, humedad y daños físicos.',
+
+    'vigente_desde' =>
+        now()->subDay(),
+
+    'vigente_hasta' =>
+        null,
+
+    'activo' =>
+        true,
+
+]);
         $equipo = Equipo::create([
             'producto_id' => $producto->id,
             'detalle_lote_id' => null,
