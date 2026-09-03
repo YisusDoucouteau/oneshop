@@ -15,6 +15,7 @@ use App\Models\TipoMovimientoInventario;
 use App\Models\User;
 use App\Services\ReservaService;
 use Database\Seeders\CatalogoSeeder;
+use Database\Seeders\CatalogoInventarioSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Str;
 use Tests\TestCase;
@@ -37,18 +38,7 @@ class ReservaServiceTest extends TestCase
         $this->seed(
             CatalogoSeeder::class
         );
-
-
-        TipoMovimientoInventario::firstOrCreate(
-            [
-                'codigo' => 'RESERVA',
-            ],
-            [
-                'nombre' => 'Reserva inventario',
-                'descripcion' => 'Reserva de equipos',
-                'activo' => true,
-            ]
-        );
+         $this->seed(CatalogoInventarioSeeder::class);
 
 
         ParametroSistema::create([

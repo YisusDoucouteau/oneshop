@@ -15,6 +15,7 @@ use App\Models\TipoMovimientoInventario;
 use App\Models\User;
 use App\Services\ReservaService;
 use Carbon\Carbon;
+use Database\Seeders\CatalogoInventarioSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Str;
 use Tests\TestCase;
@@ -27,63 +28,60 @@ class DobleLiberacionReservaTest extends TestCase
     protected User $usuario;
 
 
-    protected function setUp(): void
-    {
-        parent::setUp();
+   protected function setUp(): void
+{
+    parent::setUp();
+
+    $this->seed(CatalogoInventarioSeeder::class);
+
+    $this->usuario = User::create([
+
+        'name' => 'Usuario prueba',
+
+        'email' => Str::uuid().'@test.com',
+
+        'password' => bcrypt('123456'),
+
+        'activo' => true,
+
+    ]);
 
 
-        $this->usuario = User::create([
+    TipoMovimientoInventario::firstOrCreate(
 
-            'name' =>
-                'Usuario prueba',
+        [
+            'codigo' => 'RESERVA'
+        ],
 
-            'email' =>
-                Str::uuid().'@test.com',
+        [
+            'nombre' => 'Reserva',
+            'activo' => true,
+        ]
 
-            'password' =>
-                bcrypt('123456'),
-
-            'activo' =>
-                true,
-
-        ]);
+    );
 
 
+    TipoMovimientoInventario::firstOrCreate(
 
-        TipoMovimientoInventario::create([
+        [
+            'codigo' => 'LIBERACION_RESERVA'
+        ],
 
-            'codigo' =>
-                'RESERVA',
+        [
+            'nombre' => 'Liberación reserva',
+            'activo' => true,
+        ]
 
-            'nombre' =>
-                'Reserva',
-
-            'activo' =>
-                true,
-
-        ]);
-
+    );
 
 
-        TipoMovimientoInventario::create([
+    ParametroSistema::firstOrCreate(
 
-            'codigo' =>
-                'LIBERACION_RESERVA',
+        [
+            'codigo' => 'RESERVA_DIAS_MAXIMOS_ESTANDAR'
+        ],
 
-            'nombre' =>
-                'Liberación reserva',
-
-            'activo' =>
-                true,
-
-        ]);
-
-
-
-        ParametroSistema::create([
-
-            'codigo' =>
-                'RESERVA_DIAS_MAXIMOS_ESTANDAR',
+        [
 
             'nombre' =>
                 'Días máximos reserva',
@@ -100,9 +98,11 @@ class DobleLiberacionReservaTest extends TestCase
             'activo' =>
                 true,
 
-        ]);
+        ]
 
-    }
+    );
+
+}
 
 
 

@@ -15,8 +15,9 @@ use App\Models\User;
 use App\Models\PoliticaGarantia;
 use App\Services\ReservaService;
 use App\Services\VentaService;
-
+use Database\Seeders\CatalogoInventarioSeeder;
 use Database\Seeders\CatalogoSeeder;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Str;
 use Tests\TestCase;
@@ -31,9 +32,9 @@ class VentaServiceTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
-
+        $this->seed(CatalogoInventarioSeeder::class);
         $this->seed(CatalogoSeeder::class);
-
+        
         ParametroSistema::create([
             'codigo' => 'RESERVA_DIAS_MAXIMOS_ESTANDAR',
             'nombre' => 'Días máximos estándar de una reserva',
@@ -341,7 +342,28 @@ class VentaServiceTest extends TestCase
         ]);
 
     }
+DB::table('existencias_productos')
+    ->insert([
 
+        'producto_id' =>
+            $producto->id,
+
+        'almacen_id' =>
+            $almacen->id,
+
+        'cantidad_disponible' =>
+            1,
+
+        'cantidad_reservada' =>
+            0,
+
+        'created_at' =>
+            now(),
+
+        'updated_at' =>
+            now(),
+
+    ]);
 
     return $equipo;
 

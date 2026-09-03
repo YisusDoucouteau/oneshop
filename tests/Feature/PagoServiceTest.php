@@ -10,6 +10,7 @@ use App\Models\Equipo;
 use App\Models\EstadoEquipo;
 use App\Models\MetodoPago;
 use App\Models\Pago;
+use App\Models\TipoMovimientoInventario;
 use App\Models\ParametroSistema;
 use App\Models\PrecioEquipo;
 use App\Models\Producto;
@@ -20,8 +21,10 @@ use App\Services\ReservaService;
 use App\Services\VentaService;
 use Database\Seeders\CatalogoSeeder;
 use Database\Seeders\ComercialSeeder;
+use Database\Seeders\CatalogoInventarioSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Str;
+use Illuminate\Support\Facades\DB;
 use Tests\TestCase;
 
 class PagoServiceTest extends TestCase
@@ -37,6 +40,9 @@ class PagoServiceTest extends TestCase
 
         $this->seed(CatalogoSeeder::class);
         $this->seed(ComercialSeeder::class);
+        $this->seed(CatalogoInventarioSeeder::class);
+
+     
 
         ParametroSistema::create([
             'codigo' => 'RESERVA_DIAS_MAXIMOS_ESTANDAR',
@@ -49,7 +55,7 @@ class PagoServiceTest extends TestCase
             'activo' => true,
             'modificado_por_id' => null,
         ]);
-
+      
         $this->usuario = User::create([
             'name' => 'Usuario pagos prueba',
             'email' => Str::uuid() . '@oneshop.test',
@@ -170,7 +176,7 @@ class PagoServiceTest extends TestCase
     public function test_adelanto_de_reserva_se_considera_en_saldo_de_venta_sin_duplicarse(): void
     {
         $equipo = $this->crearEquipoDisponible();
-
+        
         $reserva = app(ReservaService::class)
             ->crearReserva(
                 clienteId: $this->cliente->id,
@@ -360,6 +366,28 @@ class PagoServiceTest extends TestCase
             'aprobado_por_id' => null,
             'observacion' => 'Precio para prueba.',
         ]);
+        DB::table('existencias_productos')
+    ->insert([
+
+        'producto_id' =>
+            $producto->id,
+
+        'almacen_id' =>
+            $almacen->id,
+
+        'cantidad_disponible' =>
+            1,
+
+        'cantidad_reservada' =>
+            0,
+
+        'created_at' =>
+            now(),
+
+        'updated_at' =>
+            now(),
+
+    ]);
 
         return $equipo;
     }

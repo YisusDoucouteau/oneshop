@@ -14,6 +14,7 @@ use App\Models\TipoMovimientoInventario;
 use App\Models\User;
 use App\Services\ReservaService;
 use Carbon\Carbon;
+use Database\Seeders\CatalogoInventarioSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Str;
 use Tests\TestCase;
@@ -30,7 +31,7 @@ class LiberarReservaInventarioTest extends TestCase
     {
         parent::setUp();
 
-
+        $this->seed(CatalogoInventarioSeeder::class);
         $this->usuario = User::create([
 
             'name' =>
@@ -46,38 +47,7 @@ class LiberarReservaInventarioTest extends TestCase
                 true,
 
         ]);
-
-
-
-        TipoMovimientoInventario::create([
-
-            'codigo' =>
-                'RESERVA',
-
-            'nombre' =>
-                'Reserva',
-
-            'activo' =>
-                true,
-
-        ]);
-
-
-        TipoMovimientoInventario::create([
-
-            'codigo' =>
-                'LIBERACION_RESERVA',
-
-            'nombre' =>
-                'Liberación reserva',
-
-            'activo' =>
-                true,
-
-        ]);
-
-
-
+  
         ParametroSistema::create([
 
             'codigo' =>
