@@ -216,7 +216,7 @@ class ReservaService
     }
     public function liberarReserva(
     int $reservaId,
-    int $usuarioId
+    ?int $usuarioId
 ): Reserva {
 
 
