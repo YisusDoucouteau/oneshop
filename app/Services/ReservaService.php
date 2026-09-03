@@ -214,4 +214,96 @@ class ReservaService
             '-' .
             Str::upper(Str::ulid());
     }
+    public function liberarReserva(
+    int $reservaId,
+    int $usuarioId
+): Reserva {
+
+
+    return DB::transaction(function () use (
+        $reservaId,
+        $usuarioId
+    ) {
+
+
+        $reserva = Reserva::query()
+            ->with('detalles.equipo')
+            ->lockForUpdate()
+            ->find($reservaId);
+
+
+
+        if (!$reserva) {
+
+            throw new ReglaNegocioException(
+                'La reserva no existe.'
+            );
+
+        }
+
+
+
+        if ($reserva->estado !== 'ACTIVA') {
+
+            throw new ReglaNegocioException(
+                'Solo se pueden liberar reservas activas.'
+            );
+
+        }
+
+
+
+        foreach ($reserva->detalles as $detalle) {
+
+
+            $equipo = $detalle->equipo;
+
+
+            $this->movimientoInventarioService
+                ->registrarLiberacionReserva(
+
+                    productoId:
+                        $equipo->producto_id,
+
+                    almacenId:
+                        $equipo->almacen_actual_id,
+
+                    cantidad:
+                        1,
+
+                    usuarioId:
+                        $usuarioId,
+
+                    tipoReferencia:
+                        'LIBERACION_RESERVA',
+
+                    referenciaId:
+                        $reserva->id,
+
+                    observacion:
+                        "Liberación reserva {$reserva->numero}"
+
+                );
+
+        }
+
+
+
+        $reserva->update([
+
+            'estado' =>
+                'LIBERADA',
+
+            'fecha_cierre' =>
+                now(),
+
+        ]);
+
+
+
+        return $reserva->fresh();
+
+    });
+
+}
 }

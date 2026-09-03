@@ -450,5 +450,139 @@ class MovimientoInventarioService
         return $tipo;
 
     }
+public function registrarLiberacionReserva(
+    int $productoId,
+    int $almacenId,
+    int $cantidad,
+    ?int $usuarioId = null,
+    ?string $tipoReferencia = null,
+    ?int $referenciaId = null,
+    ?string $observacion = null
+): MovimientoInventario {
 
+
+    return DB::transaction(function () use (
+        $productoId,
+        $almacenId,
+        $cantidad,
+        $usuarioId,
+        $tipoReferencia,
+        $referenciaId,
+        $observacion
+    ) {
+
+
+        if ($cantidad <= 0) {
+
+            throw new ReglaNegocioException(
+                'La cantidad debe ser mayor a cero.'
+            );
+
+        }
+
+
+        $tipo = $this->obtenerTipoMovimiento(
+            'LIBERACION_RESERVA'
+        );
+
+
+        $existencia = DB::table('existencias_productos')
+            ->where('producto_id', $productoId)
+            ->where('almacen_id', $almacenId)
+            ->lockForUpdate()
+            ->first();
+
+
+
+        if (!$existencia) {
+
+            throw new ReglaNegocioException(
+                'No existe inventario para liberar reserva.'
+            );
+
+        }
+
+
+
+        if ($existencia->cantidad_reservada < $cantidad) {
+
+            throw new ReglaNegocioException(
+                'No existe suficiente cantidad reservada.'
+            );
+
+        }
+
+
+
+        $nuevoDisponible =
+            $existencia->cantidad_disponible + $cantidad;
+
+
+
+        $nuevoReservado =
+            $existencia->cantidad_reservada - $cantidad;
+
+
+
+        DB::table('existencias_productos')
+            ->where('producto_id', $productoId)
+            ->where('almacen_id', $almacenId)
+            ->update([
+
+                'cantidad_disponible' =>
+                    $nuevoDisponible,
+
+                'cantidad_reservada' =>
+                    $nuevoReservado,
+
+                'updated_at' =>
+                    now(),
+
+            ]);
+
+
+
+        return MovimientoInventario::create([
+
+            'producto_id' =>
+                $productoId,
+
+            'almacen_id' =>
+                $almacenId,
+
+            'tipo_movimiento_id' =>
+                $tipo->id,
+
+            'usuario_id' =>
+                $usuarioId,
+
+            'cambio_disponible' =>
+                $cantidad,
+
+            'cambio_reservado' =>
+                -$cantidad,
+
+            'saldo_disponible_resultante' =>
+                $nuevoDisponible,
+
+            'saldo_reservado_resultante' =>
+                $nuevoReservado,
+
+            'tipo_referencia' =>
+                $tipoReferencia,
+
+            'referencia_id' =>
+                $referenciaId,
+
+            'fecha_movimiento' =>
+                now(),
+
+            'observacion' =>
+                $observacion,
+
+        ]);
+
+    });
+
+}
 }
