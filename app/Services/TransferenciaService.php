@@ -11,9 +11,13 @@ use App\Models\Rol;
 use App\Models\Permiso;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
-
+use App\Services\AuditoriaService;
 class TransferenciaService
 {
+      public function __construct(
+        private AuditoriaService $auditoriaService
+    ) {
+    }
     public function crearTransferencia(
         int $usuarioId,
         int $almacenOrigenId,
@@ -117,7 +121,36 @@ class TransferenciaService
             $transferencia->equipos()->attach(
                 $equiposIds
             );
+            $this->auditoriaService->registrar(
 
+    usuarioId: $usuario->id,
+
+    accion: 'CREAR_TRANSFERENCIA',
+
+    entidad: 'Transferencia',
+
+    entidadId: $transferencia->id,
+
+    datosNuevos: [
+
+        'codigo' =>
+            $transferencia->codigo,
+
+        'estado' =>
+            $transferencia->estado,
+
+        'almacen_origen_id' =>
+            $transferencia->almacen_origen_id,
+
+        'almacen_destino_id' =>
+            $transferencia->almacen_destino_id,
+
+        'equipos' =>
+            $equiposIds,
+
+    ]
+
+);
 
             return $transferencia->fresh([
                 'equipos',
@@ -177,7 +210,34 @@ class TransferenciaService
                     now(),
 
             ]);
+            $this->auditoriaService->registrar(
 
+    usuarioId: $usuario->id,
+
+    accion: 'DESPACHAR_TRANSFERENCIA',
+
+    entidad: 'Transferencia',
+
+    entidadId: $transferencia->id,
+
+    datosAnteriores: [
+
+        'estado' =>
+            'SOLICITADA',
+
+    ],
+
+    datosNuevos: [
+
+        'estado' =>
+            'DESPACHADA',
+
+        'fecha_despacho' =>
+            $transferencia->fecha_despacho,
+
+    ]
+
+);
 
             return $transferencia->fresh();
         });
@@ -252,7 +312,37 @@ class TransferenciaService
                     now(),
 
             ]);
+                $this->auditoriaService->registrar(
 
+    usuarioId: $usuario->id,
+
+    accion: 'RECIBIR_TRANSFERENCIA',
+
+    entidad: 'Transferencia',
+
+    entidadId: $transferencia->id,
+
+    datosAnteriores: [
+
+        'estado' =>
+            'DESPACHADA',
+
+    ],
+
+    datosNuevos: [
+
+        'estado' =>
+            'RECIBIDA',
+
+        'fecha_recepcion' =>
+            $transferencia->fecha_recepcion,
+
+        'almacen_destino_id' =>
+            $transferencia->almacen_destino_id,
+
+    ]
+
+);   
 
             return $transferencia->fresh([
                 'equipos',
