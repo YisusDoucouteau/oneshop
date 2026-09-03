@@ -176,4 +176,11 @@ public function casosGarantia(): HasMany
         'equipo_afectado_id'
     );
 }
+public function detallesGarantia(): HasMany
+{
+    return $this->hasMany(
+        DetalleVenta::class,
+        'equipo_id'
+    );
+}
 }

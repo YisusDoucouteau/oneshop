@@ -4,7 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
-
+use Illuminate\Database\Eloquent\Relations\HasMany;
 class Garantia extends Model
 {
     protected $table = 'garantias';
@@ -67,4 +67,11 @@ class Garantia extends Model
         return $this->estado === 'VIGENTE'
             && $this->fecha_fin->isFuture();
     }
+    public function casosGarantia(): HasMany
+{
+    return $this->hasMany(
+        CasoGarantia::class,
+        'garantia_id'
+    );
+}
 }

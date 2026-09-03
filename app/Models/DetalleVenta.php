@@ -4,7 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
-
+use Illuminate\Database\Eloquent\Relations\HasOne;
 class DetalleVenta extends Model
 {
     protected $table = 'detalles_ventas';
@@ -45,4 +45,11 @@ class DetalleVenta extends Model
     {
         return $this->belongsTo(Equipo::class);
     }
+    public function garantia(): HasOne
+{
+    return $this->hasOne(
+        Garantia::class,
+        'detalle_venta_id'
+    );
+}
 }
