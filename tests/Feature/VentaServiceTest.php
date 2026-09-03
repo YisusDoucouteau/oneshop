@@ -12,8 +12,10 @@ use App\Models\ParametroSistema;
 use App\Models\PrecioEquipo;
 use App\Models\Producto;
 use App\Models\User;
+use App\Models\PoliticaGarantia;
 use App\Services\ReservaService;
 use App\Services\VentaService;
+
 use Database\Seeders\CatalogoSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Str;
@@ -236,62 +238,147 @@ class VentaServiceTest extends TestCase
     }
 
     private function crearEquipoDisponible(
-        bool $crearPrecio = true
-    ): Equipo {
-        $categoria = CategoriaProducto::query()
-            ->where('codigo', 'LAPTOP')
-            ->firstOrFail();
+    bool $crearPrecio = true
+): Equipo {
 
-        $almacen = Almacen::query()
-            ->where('activo', true)
-            ->orderByDesc('principal')
-            ->firstOrFail();
+    $categoria = CategoriaProducto::query()
+        ->where('codigo', 'LAPTOP')
+        ->firstOrFail();
 
-        $estadoDisponible = EstadoEquipo::query()
-            ->where('codigo', 'DISPONIBLE')
-            ->firstOrFail();
 
-        $producto = Producto::create([
-            'categoria_producto_id' => $categoria->id,
-            'marca_id' => null,
-            'codigo' => 'PROD-' . Str::uuid(),
-            'nombre' => 'Laptop venta prueba',
-            'modelo' => 'TEST',
-            'descripcion' => null,
-            'es_serializado' => true,
-            'activo' => true,
+    $almacen = Almacen::query()
+        ->where('activo', true)
+        ->orderByDesc('principal')
+        ->firstOrFail();
+
+
+    $estadoDisponible = EstadoEquipo::query()
+        ->where('codigo', 'DISPONIBLE')
+        ->firstOrFail();
+
+
+    $producto = Producto::create([
+
+        'categoria_producto_id' => $categoria->id,
+
+        'marca_id' => null,
+
+        'codigo' => 'PROD-' . Str::uuid(),
+
+        'nombre' => 'Laptop venta prueba',
+
+        'modelo' => 'TEST',
+
+        'descripcion' => null,
+
+        'es_serializado' => true,
+
+        'activo' => true,
+
+    ]);
+
+
+    // Política necesaria para generar garantía al vender
+    $this->crearPoliticaGarantia(
+        $categoria,
+        $producto
+    );
+
+
+    $equipo = Equipo::create([
+
+        'producto_id' => $producto->id,
+
+        'detalle_lote_id' => null,
+
+        'almacen_actual_id' => $almacen->id,
+
+        'estado_actual_id' => $estadoDisponible->id,
+
+        'condicion_fisica_id' => null,
+
+        'codigo_interno' => 'EQ-' . Str::uuid(),
+
+        'serial_fabricante' => null,
+
+        'fecha_registro' => now(),
+
+        'fecha_disponible' => now(),
+
+        'observacion' => null,
+
+        'activo' => true,
+
+    ]);
+
+
+    if ($crearPrecio) {
+
+        PrecioEquipo::create([
+
+            'equipo_id' => $equipo->id,
+
+            'tipo_cambio_id' => null,
+
+            'costo_total_snapshot' => 2900,
+
+            'precio_sugerido' => 3500,
+
+            'precio_publico' => 3500,
+
+            'precio_minimo_autorizado' => 3200,
+
+            'vigente_desde' => now(),
+
+            'vigente_hasta' => null,
+
+            'vigente' => true,
+
+            'aprobado_por_id' => null,
+
+            'observacion' => 'Precio para prueba.',
+
         ]);
 
-        $equipo = Equipo::create([
-            'producto_id' => $producto->id,
-            'detalle_lote_id' => null,
-            'almacen_actual_id' => $almacen->id,
-            'estado_actual_id' => $estadoDisponible->id,
-            'condicion_fisica_id' => null,
-            'codigo_interno' => 'EQ-' . Str::uuid(),
-            'serial_fabricante' => null,
-            'fecha_registro' => now(),
-            'fecha_disponible' => now(),
-            'observacion' => null,
-            'activo' => true,
-        ]);
-
-        if ($crearPrecio) {
-            PrecioEquipo::create([
-                'equipo_id' => $equipo->id,
-                'tipo_cambio_id' => null,
-                'costo_total_snapshot' => 2900,
-                'precio_sugerido' => 3500,
-                'precio_publico' => 3500,
-                'precio_minimo_autorizado' => 3200,
-                'vigente_desde' => now(),
-                'vigente_hasta' => null,
-                'vigente' => true,
-                'aprobado_por_id' => null,
-                'observacion' => 'Precio para prueba.',
-            ]);
-        }
-
-        return $equipo;
     }
+
+
+    return $equipo;
+
+}
+private function crearPoliticaGarantia(
+    CategoriaProducto $categoria,
+    Producto $producto
+): void {
+
+    PoliticaGarantia::create([
+
+        'codigo' => 'GAR-' . Str::uuid(),
+
+        'nombre' => 'Garantía laptop prueba',
+
+        'categoria_producto_id' => $categoria->id,
+
+        'producto_id' => $producto->id,
+
+        'duracion_meses' => 6,
+
+        'condiciones' =>
+            'Garantía estándar para equipo de prueba.',
+
+        'exclusiones' =>
+            'Golpes, humedad y daños físicos.',
+
+        'vigente_desde' =>
+            now()->subDay(),
+
+        'vigente_hasta' =>
+            null,
+
+        'activo' =>
+            true,
+
+    ]);
+
+}
 }
