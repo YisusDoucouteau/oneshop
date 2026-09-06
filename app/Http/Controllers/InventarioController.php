@@ -162,11 +162,13 @@ public function store(
             ]);
     }
 }
-    public function show(
+   public function show(
     Equipo $equipo,
     TrazabilidadEquipoService $trazabilidad
 ): View {
+
     $equipo->load([
+
         'producto.marca',
         'producto.categoria',
 
@@ -178,11 +180,21 @@ public function store(
         'precioVigente',
 
         'detalleLote.lote.proveedor',
+
+        'casosGarantia.recibidoPor',
+        'casosGarantia.cerradoPor',
+
+        'historialEstados.estadoOrigen',
+        'historialEstados.estadoDestino',
+        'historialEstados.usuario',
+
     ]);
+
 
     $eventosTrazabilidad = $trazabilidad->obtener(
         $equipo
     );
+
 
     return view(
         'inventario.show',

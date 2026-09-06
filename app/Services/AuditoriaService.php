@@ -19,40 +19,57 @@ class AuditoriaService
 
         return Auditoria::create([
 
-            'usuario_id' =>
-                $usuarioId,
+            'usuario_id' => $usuarioId,
 
-            'accion' =>
-                $accion,
+            'accion' => $accion,
 
-            'entidad' =>
-                $entidad,
+            'entidad' => $entidad,
 
-            'entidad_id' =>
-                $entidadId,
+            'entidad_id' => $entidadId,
 
-            'datos_anteriores' =>
-                $datosAnteriores,
+            'datos_anteriores' => $datosAnteriores,
 
-            'datos_nuevos' =>
-                $datosNuevos,
+            'datos_nuevos' => $datosNuevos,
 
-            'direccion_ip' =>
-                Request::ip(),
+            'direccion_ip' => Request::ip(),
 
-            'agente_usuario' =>
-                Request::userAgent(),
+            'agente_usuario' => Request::userAgent(),
 
-            'ruta' =>
-                Request::path(),
+            'ruta' => Request::path(),
 
-            'metodo_http' =>
-                Request::method(),
+            'metodo_http' => Request::method(),
 
-            'fecha_evento' =>
-                now(),
+            'fecha_evento' => now(),
 
         ]);
 
     }
+
+
+    public function registrarActual(
+        string $accion,
+        string $entidad,
+        ?int $entidadId = null,
+        ?array $datosAnteriores = null,
+        ?array $datosNuevos = null
+    ): Auditoria {
+
+        return $this->registrar(
+
+            auth()->id(),
+
+            $accion,
+
+            $entidad,
+
+            $entidadId,
+
+            $datosAnteriores,
+
+            $datosNuevos
+
+        );
+
+    }
+
 }

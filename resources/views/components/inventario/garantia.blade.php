@@ -1,0 +1,689 @@
+<section
+    class="
+    rounded-2xl
+    border
+    border-slate-200
+    bg-white
+    shadow-sm
+    "
+>
+
+
+    <div
+        class="
+        flex
+        flex-col
+        gap-3
+        border-b
+        border-slate-200
+        px-6
+        py-5
+        sm:flex-row
+        sm:items-center
+        sm:justify-between
+        "
+    >
+
+        <div>
+
+            <h2 class="font-semibold text-slate-950">
+
+                Garantía y soporte
+
+            </h2>
+
+
+            <p class="mt-1 text-sm text-slate-500">
+
+                Seguimiento de casos, diagnósticos e intervenciones del equipo.
+
+            </p>
+
+        </div>
+
+
+
+        @if($equipo->casosGarantia && $equipo->casosGarantia->count())
+
+
+            <span
+                class="
+                inline-flex
+                w-fit
+                items-center
+                rounded-full
+                bg-blue-50
+                px-3
+                py-1.5
+                text-xs
+                font-semibold
+                text-blue-700
+                "
+            >
+
+                {{ $equipo->casosGarantia->count() }}
+                caso(s)
+
+            </span>
+
+
+        @endif
+
+
+    </div>
+
+
+
+
+
+    <div class="p-6">
+
+
+        @if($equipo->casosGarantia && $equipo->casosGarantia->count())
+
+
+
+            <div class="space-y-6">
+
+
+
+                @foreach($equipo->casosGarantia as $caso)
+
+
+
+                    <div
+                        class="
+                        rounded-2xl
+                        border
+                        border-slate-200
+                        bg-slate-50
+                        p-6
+                        "
+                    >
+
+
+
+
+
+                        {{-- Cabecera --}}
+
+
+                        <div
+                            class="
+                            flex
+                            flex-col
+                            gap-4
+                            sm:flex-row
+                            sm:items-start
+                            sm:justify-between
+                            "
+                        >
+
+
+                            <div>
+
+
+                                <div class="flex items-center gap-3">
+
+
+                                    <div
+                                        class="
+                                        flex
+                                        h-10
+                                        w-10
+                                        items-center
+                                        justify-center
+                                        rounded-xl
+                                        bg-blue-100
+                                        text-blue-600
+                                        "
+                                    >
+
+                                        <x-ui.icon
+                                            name="shield"
+                                            size="22"
+                                        />
+
+                                    </div>
+
+
+                                    <div>
+
+
+                                        <p
+                                            class="
+                                            font-semibold
+                                            text-slate-900
+                                            "
+                                        >
+
+                                            {{ $caso->numero }}
+
+                                        </p>
+
+
+                                        <p
+                                            class="
+                                            text-sm
+                                            text-slate-500
+                                            "
+                                        >
+
+                                            {{ $caso->tipo_caso ?? 'Caso de garantía' }}
+
+                                        </p>
+
+
+                                    </div>
+
+
+                                </div>
+
+
+                            </div>
+
+
+
+
+
+
+                            @php
+
+                                $estado = 
+                                strtoupper($caso->estado ?? '');
+
+                            @endphp
+
+
+
+                            <span
+                                class="
+                                inline-flex
+                                w-fit
+                                rounded-full
+                                px-3
+                                py-1
+                                text-xs
+                                font-semibold
+                                "
+                                @class([
+
+                                    'bg-emerald-100 text-emerald-700'
+                                    =>
+                                    in_array($estado,['CERRADO','FINALIZADO']),
+
+
+                                    'bg-amber-100 text-amber-700'
+                                    =>
+                                    in_array($estado,['ABIERTO','PENDIENTE','DIAGNOSTICO']),
+
+
+                                    'bg-slate-100 text-slate-700'
+                                    =>
+                                    !in_array($estado,['CERRADO','FINALIZADO','ABIERTO','PENDIENTE','DIAGNOSTICO'])
+
+                                ])
+                            >
+
+                                {{ $caso->estado }}
+
+                            </span>
+
+
+
+                        </div>
+
+
+
+
+
+
+
+
+
+                        {{-- Fechas --}}
+
+
+                        <div
+                            class="
+                            mt-6
+                            grid
+                            gap-4
+                            sm:grid-cols-2
+                            "
+                        >
+
+
+
+                            <div
+                                class="
+                                rounded-xl
+                                bg-white
+                                p-4
+                                "
+                            >
+
+                                <p
+                                    class="
+                                    text-xs
+                                    font-semibold
+                                    uppercase
+                                    tracking-wide
+                                    text-slate-400
+                                    "
+                                >
+
+                                    Apertura
+
+                                </p>
+
+
+                                <p class="mt-2 font-medium text-slate-800">
+
+                                    {{ $caso->fecha_apertura?->format('d/m/Y') ?? '—' }}
+
+                                </p>
+
+
+                            </div>
+
+
+
+
+                            <div
+                                class="
+                                rounded-xl
+                                bg-white
+                                p-4
+                                "
+                            >
+
+                                <p
+                                    class="
+                                    text-xs
+                                    font-semibold
+                                    uppercase
+                                    tracking-wide
+                                    text-slate-400
+                                    "
+                                >
+
+                                    Cierre
+
+                                </p>
+
+
+                                <p class="mt-2 font-medium text-slate-800">
+
+                                    {{ $caso->fecha_cierre?->format('d/m/Y') ?? 'Pendiente' }}
+
+                                </p>
+
+
+                            </div>
+
+
+
+                        </div>
+
+
+
+
+
+
+
+
+
+
+                        {{-- Información del caso --}}
+
+
+
+                        @if($caso->motivo_cliente)
+
+
+                            <div class="mt-6">
+
+
+                                <p
+                                    class="
+                                    text-xs
+                                    font-semibold
+                                    uppercase
+                                    tracking-wide
+                                    text-slate-400
+                                    "
+                                >
+
+                                    Motivo del cliente
+
+                                </p>
+
+
+                                <p class="mt-2 text-sm text-slate-700">
+
+                                    {{ $caso->motivo_cliente }}
+
+                                </p>
+
+
+                            </div>
+
+
+                        @endif
+
+
+
+
+
+
+
+                        @if($caso->diagnostico_final)
+
+
+                            <div class="mt-5">
+
+
+                                <p
+                                    class="
+                                    text-xs
+                                    font-semibold
+                                    uppercase
+                                    tracking-wide
+                                    text-slate-400
+                                    "
+                                >
+
+                                    Diagnóstico final
+
+                                </p>
+
+
+                                <p class="mt-2 text-sm text-slate-700">
+
+                                    {{ $caso->diagnostico_final }}
+
+                                </p>
+
+
+                            </div>
+
+
+                        @endif
+
+
+
+
+
+
+
+                        @if($caso->resolucion)
+
+
+                            <div class="mt-5">
+
+
+                                <p
+                                    class="
+                                    text-xs
+                                    font-semibold
+                                    uppercase
+                                    tracking-wide
+                                    text-slate-400
+                                    "
+                                >
+
+                                    Resolución
+
+                                </p>
+
+
+                                <p class="mt-2 text-sm text-slate-700">
+
+                                    {{ $caso->resolucion }}
+
+                                </p>
+
+
+                            </div>
+
+
+                        @endif
+
+
+
+
+
+
+
+                        {{-- Intervenciones --}}
+
+
+                        @if($caso->intervenciones && $caso->intervenciones->count())
+
+
+                            <div
+                                class="
+                                mt-6
+                                rounded-xl
+                                border
+                                border-slate-200
+                                bg-white
+                                p-5
+                                "
+                            >
+
+
+                                <p
+                                    class="
+                                    text-xs
+                                    font-semibold
+                                    uppercase
+                                    tracking-wide
+                                    text-slate-400
+                                    "
+                                >
+
+                                    Historial de intervenciones
+
+                                </p>
+
+
+
+
+                                <div class="mt-4 space-y-4">
+
+
+                                    @foreach($caso->intervenciones as $intervencion)
+
+
+                                        <div
+                                            class="
+                                            border-l-2
+                                            border-blue-200
+                                            pl-4
+                                            "
+                                        >
+
+
+                                            <p class="font-medium text-slate-800">
+
+                                                {{ $intervencion->tipo_intervencion }}
+
+                                            </p>
+
+
+                                            <p class="mt-1 text-sm text-slate-600">
+
+                                                {{ $intervencion->descripcion }}
+
+                                            </p>
+
+
+
+                                            <p class="mt-2 text-xs text-slate-400">
+
+
+                                                {{ $intervencion->fecha_intervencion?->format('d/m/Y') }}
+
+                                                @if($intervencion->usuario)
+
+                                                    ·
+                                                    {{ $intervencion->usuario->name }}
+
+                                                @endif
+
+
+                                            </p>
+
+
+
+                                        </div>
+
+
+                                    @endforeach
+
+
+                                </div>
+
+
+
+                            </div>
+
+
+                        @endif
+
+
+
+
+
+
+
+                        @if($caso->observacion)
+
+
+                            <div
+                                class="
+                                mt-5
+                                rounded-xl
+                                bg-white
+                                p-4
+                                "
+                            >
+
+                                <p
+                                    class="
+                                    text-xs
+                                    font-semibold
+                                    uppercase
+                                    tracking-wide
+                                    text-slate-400
+                                    "
+                                >
+
+                                    Observación
+
+                                </p>
+
+
+                                <p class="mt-2 text-sm text-slate-600">
+
+                                    {{ $caso->observacion }}
+
+                                </p>
+
+
+                            </div>
+
+
+                        @endif
+
+
+
+
+
+                    </div>
+
+
+
+
+                @endforeach
+
+
+
+
+            </div>
+
+
+
+
+        @else
+
+
+
+            <div
+                class="
+                py-10
+                text-center
+                "
+            >
+
+
+                <div
+                    class="
+                    mx-auto
+                    flex
+                    h-14
+                    w-14
+                    items-center
+                    justify-center
+                    rounded-full
+                    bg-slate-100
+                    text-slate-400
+                    "
+                >
+
+                    <x-ui.icon
+                        name="shield"
+                        size="26"
+                    />
+
+                </div>
+
+
+
+                <p
+                    class="
+                    mt-4
+                    font-semibold
+                    text-slate-800
+                    "
+                >
+
+                    Sin casos de garantía registrados
+
+                </p>
+
+
+                <p class="mt-2 text-sm text-slate-500">
+
+                    El equipo no presenta reclamos ni procesos asociados.
+
+                </p>
+
+
+
+            </div>
+
+
+
+
+        @endif
+
+
+
+
+    </div>
+
+
+</section>

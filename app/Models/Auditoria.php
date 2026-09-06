@@ -46,4 +46,8 @@ class Auditoria extends Model
             'usuario_id'
         );
     }
+    public function scopeRecientes($query)
+{
+    return $query->orderByDesc('fecha_evento');
+}
 }

@@ -11,25 +11,11 @@ class TrazabilidadEquipoService
     {
         $equipo->loadMissing([
 
-            /*
-            |--------------------------------------------------------------------------
-            | Inventario y trazabilidad base
-            |--------------------------------------------------------------------------
-            */
-
             'detalleLote.lote.proveedor',
 
             'historialEstados.estadoOrigen',
             'historialEstados.estadoDestino',
             'historialEstados.usuario',
-            'historialEstados.autorizadoPor',
-
-
-            /*
-            |--------------------------------------------------------------------------
-            | Transferencias internas
-            |--------------------------------------------------------------------------
-            */
 
             'transferencias.almacenOrigen',
             'transferencias.almacenDestino',
@@ -37,41 +23,14 @@ class TrazabilidadEquipoService
             'transferencias.despachadoPor',
             'transferencias.recibidoPor',
 
-
-            /*
-            |--------------------------------------------------------------------------
-            | Área técnica
-            |--------------------------------------------------------------------------
-            */
-
-            'revisionesTecnicas.tecnico',
-
-            'diagnosticos.tecnico',
-
-            'reparaciones.tecnico',
-            'reparaciones.autorizadoPor',
-
-
-            /*
-            |--------------------------------------------------------------------------
-            | Venta final
-            |--------------------------------------------------------------------------
-            */
-
             'detallesVentas.venta.cliente',
-            'detallesVentas.garantia.casosGarantia.intervenciones',
-            'detallesVentas.garantia.casosGarantia.cambioEquipo',
+            'detallesVentas.venta.vendedor',
 
-            /*
-            |--------------------------------------------------------------------------
-            | Garantías
-            |--------------------------------------------------------------------------
-            */
+            'detallesVentas.garantia.casosGarantia.recibidoPor',
+            'detallesVentas.garantia.casosGarantia.intervenciones.usuario',
 
-            'casosGarantia.garantia',
+            'casosGarantia.recibidoPor',
             'casosGarantia.intervenciones.usuario',
-            'casosGarantia.cambioEquipo.equipoSaliente',
-            'casosGarantia.cambioEquipo.equipoEntrante',
 
         ]);
 
@@ -90,23 +49,20 @@ class TrazabilidadEquipoService
 
             $eventos->push([
 
-                'fecha' =>
-                    $equipo->fecha_registro,
+                'fecha' => $equipo->fecha_registro,
 
-                'tipo' =>
-                    'registro',
+                'tipo' => 'registro',
 
-                'titulo' =>
-                    'Equipo registrado',
+                'orden' => 2,
+
+                'titulo' => 'Equipo registrado',
 
                 'detalle' =>
                     'El equipo fue incorporado al inventario de OneShop.',
 
-                'usuario' =>
-                    null,
+                'usuario' => null,
 
-                'observacion' =>
-                    null,
+                'observacion' => null,
 
             ]);
         }
@@ -115,26 +71,24 @@ class TrazabilidadEquipoService
 
         /*
         |--------------------------------------------------------------------------
-        | Origen del equipo - lote
+        | Importación
         |--------------------------------------------------------------------------
         */
 
         if ($equipo->detalleLote?->lote) {
 
-            $lote =
-                $equipo->detalleLote->lote;
+            $lote = $equipo->detalleLote->lote;
 
 
             $eventos->push([
 
-                'fecha' =>
-                    $lote->created_at,
+                'fecha' => $lote->created_at,
 
-                'tipo' =>
-                    'importacion',
+                'tipo' => 'importacion',
 
-                'titulo' =>
-                    'Equipo asociado a lote de importación',
+                'orden' => 1,
+
+                'titulo' => 'Equipo asociado a lote de importación',
 
                 'detalle' =>
                     'Lote: '
@@ -145,34 +99,23 @@ class TrazabilidadEquipoService
                         ?? 'No registrado'
                     ),
 
-                'usuario' =>
-                    null,
+                'usuario' => null,
 
-                'observacion' =>
-                    $lote->observacion,
+                'observacion' => $lote->observacion,
 
             ]);
+
         }
 
 
 
         /*
         |--------------------------------------------------------------------------
-        | Cambios de estado
+        | Historial de estados
         |--------------------------------------------------------------------------
         */
 
         foreach ($equipo->historialEstados as $historial) {
-
-
-            $origen =
-                $historial->estadoOrigen?->nombre;
-
-
-            $destino =
-                $historial->estadoDestino?->nombre;
-
-
 
             $eventos->push([
 
@@ -182,24 +125,34 @@ class TrazabilidadEquipoService
                 'tipo' =>
                     'estado',
 
+                'orden' => 3,
+
                 'titulo' =>
-                    $destino ?? 'Cambio de estado',
+                    $historial->estadoDestino?->nombre
+                    ?? 'Cambio de estado',
 
                 'detalle' =>
-                    $origen
-                        ? "{$origen} → {$destino}"
-                        : "Estado actualizado a {$destino}",
+                    (
+                        $historial->estadoOrigen?->nombre
+                        ?? ''
+                    )
+                    .
+                    ' → '
+                    .
+                    (
+                        $historial->estadoDestino?->nombre
+                        ?? ''
+                    ),
 
                 'usuario' =>
                     $historial->usuario?->name,
 
                 'observacion' =>
-                    $historial->motivo
-                    ?: $historial->observacion,
+                    $historial->observacion,
 
             ]);
-        }
 
+        }
 
 
 
@@ -222,50 +175,31 @@ class TrazabilidadEquipoService
                     'tipo' =>
                         'transferencia',
 
+                    'orden' => 4,
+
                     'titulo' =>
                         'Transferencia solicitada',
 
                     'detalle' =>
-                        ($transferencia->almacenOrigen?->nombre ?? 'Origen')
-                        .' → '.
-                        ($transferencia->almacenDestino?->nombre ?? 'Destino'),
+                        (
+                            $transferencia->almacenOrigen?->nombre
+                            ?? 'Origen'
+                        )
+                        .
+                        ' → '
+                        .
+                        (
+                            $transferencia->almacenDestino?->nombre
+                            ?? 'Destino'
+                        ),
 
                     'usuario' =>
                         $transferencia->solicitadoPor?->name,
 
-                    'observacion' =>
-                        $transferencia->observacion,
+                    'observacion' => null,
 
                 ]);
-            }
 
-
-            if ($transferencia->fecha_despacho) {
-
-                $eventos->push([
-
-                    'fecha' =>
-                        $transferencia->fecha_despacho,
-
-                    'tipo' =>
-                        'transferencia',
-
-                    'titulo' =>
-                        'Equipo despachado',
-
-                    'detalle' =>
-                        'Salida desde '
-                        .
-                        ($transferencia->almacenOrigen?->nombre
-                        ?? 'almacén origen'),
-
-                    'usuario' =>
-                        $transferencia->despachadoPor?->name,
-
-                    'observacion' =>
-                        null,
-
-                ]);
             }
 
 
@@ -279,44 +213,40 @@ class TrazabilidadEquipoService
                     'tipo' =>
                         'transferencia',
 
+                    'orden' => 4,
+
                     'titulo' =>
                         'Equipo recibido',
 
                     'detalle' =>
-                        'Recepción en '
-                        .
-                        ($transferencia->almacenDestino?->nombre
-                        ?? 'almacén destino'),
+                        'Recepción completada en almacén destino.',
 
                     'usuario' =>
                         $transferencia->recibidoPor?->name,
 
-                    'observacion' =>
-                        null,
+                    'observacion' => null,
 
                 ]);
+
             }
 
         }
 
 
 
-
         /*
         |--------------------------------------------------------------------------
-        | Venta final
+        | Ventas
         |--------------------------------------------------------------------------
         */
 
         foreach ($equipo->detallesVentas as $detalleVenta) {
 
 
-            $venta =
-                $detalleVenta->venta;
+            $venta = $detalleVenta->venta;
 
 
             if ($venta) {
-
 
                 $eventos->push([
 
@@ -326,6 +256,8 @@ class TrazabilidadEquipoService
                     'tipo' =>
                         'venta',
 
+                    'orden' => 5,
+
                     'titulo' =>
                         'Equipo vendido',
 
@@ -334,30 +266,77 @@ class TrazabilidadEquipoService
                         .
                         (
                             $venta->cliente?->nombre_completo
-                            ?? 'Cliente no registrado'
-                        )
-                        .
-                        ' | Venta N° '
-                        .
-                        $venta->id,
+                            ?? 'No registrado'
+                        ),
 
                     'usuario' =>
-                        $venta->vendedor?->name
-                        ?? null,
+                        $venta->vendedor?->name,
 
                     'observacion' =>
                         $venta->observacion,
 
                 ]);
-            }
-        }
 
+            }
+
+        }
 
 
 
         /*
         |--------------------------------------------------------------------------
-        | Garantías
+        | Garantías vigentes asociadas a venta
+        |--------------------------------------------------------------------------
+        */
+
+        foreach ($equipo->detallesVentas as $detalleVenta) {
+
+
+            $garantia = $detalleVenta->garantia;
+
+
+            if (!$garantia) {
+                continue;
+            }
+
+
+            $eventos->push([
+
+                'fecha' =>
+                    $garantia->fecha_inicio,
+
+                'tipo' =>
+                    'garantia',
+
+                'orden' => 6,
+
+                'titulo' =>
+                    'Garantía registrada',
+
+                'detalle' =>
+                    'Cobertura vigente hasta '
+                    .
+                    (
+                        $garantia->fecha_fin
+                        ? $garantia->fecha_fin->format('d/m/Y')
+                        : 'Sin fecha'
+                    ),
+
+                'usuario' =>
+                    null,
+
+                'observacion' =>
+                    $garantia->condiciones_snapshot,
+
+            ]);
+
+        }
+
+
+
+        /*
+        |--------------------------------------------------------------------------
+        | Casos garantía
         |--------------------------------------------------------------------------
         */
 
@@ -371,6 +350,8 @@ class TrazabilidadEquipoService
 
                 'tipo' =>
                     'garantia',
+
+                'orden' => 6,
 
                 'titulo' =>
                     'Caso de garantía abierto',
@@ -405,6 +386,8 @@ class TrazabilidadEquipoService
                     'tipo' =>
                         'garantia',
 
+                    'orden' => 6,
+
                     'titulo' =>
                         'Intervención de garantía',
 
@@ -418,147 +401,91 @@ class TrazabilidadEquipoService
                         $intervencion->resultado,
 
                 ]);
+
             }
 
-
-
-            if ($caso->cambioEquipo) {
-
-
-                $eventos->push([
-
-                    'fecha' =>
-                        $caso->cambioEquipo->fecha_cambio,
-
-                    'tipo' =>
-                        'garantia',
-
-                    'titulo' =>
-                        'Cambio de equipo por garantía',
-
-                    'detalle' =>
-                        'Equipo anterior: '
-                        .
-                        $caso->cambioEquipo->equipoSaliente?->codigo_interno
-                        .
-                        ' | Equipo nuevo: '
-                        .
-                        $caso->cambioEquipo->equipoEntrante?->codigo_interno,
-
-                    'usuario' =>
-                        $caso->cambioEquipo->autorizadoPor?->name,
-
-                    'observacion' =>
-                        $caso->cambioEquipo->observacion,
-
-                ]);
-            }
         }
+
+
 
         /*
-|--------------------------------------------------------------------------
-| Garantías
-|--------------------------------------------------------------------------
-*/
+        |--------------------------------------------------------------------------
+        | Iconos timeline
+        |--------------------------------------------------------------------------
+        */
 
-foreach ($equipo->detallesVentas as $detalleVenta) {
+        $iconos = [
 
-    $garantia = $detalleVenta->garantia;
+            'registro' =>
+                'package',
 
-if ($garantia) {
+            'importacion' =>
+                'truck',
 
-        $eventos->push([
+            'estado' =>
+                'settings',
 
-            'fecha' =>
-                $garantia->fecha_inicio,
+            'transferencia' =>
+                'truck',
 
-            'tipo' =>
-                'garantia',
+            'venta' =>
+                'chart',
 
-            'titulo' =>
-                'Garantía generada',
+            'garantia' =>
+                'shield',
 
-            'detalle' =>
-                'Garantía vigente hasta '
-                . $garantia->fecha_fin
-                    ?->format('d/m/Y'),
-
-            'usuario' =>
-                null,
-
-            'observacion' =>
-                $garantia->condiciones_snapshot,
-
-        ]);
+        ];
 
 
-        foreach ($garantia->casosGarantia as $caso) {
 
-            $eventos->push([
-
-                'fecha' =>
-                    $caso->fecha_apertura,
-
-                'tipo' =>
-                    'garantia',
-
-                'titulo' =>
-                    'Caso de garantía abierto',
-
-                'detalle' =>
-                    $caso->motivo_cliente,
-
-                'usuario' =>
-                    $caso->recibidoPor?->name,
-
-                'observacion' =>
-                    $caso->estado,
-
-            ]);
-
-
-            foreach ($caso->intervenciones as $intervencion) {
-
-                $eventos->push([
-
-                    'fecha' =>
-                        $intervencion->fecha_intervencion,
-
-                    'tipo' =>
-                        'garantia',
-
-                    'titulo' =>
-                        'Intervención de garantía',
-
-                    'detalle' =>
-                        $intervencion->descripcion,
-
-                    'usuario' =>
-                        $intervencion->usuario?->name,
-
-                    'observacion' =>
-                        $intervencion->resultado,
-
-                ]);
-
-            }
-        }
-    }
-}
-
-
-        return $eventos
+        $eventos = $eventos
 
             ->filter(
                 fn ($evento) =>
                     $evento['fecha'] !== null
             )
 
-            ->sortByDesc(
-                fn ($evento) =>
-                    $evento['fecha']->timestamp
-            )
+            ->sortBy(function ($evento) {
+
+                return [
+
+                    $evento['orden'] ?? 99,
+
+                    $evento['fecha']->timestamp,
+
+                ];
+
+            })
 
             ->values();
+
+
+
+        $ultimoIndice =
+            $eventos->count() - 1;
+
+
+
+        return $eventos
+
+            ->map(function ($evento, $index) use ($iconos, $ultimoIndice) {
+
+
+                $evento['icono'] =
+                    $iconos[$evento['tipo']]
+                    ?? 'package';
+
+
+                $evento['activo'] =
+                    $index === $ultimoIndice;
+
+
+                return $evento;
+
+
+            })
+
+            ->values();
+
     }
 }

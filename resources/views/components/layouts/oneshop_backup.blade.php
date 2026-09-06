@@ -30,232 +30,117 @@
     ></div>
 
     {{-- Sidebar --}}
-        {{-- Sidebar --}}
-<aside
-    :class="sidebarOpen ? 'translate-x-0' : '-translate-x-full'"
-    class="
-        fixed inset-y-0 left-0 z-50
-        w-72
-        transform
-        bg-gradient-to-b
-        from-blue-950
-        to-blue-900
-        text-white
-        transition-transform
-        duration-200
-        lg:translate-x-0
-    "
->
-
-    {{-- Logo --}}
-    <div class="
-        flex h-24 items-center
-        border-b border-white/10
-        px-6
-    ">
-<div>
-
-    <img
-        src="{{ asset('images/oneshop/logo.png') }}"
-        class="h-10 w-auto mb-2"
-        alt="OneShop"
+    <aside
+        :class="sidebarOpen ? 'translate-x-0' : '-translate-x-full'"
+        class="fixed inset-y-0 left-0 z-50 w-72 transform bg-slate-950 text-white transition-transform duration-200 lg:translate-x-0"
     >
+        <div class="flex h-20 items-center border-b border-white/10 px-6">
+            <div>
+                <h1 class="text-xl font-bold tracking-tight">
+                    OneShop
+                </h1>
 
-    <p class="text-xs text-blue-200">
-        Sistema de gestión 
-    </p>
+                <p class="text-xs text-slate-400">
+                    Sistema de gestión
+                </p>
+            </div>
+        </div>
 
-</div>
-</div>
-
-    <nav class="space-y-6 px-4 py-6">
-
-
-        {{-- Principal --}}
-        <div>
-
-            <p class="
-                mb-3
-                px-3
-                text-xs
-                font-semibold
-                uppercase
-                tracking-wider
-                text-blue-300
-            ">
-                Principal
-            </p>
-
+        <nav class="space-y-1 px-4 py-6">
 
             <a
                 href="{{ route('dashboard') }}"
-                class="
-                    flex items-center gap-3
-                    rounded-xl
-                    px-4 py-3
-                    text-sm
-                    font-medium
-                    transition
+                class="flex items-center rounded-xl px-4 py-3 text-sm font-medium transition
                     {{ request()->routeIs('dashboard')
-                        ? 'bg-white text-blue-950'
-                        : 'text-blue-100 hover:bg-white/10'
-                    }}
-                "
+                        ? 'bg-white text-slate-950'
+                        : 'text-slate-300 hover:bg-white/10 hover:text-white' }}"
             >
-
-                <x-ui.icon
-                    name="home"
-                    size="20"
-                />
-
+                <span class="mr-3 text-lg">⌂</span>
                 Inicio
-
             </a>
-
-
-        </div>
-
-
-
-        {{-- Operaciones --}}
-        <div>
-
-            <p class="
-                mb-3
-                px-3
-                text-xs
-                font-semibold
-                uppercase
-                tracking-wider
-                text-blue-300
-            ">
-                Operaciones
-            </p>
-
-
 
             @if(auth()->user()?->tienePermiso('inventario.ver'))
+                <a
+                    href="{{ route('inventario.index') }}"
+                    class="flex items-center rounded-xl px-4 py-3 text-sm font-medium transition
+                        {{ request()->routeIs('inventario.*')
+                            ? 'bg-white text-slate-950'
+                            : 'text-slate-300 hover:bg-white/10 hover:text-white' }}"
+                >
+                    <span class="mr-3 text-lg">▣</span>
+                    Inventario
+                </a>
+            @endif
+@if(auth()->user()->tienePermiso('importacion.ver'))
 
-            <a
-                href="{{ route('inventario.index') }}"
-                class="
-                    mb-2
-                    flex items-center gap-3
-                    rounded-xl
-                    px-4 py-3
-                    text-sm
-                    font-medium
-                    transition
+    <a
+        href="{{ route('importaciones.index') }}"
+        class="
+            flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition
+            {{ request()->routeIs('importaciones.*')
+                ? 'bg-white text-slate-950'
+                : 'text-slate-400 hover:bg-slate-800 hover:text-white'
+            }}
+        "
+    >
+        <span>◫</span>
 
-                    {{ request()->routeIs('inventario.*')
-                        ? 'bg-white text-blue-950'
-                        : 'text-blue-100 hover:bg-white/10'
-                    }}
-                "
-            >
+        <span>
+            Importaciones
+        </span>
+    </a>
 
-                <x-ui.icon
-                    name="package"
-                    size="20"
-                />
-
-                Inventario
-
-            </a>
-
+@endif
+            @if(auth()->user()?->tienePermiso('tecnico.ver'))
+                <div
+                    class="flex cursor-not-allowed items-center rounded-xl px-4 py-3 text-sm font-medium text-slate-500"
+                >
+                    <span class="mr-3 text-lg">⚙</span>
+                    Servicio técnico
+                </div>
             @endif
 
-
-
-            @if(auth()->user()?->tienePermiso('importacion.ver'))
-
-            <a
-                href="{{ route('importaciones.index') }}"
-                class="
-                    flex items-center gap-3
-                    rounded-xl
-                    px-4 py-3
-                    text-sm
-                    font-medium
-                    transition
-
-                    {{ request()->routeIs('importaciones.*')
-                        ? 'bg-white text-blue-950'
-                        : 'text-blue-100 hover:bg-white/10'
-                    }}
-                "
-            >
-
-                <x-ui.icon
-                    name="truck"
-                    size="20"
-                />
-
-                Importaciones
-
-            </a>
-
+            @if(auth()->user()?->tienePermiso('ventas.ver'))
+                <div
+                    class="flex cursor-not-allowed items-center rounded-xl px-4 py-3 text-sm font-medium text-slate-500"
+                >
+                    <span class="mr-3 text-lg">◉</span>
+                    Ventas
+                </div>
             @endif
 
+            @if(auth()->user()?->tienePermiso('garantias.ver'))
+                <div
+                    class="flex cursor-not-allowed items-center rounded-xl px-4 py-3 text-sm font-medium text-slate-500"
+                >
+                    <span class="mr-3 text-lg">◇</span>
+                    Garantías
+                </div>
+            @endif
 
-        </div>
+            @if(auth()->user()?->tienePermiso('reportes.ver'))
+                <div
+                    class="flex cursor-not-allowed items-center rounded-xl px-4 py-3 text-sm font-medium text-slate-500"
+                >
+                    <span class="mr-3 text-lg">▤</span>
+                    Reportes
+                </div>
+            @endif
 
+            @if(auth()->user()?->tienePermiso('usuarios.gestionar'))
+                <div class="my-4 border-t border-white/10"></div>
 
+                <div
+                    class="flex cursor-not-allowed items-center rounded-xl px-4 py-3 text-sm font-medium text-slate-500"
+                >
+                    <span class="mr-3 text-lg">◎</span>
+                    Usuarios
+                </div>
+            @endif
 
-        {{-- Próximos módulos --}}
-        <div>
+        </nav>
+    </aside>
 
-            <p class="
-                mb-3
-                px-3
-                text-xs
-                font-semibold
-                uppercase
-                tracking-wider
-                text-blue-300
-            ">
-                Próximamente
-            </p>
-
-
-            <div class="
-                flex items-center gap-3
-                rounded-xl
-                px-4 py-3
-                text-sm
-                text-blue-300
-            ">
-
-                <x-ui.icon name="shield"/>
-
-                Garantías
-
-            </div>
-
-
-            <div class="
-                flex items-center gap-3
-                rounded-xl
-                px-4 py-3
-                text-sm
-                text-blue-300
-            ">
-
-                <x-ui.icon name="chart"/>
-
-                Reportes
-
-            </div>
-
-
-        </div>
-
-
-    </nav>
-
-
-</aside>
-  
     {{-- Área principal --}}
     <div class="lg:pl-72">
 
