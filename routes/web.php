@@ -5,8 +5,10 @@ use App\Http\Controllers\InventarioController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\ImportacionController;
 use App\Http\Controllers\CatalogoImportacionController;
+use App\Http\Controllers\UnidadAdquiridaController;
 use App\Http\Controllers\RecepcionLoteController;
 use Illuminate\Support\Facades\Route;
+
 
 
 Route::get('/', function () {
@@ -14,32 +16,42 @@ Route::get('/', function () {
 });
 
 
+
 Route::get(
     '/dashboard',
     [DashboardController::class, 'index']
 )
-    ->middleware([
-        'auth',
-        'usuario.activo',
-    ])
-    ->name('dashboard');
+->middleware([
+    'auth',
+    'usuario.activo',
+])
+->name('dashboard');
+
+
 
 
 
 Route::middleware('auth')->group(function () {
 
+
     Route::get(
         '/profile',
         [ProfileController::class, 'edit']
-    )->name('profile.edit');
+    )
+    ->name('profile.edit');
 
 
     Route::patch(
         '/profile',
         [ProfileController::class, 'update']
-    )->name('profile.update');
+    )
+    ->name('profile.update');
+
 
 });
+
+
+
 
 
 
@@ -49,149 +61,264 @@ Route::middleware([
 ])->group(function () {
 
 
-    /*
-    |--------------------------------------------------------------------------
-    | Importaciones
-    |--------------------------------------------------------------------------
-    */
 
-
-    Route::get(
-        '/importaciones/{lote}/detalles/{detalle}/recepcion',
-        [RecepcionLoteController::class, 'create']
-    )
-        ->middleware([
-            'permiso:importacion.gestionar',
-            'permiso:inventario.registrar',
-        ])
-        ->name('importaciones.recepcion.create');
-
-
-    Route::post(
-        '/importaciones/{lote}/detalles/{detalle}/recepcion',
-        [RecepcionLoteController::class, 'store']
-    )
-        ->middleware([
-            'permiso:importacion.gestionar',
-            'permiso:inventario.registrar',
-        ])
-        ->name('importaciones.recepcion.store');
+/*
+|--------------------------------------------------------------------------
+| IMPORTACIONES
+|--------------------------------------------------------------------------
+*/
 
 
 
-    Route::get(
-        '/importaciones',
-        [ImportacionController::class, 'index']
-    )
-        ->middleware('permiso:importacion.ver')
-        ->name('importaciones.index');
-
-
-
-    Route::get(
-        '/importaciones/crear',
-        [ImportacionController::class, 'create']
-    )
-        ->middleware('permiso:importacion.gestionar')
-        ->name('importaciones.create');
-
-
-
-    Route::post(
-        '/importaciones',
-        [ImportacionController::class, 'store']
-    )
-        ->middleware('permiso:importacion.gestionar')
-        ->name('importaciones.store');
-
-
-
-    Route::post(
-        '/importaciones/{lote}/detalles',
-        [ImportacionController::class, 'storeDetalle']
-    )
-        ->middleware('permiso:importacion.gestionar')
-        ->name('importaciones.detalles.store');
-
-
-
-    Route::get(
-        '/importaciones/{lote}',
-        [ImportacionController::class, 'show']
-    )
-        ->middleware('permiso:importacion.ver')
-        ->name('importaciones.show');
-
-
-
-    Route::post(
-        '/importaciones/catalogo/productos',
-        [CatalogoImportacionController::class, 'storeProducto']
-    )
-        ->middleware('permiso:importacion.gestionar')
-        ->name('importaciones.catalogo.productos.store');
-
-
-
-    Route::post(
-        '/importaciones/catalogo/proveedores',
-        [CatalogoImportacionController::class, 'storeProveedor']
-    )
-        ->middleware('permiso:importacion.gestionar')
-        ->name('importaciones.catalogo.proveedores.store');
+Route::get(
+    '/importaciones',
+    [ImportacionController::class, 'index']
+)
+->middleware('permiso:importacion.ver')
+->name('importaciones.index');
 
 
 
 
-    /*
-    |--------------------------------------------------------------------------
-    | Inventario
-    |--------------------------------------------------------------------------
-    */
 
-
-    Route::get(
-        '/inventario',
-        [InventarioController::class, 'index']
-    )
-        ->middleware('permiso:inventario.ver')
-        ->name('inventario.index');
+Route::get(
+    '/importaciones/crear',
+    [ImportacionController::class, 'create']
+)
+->middleware('permiso:importacion.gestionar')
+->name('importaciones.create');
 
 
 
-    Route::get(
-        '/inventario/crear',
-        [InventarioController::class, 'create']
-    )
-        ->middleware('permiso:inventario.registrar')
-        ->name('inventario.create');
+
+
+Route::post(
+    '/importaciones',
+    [ImportacionController::class, 'store']
+)
+->middleware('permiso:importacion.gestionar')
+->name('importaciones.store');
 
 
 
-    Route::post(
-        '/inventario',
-        [InventarioController::class, 'store']
-    )
-        ->middleware('permiso:inventario.registrar')
-        ->name('inventario.store');
+
+
+Route::get(
+    '/importaciones/{lote}',
+    [ImportacionController::class, 'show']
+)
+->middleware('permiso:importacion.ver')
+->name('importaciones.show');
 
 
 
-    /*
-     * La ruta dinámica siempre queda al final.
-     */
 
 
-    Route::get(
-        '/inventario/{equipo:codigo_interno}',
-        [InventarioController::class, 'show']
-    )
-        ->middleware('permiso:inventario.ver')
-        ->name('inventario.show');
+Route::post(
+    '/importaciones/{lote}/detalles',
+    [ImportacionController::class, 'storeDetalle']
+)
+->middleware('permiso:importacion.gestionar')
+->name('importaciones.detalles.store');
+
+
+
+
+
+/*
+|--------------------------------------------------------------------------
+| REGISTRO DE EQUIPOS RECIBIDOS POR HUGO
+|--------------------------------------------------------------------------
+*/
+
+
+
+Route::post(
+    '/importaciones/{lote}/unidades',
+    [
+        ImportacionController::class,
+        'storeUnidad'
+    ]
+)
+->middleware('permiso:importacion.gestionar')
+->name('importaciones.unidades.store');
+
+
+
+
+
+
+/*
+|--------------------------------------------------------------------------
+| RECEPCIÓN ANTIGUA (mantener por ahora)
+|--------------------------------------------------------------------------
+*/
+
+
+
+Route::get(
+    '/importaciones/{lote}/detalles/{detalle}/recepcion',
+    [RecepcionLoteController::class,'create']
+)
+->middleware([
+    'permiso:importacion.gestionar',
+    'permiso:inventario.registrar',
+])
+->name('importaciones.recepcion.create');
+
+
+
+
+
+Route::post(
+    '/importaciones/{lote}/detalles/{detalle}/recepcion',
+    [RecepcionLoteController::class,'store']
+)
+->middleware([
+    'permiso:importacion.gestionar',
+    'permiso:inventario.registrar',
+])
+->name('importaciones.recepcion.store');
+
+
+
+
+
+
+
+/*
+|--------------------------------------------------------------------------
+| CATÁLOGOS RÁPIDOS
+|--------------------------------------------------------------------------
+*/
+
+
+
+Route::post(
+    '/importaciones/catalogo/productos',
+    [CatalogoImportacionController::class,'storeProducto']
+)
+->middleware('permiso:importacion.gestionar')
+->name('importaciones.catalogo.productos.store');
+
+
+
+
+
+Route::post(
+    '/importaciones/catalogo/proveedores',
+    [CatalogoImportacionController::class,'storeProveedor']
+)
+->middleware('permiso:importacion.gestionar')
+->name('importaciones.catalogo.proveedores.store');
+
+
+
+
+
+
+
+/*
+|--------------------------------------------------------------------------
+| UNIDADES ADQUIRIDAS (vista general)
+|--------------------------------------------------------------------------
+*/
+
+
+Route::get(
+    '/unidades-adquiridas',
+    [UnidadAdquiridaController::class,'index']
+)
+->middleware('permiso:importacion.ver')
+->name('unidades-adquiridas.index');
+
+
+
+
+Route::get(
+    '/unidades-adquiridas/crear',
+    [UnidadAdquiridaController::class,'create']
+)
+->middleware('permiso:importacion.gestionar')
+->name('unidades-adquiridas.create');
+
+
+
+
+Route::post(
+    '/unidades-adquiridas',
+    [UnidadAdquiridaController::class,'store']
+)
+->middleware('permiso:importacion.gestionar')
+->name('unidades-adquiridas.store');
+
+
+
+
+
+
+
+/*
+|--------------------------------------------------------------------------
+| INVENTARIO
+|--------------------------------------------------------------------------
+*/
+
+
+
+Route::get(
+    '/inventario',
+    [InventarioController::class,'index']
+)
+->middleware('permiso:inventario.ver')
+->name('inventario.index');
+
+
+
+
+
+Route::get(
+    '/inventario/crear',
+    [InventarioController::class,'create']
+)
+->middleware('permiso:inventario.registrar')
+->name('inventario.create');
+
+
+
+
+
+Route::post(
+    '/inventario',
+    [InventarioController::class,'store']
+)
+->middleware('permiso:inventario.registrar')
+->name('inventario.store');
+
+
+
+
+
+/*
+|--------------------------------------------------------------------------
+| IMPORTANTE:
+| La ruta dinámica siempre al final
+|--------------------------------------------------------------------------
+*/
+
+
+
+Route::get(
+    '/inventario/{equipo:codigo_interno}',
+    [InventarioController::class,'show']
+)
+->middleware('permiso:inventario.ver')
+->name('inventario.show');
 
 
 
 });
+
 
 
 

@@ -81,4 +81,11 @@ public function asignacionesComponentes(): HasMany
         'producto_id'
     );
 }
+public function unidadesAdquiridas(): HasMany
+{
+    return $this->hasMany(
+        UnidadAdquirida::class,
+        'producto_id'
+    );
+}
 }

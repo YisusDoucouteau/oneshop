@@ -25,6 +25,106 @@
             <p class="mt-2 max-w-2xl text-sm leading-6 text-slate-500">
                 Registra una unidad física serializada para incorporarla al inventario y comenzar su trazabilidad.
             </p>
+            <div class="mt-8 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+
+    <p class="text-xs font-semibold uppercase tracking-wider text-slate-400">
+        Proceso de registro
+    </p>
+
+
+    <div class="mt-5 flex items-center justify-between gap-2 overflow-x-auto">
+
+
+        @php
+
+        $pasos = [
+            'Producto',
+            'Identificación',
+            'Ubicación',
+            'Procedencia',
+            'Especificaciones',
+            'Confirmación'
+        ];
+
+        @endphp
+
+
+
+        @foreach($pasos as $index=>$paso)
+
+
+            <div class="flex items-center">
+
+
+                <div class="flex items-center gap-3">
+
+
+                    <div
+                        class="
+                        flex
+                        h-8
+                        w-8
+                        items-center
+                        justify-center
+                        rounded-full
+                        bg-slate-950
+                        text-xs
+                        font-bold
+                        text-white
+                        "
+                    >
+
+                        {{ $index + 1 }}
+
+                    </div>
+
+
+
+                    <span
+                        class="
+                        whitespace-nowrap
+                        text-sm
+                        font-medium
+                        text-slate-700
+                        "
+                    >
+
+                        {{ $paso }}
+
+                    </span>
+
+
+                </div>
+
+
+
+                @if(!$loop->last)
+
+                    <div
+                        class="
+                        mx-4
+                        hidden
+                        h-px
+                        w-10
+                        bg-slate-300
+                        lg:block
+                        "
+                    ></div>
+
+                @endif
+
+
+            </div>
+
+
+        @endforeach
+
+
+
+    </div>
+
+
+</div>
         </div>
 
 
@@ -89,46 +189,149 @@
                     </div>
                 </div>
 
-                <div class="p-6">
+                <div
+    class="p-6"
+    x-data="{
+        buscar: '',
+        abierto: false,
+        seleccionado: null,
 
-                    <label
-                        for="producto_id"
-                        class="mb-2 block text-sm font-semibold text-slate-700"
-                    >
-                        Producto *
-                    </label>
+        productos: {{ $productos->map(fn($p)=>[
+            'id'=>$p->id,
+            'nombre'=>trim(($p->marca?->nombre ?? '').' '.$p->nombre.' '.($p->modelo ?? ''))
+        ])->values()->toJson() }},
 
-                    <select
-                        id="producto_id"
-                        name="producto_id"
-                        required
-                        class="w-full rounded-xl border-slate-300 focus:border-slate-900 focus:ring-slate-900"
-                    >
-                        <option value="">
-                            Selecciona un producto
-                        </option>
+        filtrar() {
+            return this.productos.filter(producto =>
+                producto.nombre
+                .toLowerCase()
+                .includes(this.buscar.toLowerCase())
+            );
+        }
+    }"
+>
 
-                        @foreach($productos as $producto)
-                            <option
-                                value="{{ $producto->id }}"
-                                @selected(old('producto_id') == $producto->id)
-                            >
-                                {{ $producto->marca?->nombre }}
-                                {{ $producto->nombre }}
-                                @if($producto->modelo)
-                                    — {{ $producto->modelo }}
-                                @endif
-                            </option>
-                        @endforeach
-                    </select>
 
-                    @if($productos->isEmpty())
-                        <p class="mt-3 text-sm text-amber-600">
-                            No existen productos serializados activos. Primero deberá registrarse un producto.
-                        </p>
-                    @endif
+    <label
+        class="mb-2 block text-sm font-semibold text-slate-700"
+    >
+        Producto *
+    </label>
 
-                </div>
+
+
+    <div class="relative">
+
+
+        <input
+            type="text"
+
+            x-model="buscar"
+
+            @focus="abierto=true"
+
+            placeholder="Buscar producto..."
+
+            class="
+            w-full
+            rounded-xl
+            border-slate-300
+            focus:border-slate-900
+            focus:ring-slate-900
+            "
+        >
+
+
+
+        <div
+            x-show="abierto"
+
+            @click.outside="abierto=false"
+
+            class="
+            absolute
+            z-30
+            mt-2
+            max-h-60
+            w-full
+            overflow-y-auto
+            rounded-xl
+            border
+            border-slate-200
+            bg-white
+            shadow-xl
+            "
+        >
+
+
+            <template x-for="producto in filtrar()" :key="producto.id">
+
+
+                <button
+
+                    type="button"
+
+                    @click="
+                        seleccionado = producto;
+                        buscar = producto.nombre;
+                        abierto=false;
+                    "
+
+                    class="
+                    block
+                    w-full
+                    px-4
+                    py-3
+                    text-left
+                    text-sm
+                    text-slate-700
+                    hover:bg-slate-50
+                    "
+
+                >
+
+                    <span x-text="producto.nombre"></span>
+
+
+                </button>
+
+
+            </template>
+
+
+
+            <div
+                x-show="filtrar().length === 0"
+                class="px-4 py-3 text-sm text-slate-400"
+            >
+
+                No se encontraron productos
+
+            </div>
+
+
+        </div>
+
+
+    </div>
+
+
+
+
+    <input
+        type="hidden"
+        name="producto_id"
+        :value="seleccionado?.id ?? ''"
+    >
+
+
+
+    <p class="mt-2 text-xs text-slate-500">
+        Busca por marca, nombre o modelo del equipo.
+    </p>
+
+
+</div>
 
             </section>
 

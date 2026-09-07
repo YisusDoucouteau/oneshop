@@ -7,104 +7,122 @@ use App\Models\CategoriaProducto;
 use App\Models\Lote;
 use App\Models\Marca;
 use App\Models\Moneda;
+
 use App\Models\Producto;
 use App\Models\Proveedor;
 use App\Services\LoteService;
+use Illuminate\Http\JsonResponse;
 use App\Services\TipoCambioService;
+use App\Services\UnidadAdquiridaService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\View\View;
 
+
 class ImportacionController extends Controller
 {
+
+
     public function index(Request $request): View
     {
+
+
         $buscar = trim(
-            (string) $request->get('buscar', '')
+            (string)$request->get('buscar','')
         );
+
 
         $estado = trim(
-            (string) $request->get('estado', '')
+            (string)$request->get('estado','')
         );
 
+
+
         $lotes = Lote::query()
+
             ->with('proveedor')
+
             ->withSum(
                 'detalles as cantidad_esperada_total',
                 'cantidad_esperada'
             )
+
             ->withSum(
                 'detalles as cantidad_recibida_total',
                 'cantidad_recibida'
             )
+
             ->when(
                 $buscar !== '',
-                function ($query) use ($buscar) {
-                    $query->where(
-                        function ($subquery) use ($buscar) {
-                            $subquery
-                                ->where(
-                                    'codigo',
-                                    'like',
-                                    "%{$buscar}%"
-                                )
-                                ->orWhere(
-                                    'referencia_compra',
-                                    'like',
-                                    "%{$buscar}%"
-                                )
-                                ->orWhere(
-                                    'origen',
-                                    'like',
-                                    "%{$buscar}%"
-                                )
-                                ->orWhereHas(
-                                    'proveedor',
-                                    fn ($proveedor) =>
-                                        $proveedor->where(
-                                            'nombre',
-                                            'like',
-                                            "%{$buscar}%"
-                                        )
-                                );
-                        }
-                    );
+                function($query) use ($buscar){
+
+                    $query->where(function($sub) use($buscar){
+
+                        $sub
+                        ->where(
+                            'codigo',
+                            'like',
+                            "%{$buscar}%"
+                        )
+
+                        ->orWhere(
+                            'referencia_compra',
+                            'like',
+                            "%{$buscar}%"
+                        )
+
+                        ->orWhere(
+                            'origen',
+                            'like',
+                            "%{$buscar}%"
+                        );
+
+                    });
+
                 }
             )
+
+
             ->when(
                 $estado !== '',
-                fn ($query) =>
-                    $query->where(
+                fn($q)=>
+                    $q->where(
                         'estado',
                         $estado
                     )
             )
+
+
             ->latest('id')
+
             ->paginate(15)
+
             ->withQueryString();
 
-        $resumen = [
-            'total' =>
-                Lote::count(),
 
-            'abiertos' =>
-                Lote::where(
-                    'estado',
-                    'ABIERTO'
-                )->count(),
 
-            'parciales' =>
-                Lote::where(
-                    'estado',
-                    'RECEPCION_PARCIAL'
-                )->count(),
+        $resumen=[
 
-            'recibidos' =>
-                Lote::where(
-                    'estado',
-                    'RECIBIDO'
-                )->count(),
+            'total'=>Lote::count(),
+
+            'abiertos'=>Lote::where(
+                'estado',
+                'ABIERTO'
+            )->count(),
+
+            'parciales'=>Lote::where(
+                'estado',
+                'RECEPCION_PARCIAL'
+            )->count(),
+
+            'recibidos'=>Lote::where(
+                'estado',
+                'RECIBIDO'
+            )->count(),
+
         ];
+
+
 
         return view(
             'importaciones.index',
@@ -115,176 +133,511 @@ class ImportacionController extends Controller
                 'estado'
             )
         );
+
+
     }
+
+
+
+
 
     public function create(): View
     {
-        $proveedores = Proveedor::query()
-            ->where('activo', true)
+
+
+        $proveedores =
+            Proveedor::where(
+                'activo',
+                true
+            )
             ->orderBy('nombre')
             ->get();
+
+
 
         return view(
             'importaciones.create',
             compact('proveedores')
         );
+
+
     }
+
+
+
+
+
+
 
     public function store(
         Request $request,
         LoteService $loteService
-    ): RedirectResponse {
-        try {
+    ): RedirectResponse
+    {
 
-            $lote = $loteService->crearLote(
-                $request->user()->id,
-                $request->all()
-            );
+
+        try{
+
+
+            $lote =
+                $loteService->crearLote(
+                    $request->user()->id,
+                    $request->all()
+                );
+
+
 
             return redirect()
+
                 ->route(
                     'importaciones.show',
                     $lote
                 )
+
                 ->with(
                     'success',
                     'Lote creado correctamente.'
                 );
 
-        } catch (ReglaNegocioException $exception) {
+
+
+        }catch(ReglaNegocioException $e){
+
 
             return back()
+
                 ->withInput()
+
                 ->withErrors([
-                    'registro' =>
-                        $exception->getMessage(),
+
+                    'registro'=>$e->getMessage()
+
                 ]);
+
         }
+
+
     }
+
+
+
+
+
+
+
 
     public function show(
         Lote $lote,
         TipoCambioService $tipoCambioService
-    ): View {
-       $lote->load([
-         'proveedor',
+    ): View
+    {
 
-       'detalles.producto.marca',
-        'detalles.producto.categoria',
-       'detalles.moneda',
-       'detalles.tipoCambioCompra',
-       'detalles.especificacionEsperada',
-       'detalles.componentesEsperados',
 
-      'eventosLogisticos.tipoEvento',
-      'eventosLogisticos.usuario',
+        $lote->load([
 
-        'costos.tipoCosto',
-        'costos.moneda',
+
+            'proveedor',
+
+
+            'detalles.producto.marca',
+
+            'detalles.producto.categoria',
+
+
+            'detalles.moneda',
+
+            'detalles.tipoCambioCompra',
+
+
+            'detalles.unidadesAdquiridas.producto.marca',
+
+            'detalles.unidadesAdquiridas.almacenActual',
+
+
+            'eventosLogisticos.tipoEvento',
+
+            'eventosLogisticos.usuario',
+
+
+            'costos.tipoCosto',
+
+            'costos.moneda',
+
+
         ]);
 
-        $productos = Producto::query()
-            ->with([
+
+
+
+        $productos =
+            Producto::with([
                 'marca',
-                'categoria',
+                'categoria'
             ])
-            ->where('activo', true)
+            ->where(
+                'activo',
+                true
+            )
             ->orderBy('nombre')
             ->orderBy('modelo')
             ->get();
 
-        $categorias =
-            CategoriaProducto::query()
-                ->where('activo', true)
-                ->orderBy('nombre')
-                ->get();
 
-        $marcas = Marca::query()
-            ->where('activo', true)
+
+
+        $categorias =
+            CategoriaProducto::where(
+                'activo',
+                true
+            )
             ->orderBy('nombre')
             ->get();
 
-        $monedas = Moneda::query()
-            ->where('activo', true)
+
+
+
+        $marcas =
+            Marca::where(
+                'activo',
+                true
+            )
+            ->orderBy('nombre')
+            ->get();
+
+
+
+
+        $monedas =
+            Moneda::where(
+                'activo',
+                true
+            )
             ->whereIn(
-                 'codigo',
-             ['BOB', 'USD', 'USDT']
+                'codigo',
+                [
+                    'BOB',
+                    'USD',
+                    'USDT'
+                ]
             )
             ->orderBy('codigo')
             ->get();
 
+
+
+
+
         $cantidadEsperada =
             $lote->detalles
-                ->sum(
-                    'cantidad_esperada'
-                );
+            ->sum('cantidad_esperada');
+
+
+
 
         $cantidadRecibida =
             $lote->detalles
-                ->sum(
-                    'cantidad_recibida'
-                );
+            ->sum('cantidad_recibida');
 
-        $referenciaUsdBob = null;
 
-        try {
+
+
+        $referenciaUsdBob=null;
+
+
+
+        try{
+
 
             $referenciaUsdBob =
                 $tipoCambioService
-                    ->obtenerReferenciaUsdBob();
+                ->obtenerReferenciaUsdBob();
 
-        } catch (ReglaNegocioException $exception) {
 
-            $referenciaUsdBob =
-                null;
+
+        }catch(ReglaNegocioException $e){
+
+
+            $referenciaUsdBob=null;
+
+
         }
+
+
+
 
         return view(
+
             'importaciones.show',
+
             compact(
+
                 'lote',
+
                 'productos',
+
                 'categorias',
+
                 'marcas',
+
                 'monedas',
+
                 'cantidadEsperada',
+
                 'cantidadRecibida',
+
                 'referenciaUsdBob'
+
             )
+
         );
+
+
     }
+
+
+
+
+
+
+
+
 
     public function storeDetalle(
-        Request $request,
-        Lote $lote,
-        LoteService $loteService
-    ): RedirectResponse {
-        try {
+    Request $request,
+    Lote $lote,
+    LoteService $loteService
+): JsonResponse {
 
-            $loteService->agregarDetalle(
+
+    try {
+
+
+        $detalle = $loteService->agregarDetalle(
+
+            $request->user()->id,
+
+            $lote->id,
+
+            $request->all()
+
+        );
+
+
+        $detalle->load(
+            'producto.marca'
+        );
+
+
+        return response()->json([
+
+    'ok'=>true,
+
+    'detalle'=>[
+
+        'id'=>$detalle->id,
+
+
+        'producto'=>
+
+            trim(
+                ($detalle->producto->marca?->nombre ?? '')
+                .' '.
+                $detalle->producto->nombre
+                .' '.
+                ($detalle->producto->modelo ?? '')
+            ),
+
+
+        'cantidad_esperada'=>
+
+            $detalle->cantidad_esperada,
+
+
+        'cantidad_recibida'=>
+
+            $detalle->cantidad_recibida
+
+
+    ]
+
+]);
+
+
+
+    }catch(\Throwable $e){
+
+
+        return response()->json([
+
+            'ok'=>false,
+
+            'message'=>$e->getMessage()
+
+        ],422);
+
+
+    }
+
+
+}
+
+
+
+
+
+
+
+
+
+    /**
+     * Registro rápido de equipos recibidos por Hugo.
+     *
+     * Aquí NO se crea inventario.
+     * Solo UnidadAdquirida.
+     */
+    public function storeUnidad(
+
+        Request $request,
+
+        Lote $lote,
+
+        UnidadAdquiridaService $service
+
+    ): RedirectResponse
+    {
+
+
+        $datos =
+            $request->validate([
+
+
+                'detalle_lote_id'=>[
+                    'required',
+                    'exists:detalles_lotes,id'
+                ],
+
+
+                'cantidad'=>[
+                    'required',
+                    'integer',
+                    'min:1'
+                ],
+
+
+                'precio_compra'=>[
+                    'nullable',
+                    'numeric',
+                    'min:0'
+                ],
+
+
+                'moneda_id'=>[
+                    'nullable',
+                    'exists:monedas,id'
+                ],
+
+
+                'procesador'=>[
+                    'nullable',
+                    'string'
+                ],
+
+
+                'generacion_procesador'=>[
+                    'nullable',
+                    'string'
+                ],
+
+
+                'ram_gb'=>[
+                    'nullable',
+                    'integer'
+                ],
+
+
+                'almacenamiento_gb'=>[
+                    'nullable',
+                    'integer'
+                ],
+
+
+                'observacion'=>[
+                    'nullable',
+                    'string'
+                ],
+
+
+            ]);
+
+
+
+
+
+        $unidades =
+
+            $service->registrarLlegadaCochabamba(
+
                 $request->user()->id,
-                $lote->id,
-                $request->all()
+
+                $datos['detalle_lote_id'],
+
+                $datos['cantidad'],
+
+                null,
+
+                $datos['observacion'] ?? null
+
             );
 
-            return redirect()
-                ->route(
-                    'importaciones.show',
-                    $lote
-                )
-                ->with(
-                    'success',
-                    'Producto agregado al lote correctamente.'
-                );
 
-        } catch (ReglaNegocioException $exception) {
 
-            return back()
-                ->withInput()
-                ->withErrors([
-                    'detalle' =>
-                        $exception->getMessage(),
-                ]);
+
+
+        foreach($unidades as $unidad){
+
+
+            $unidad->update([
+
+
+                'procesador'=>
+                    $datos['procesador'] ?? null,
+
+
+                'generacion_procesador'=>
+                    $datos['generacion_procesador'] ?? null,
+
+
+                'ram_gb'=>
+                    $datos['ram_gb'] ?? null,
+
+
+                'almacenamiento_gb'=>
+                    $datos['almacenamiento_gb'] ?? null,
+
+
+            ]);
+
+
         }
+
+
+
+
+
+        return redirect()
+
+            ->route(
+                'importaciones.show',
+                $lote
+            )
+
+            ->with(
+                'success',
+                'Equipos registrados correctamente.'
+            );
+
+
     }
+
+
 }

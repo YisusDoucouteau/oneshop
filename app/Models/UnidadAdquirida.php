@@ -41,6 +41,10 @@ class UnidadAdquirida extends Model
         'detalle_lote_id',
         'adquisicion_directa_id',
         'producto_id',
+        'nombre_equipo',
+'modelo_equipo',
+'precio_compra',
+'moneda_id',
         'almacen_actual_id',
         'estado' ,
         'codigo_trazabilidad',
@@ -185,6 +189,13 @@ public function historialCostos()
     return $this->hasMany(
         HistorialCostoUnidad::class,
         'unidad_adquirida_id'
+    );
+}
+public function moneda()
+{
+    return $this->belongsTo(
+        Moneda::class,
+        'moneda_id'
     );
 }
 }

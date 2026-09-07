@@ -13,13 +13,16 @@ class ConfiguracionSeeder extends Seeder
         $this->cargarParametros();
     }
 
+
     private function cargarPoliticaDistribucion(): void
     {
         $politicaId = DB::table('politicas_distribucion')
             ->where('codigo', 'DISTRIBUCION_GENERAL')
             ->value('id');
 
+
         if (!$politicaId) {
+
             $politicaId = DB::table('politicas_distribucion')
                 ->insertGetId([
                     'codigo' => 'DISTRIBUCION_GENERAL',
@@ -33,10 +36,13 @@ class ConfiguracionSeeder extends Seeder
                 ]);
         }
 
+
         $beneficiarios = DB::table('beneficiarios_distribucion')
             ->pluck('id', 'codigo');
 
+
         foreach (['DANIEL', 'SERGIO', 'TIENDA'] as $codigo) {
+
             DB::table('detalles_politicas_distribucion')
                 ->updateOrInsert(
                     [
@@ -52,9 +58,13 @@ class ConfiguracionSeeder extends Seeder
         }
     }
 
+
+
     private function cargarParametros(): void
     {
+
         $parametros = [
+
             [
                 'codigo' => 'RESERVA_DIAS_MAXIMOS_ESTANDAR',
                 'nombre' => 'Días máximos estándar de una reserva',
@@ -63,6 +73,8 @@ class ConfiguracionSeeder extends Seeder
                 'valor' => '7',
                 'descripcion' => 'Duración máxima estándar antes de requerir una prórroga autorizada.',
             ],
+
+
             [
                 'codigo' => 'RESERVA_DIAS_RECORDATORIO',
                 'nombre' => 'Días de anticipación para recordar vencimiento',
@@ -71,6 +83,8 @@ class ConfiguracionSeeder extends Seeder
                 'valor' => '1',
                 'descripcion' => 'Anticipación utilizada para alertar sobre una reserva próxima a vencer.',
             ],
+
+
             [
                 'codigo' => 'DEPOSITO_DIAS_HABILES_ESPERA',
                 'nombre' => 'Días hábiles de espera antes del depósito',
@@ -79,24 +93,58 @@ class ConfiguracionSeeder extends Seeder
                 'valor' => '1',
                 'descripcion' => 'Periodo operativo inicial antes de habilitar el depósito de una venta.',
             ],
+
+
+            /*
+            |--------------------------------------------------------------------------
+            | Inventario
+            |--------------------------------------------------------------------------
+            */
+
+
+            [
+                'codigo' => 'INVENTARIO_PREFIJO',
+                'nombre' => 'Prefijo del código interno de inventario',
+                'modulo' => 'INVENTARIO',
+                'tipo' => 'TEXTO',
+                'valor' => 'OS-',
+                'descripcion' => 'Prefijo utilizado para generar automáticamente los códigos internos de inventario de los equipos.',
+            ],
+
+
+            [
+                'codigo' => 'INVENTARIO_ULTIMO_CORRELATIVO',
+                'nombre' => 'Último correlativo del inventario',
+                'modulo' => 'INVENTARIO',
+                'tipo' => 'ENTERO',
+                'valor' => '1620',
+                'descripcion' => 'Último número utilizado para la generación automática del código interno de inventario.',
+            ],
+
         ];
 
+
+
         foreach ($parametros as $parametro) {
-            DB::table('parametros_sistema')->updateOrInsert(
-                ['codigo' => $parametro['codigo']],
-                [
-                    'nombre' => $parametro['nombre'],
-                    'modulo' => $parametro['modulo'],
-                    'tipo_dato' => $parametro['tipo'],
-                    'valor' => $parametro['valor'],
-                    'descripcion' => $parametro['descripcion'],
-                    'editable' => true,
-                    'activo' => true,
-                    'modificado_por_id' => null,
-                    'created_at' => now(),
-                    'updated_at' => now(),
-                ]
-            );
+
+            DB::table('parametros_sistema')
+                ->updateOrInsert(
+                    [
+                        'codigo' => $parametro['codigo'],
+                    ],
+                    [
+                        'nombre' => $parametro['nombre'],
+                        'modulo' => $parametro['modulo'],
+                        'tipo_dato' => $parametro['tipo'],
+                        'valor' => $parametro['valor'],
+                        'descripcion' => $parametro['descripcion'],
+                        'editable' => true,
+                        'activo' => true,
+                        'modificado_por_id' => null,
+                        'created_at' => now(),
+                        'updated_at' => now(),
+                    ]
+                );
         }
     }
 }
