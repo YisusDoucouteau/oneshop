@@ -26,9 +26,9 @@ class UnidadAdquiridaService
      * - Hoy llegaron 3 al depósito de Cochabamba.
      * - Se crean 3 unidades adquiridas.
      *
-     Actualiza cantidad_recibida del detalle,
-porque representa las unidades físicas
-recibidas desde la compra.
+     * Actualiza cantidad_recibida del detalle,
+     * porque representa las unidades físicas
+     * recibidas desde la compra.
      */
     public function registrarLlegadaCochabamba(
         int $usuarioId,
@@ -123,11 +123,15 @@ recibidas desde la compra.
                 }
 
                 if ($cantidad > $pendientes) {
-                    throw ValidationException::withMessages([
-                        'cantidad' =>
-                            "Solo quedan {$pendientes} unidad(es) pendientes de llegada para esta línea.",
-                    ]);
-                }
+
+    throw ValidationException::withMessages([
+
+        'cantidad'=>
+        "Solo quedan {$pendientes} unidad(es) pendientes para este producto.",
+
+    ]);
+
+}
 
                 /*
                 |--------------------------------------------------------------------------

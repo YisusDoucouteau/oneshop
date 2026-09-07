@@ -103,7 +103,7 @@
 
                     <input
 
-                        type="number"
+                        type="hidden"
 
                         name="cantidad"
 

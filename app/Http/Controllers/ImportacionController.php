@@ -518,10 +518,10 @@ class ImportacionController extends Controller
 
 
                 'cantidad'=>[
-                    'required',
-                    'integer',
-                    'min:1'
-                ],
+    'required',
+    'integer',
+    'in:1'
+],
 
 
                 'precio_compra'=>[
