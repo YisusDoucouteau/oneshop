@@ -26,9 +26,9 @@ class UnidadAdquiridaService
      * - Hoy llegaron 3 al depósito de Cochabamba.
      * - Se crean 3 unidades adquiridas.
      *
-     * NO modifica cantidad_recibida del detalle,
-     * porque esa cantidad corresponde a la recepción
-     * posterior en Oruro.
+     Actualiza cantidad_recibida del detalle,
+porque representa las unidades físicas
+recibidas desde la compra.
      */
     public function registrarLlegadaCochabamba(
         int $usuarioId,
@@ -288,118 +288,150 @@ class UnidadAdquiridaService
                     ]);
 
                 /*
-                |--------------------------------------------------------------------------
-                | Crear unidades físicas
-                |--------------------------------------------------------------------------
-                */
+|--------------------------------------------------------------------------
+| Crear unidades físicas
+|--------------------------------------------------------------------------
+*/
 
-                $unidades =
-                    collect();
+$unidades = collect();
 
-                for (
-                    $indice = 0;
-                    $indice < $cantidad;
-                    $indice++
-                ) {
-                    $numeroCorrelativo =
-                        $primerCorrelativo
-                        + $indice;
 
-                    $codigoTrazabilidad =
-                        sprintf(
-                            'OS-%s-%04d',
-                            $fecha->format('ymd'),
-                            $numeroCorrelativo
-                        );
+for (
+    $indice = 0;
+    $indice < $cantidad;
+    $indice++
+) {
 
-                    $unidad =
-                        UnidadAdquirida::create([
-                            'detalle_lote_id' =>
-                                $detalle->id,
+    $numeroCorrelativo =
+        $primerCorrelativo + $indice;
 
-                            'adquisicion_directa_id' =>
-                                null,
 
-                            'producto_id' =>
-                                $detalle->producto_id,
+    $codigoTrazabilidad =
+        sprintf(
+            'OS-%s-%04d',
+            $fecha->format('ymd'),
+            $numeroCorrelativo
+        );
 
-                            'almacen_actual_id' =>
-                                $almacenCochabamba->id,
 
-                            'estado' =>
-                                UnidadAdquirida::ESTADO_RECIBIDA_ORIGEN,
+    $unidad = UnidadAdquirida::create([
 
-                            'codigo_trazabilidad' =>
-                                $codigoTrazabilidad,
+        'detalle_lote_id' =>
+            $detalle->id,
 
-                            'fecha_llegada' =>
-                                $fecha,
 
-                            'registrado_por_id' =>
-                                $usuario->id,
+        'adquisicion_directa_id' =>
+            null,
 
-                            'requiere_servicio' =>
-                                false,
 
-                            'observacion_revision' =>
-                                $observacion,
-                        ]);
+        'producto_id' =>
+            $detalle->producto_id,
 
-                    $unidades->push(
-                        $unidad
-                    );
-                }
 
-                /*
-                |--------------------------------------------------------------------------
-                | Evento general del lote
-                |--------------------------------------------------------------------------
-                |
-                | El evento no reemplaza el detalle por unidad.
-                | Solo deja constancia de que ocurrió una llegada parcial.
-                |
-                */
+        'almacen_actual_id' =>
+            $almacenCochabamba->id,
 
-                $tipoEvento =
-                    TipoEventoLogistico::query()
-                        ->where(
-                            'codigo',
-                            'RECEPCION_COCHABAMBA'
-                        )
-                        ->where(
-                            'activo',
-                            true
-                        )
-                        ->first();
 
-                if ($tipoEvento) {
-                    EventoLogisticoLote::create([
-                        'lote_id' =>
-                            $detalle->lote_id,
+        'estado' =>
+            UnidadAdquirida::ESTADO_RECIBIDA_ORIGEN,
 
-                        'tipo_evento_logistico_id' =>
-                            $tipoEvento->id,
 
-                        'usuario_id' =>
-                            $usuario->id,
+        'codigo_trazabilidad' =>
+            $codigoTrazabilidad,
 
-                        'fecha_evento' =>
-                            $fecha,
 
-                        'ubicacion' =>
-                            'Depósito Cochabamba',
+        'fecha_llegada' =>
+            $fecha,
 
-                        'descripcion' =>
-                            $this->descripcionLlegada(
-                                $detalle,
-                                $cantidad,
-                                $registradas + $cantidad,
-                                $observacion
-                            ),
-                    ]);
-                }
 
-                return $unidades;
+        'registrado_por_id' =>
+            $usuario->id,
+
+
+        'requiere_servicio' =>
+            false,
+
+
+        'observacion_revision' =>
+            $observacion,
+
+    ]);
+
+
+    $unidades->push($unidad);
+
+}
+
+
+/*
+|--------------------------------------------------------------------------
+| Actualizar cantidad recibida del detalle del lote
+|--------------------------------------------------------------------------
+*/
+
+$detalle->increment(
+    'cantidad_recibida',
+    $cantidad
+);
+
+
+/*
+|--------------------------------------------------------------------------
+| Evento general del lote
+|--------------------------------------------------------------------------
+*/
+
+$tipoEvento =
+    TipoEventoLogistico::query()
+        ->where(
+            'codigo',
+            'RECEPCION_COCHABAMBA'
+        )
+        ->where(
+            'activo',
+            true
+        )
+        ->first();
+
+
+if ($tipoEvento) {
+
+    EventoLogisticoLote::create([
+
+        'lote_id' =>
+            $detalle->lote_id,
+
+
+        'tipo_evento_logistico_id' =>
+            $tipoEvento->id,
+
+
+        'usuario_id' =>
+            $usuario->id,
+
+
+        'fecha_evento' =>
+            $fecha,
+
+
+        'ubicacion' =>
+            'Depósito Cochabamba',
+
+
+        'descripcion' =>
+            $this->descripcionLlegada(
+                $detalle,
+                $cantidad,
+                $registradas + $cantidad,
+                $observacion
+            ),
+
+    ]);
+
+}
+
+
+return $unidades;
             },
             3
         );
