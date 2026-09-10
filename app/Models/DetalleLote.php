@@ -75,4 +75,16 @@ public function unidadesAdquiridas(): HasMany
         'detalle_lote_id'
     );
 }
+public function unidadesActivas(): HasMany
+{
+    return $this->hasMany(
+        UnidadAdquirida::class,
+        'detalle_lote_id'
+    )
+    ->where(
+        'estado',
+        '!=',
+        UnidadAdquirida::ESTADO_ANULADA
+    );
+}
 }

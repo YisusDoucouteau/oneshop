@@ -7,6 +7,7 @@ use App\Http\Controllers\ImportacionController;
 use App\Http\Controllers\CatalogoImportacionController;
 use App\Http\Controllers\UnidadAdquiridaController;
 use App\Http\Controllers\RecepcionLoteController;
+use App\Http\Controllers\CostoLoteController;
 use Illuminate\Support\Facades\Route;
 
 
@@ -68,7 +69,40 @@ Route::middleware([
 |--------------------------------------------------------------------------
 */
 
+Route::get(
+    '/importaciones/unidades/{unidad}/editar',
+    [RecepcionLoteController::class,'editar']
+)
+->name('importaciones.unidades.editar');
 
+
+Route::patch(
+    '/importaciones/unidades/{unidad}',
+    [RecepcionLoteController::class,'actualizar']
+)
+->name('importaciones.unidades.actualizar');
+
+
+
+Route::get(
+    '/importaciones/unidades/{unidad}/editar',
+    [RecepcionLoteController::class,'editar']
+)->name('importaciones.unidades.editar');
+
+
+Route::patch(
+    '/importaciones/unidades/{unidad}',
+    [RecepcionLoteController::class,'actualizar']
+)->name('importaciones.unidades.actualizar');
+Route::post(
+    '/importaciones/{lote}/costos',
+    [
+        CostoLoteController::class,
+        'store'
+    ]
+)
+->middleware('permiso:importacion.gestionar')
+->name('importaciones.costos.store');
 
 Route::get(
     '/importaciones',
@@ -78,7 +112,18 @@ Route::get(
 ->name('importaciones.index');
 
 
+Route::put(
+'importaciones/costos/{costo}',
+[ CostoLoteController::class,'update']
+)
+->name('importaciones.costos.update');
 
+
+Route::patch(
+'importaciones/costos/{costo}/anular',
+[ CostoLoteController::class,'anular']
+)
+->name('importaciones.costos.anular');
 
 
 Route::get(
@@ -122,7 +167,16 @@ Route::post(
 ->name('importaciones.detalles.store');
 
 
-
+Route::post(
+    '/importaciones/{lote}/costos/distribuir',
+    [
+        CostoLoteController::class,
+        'distribuir'
+    ]
+)
+->name(
+    'importaciones.costos.distribuir'
+);
 
 
 /*
@@ -143,7 +197,16 @@ Route::post(
 ->middleware('permiso:importacion.gestionar')
 ->name('importaciones.unidades.store');
 
-
+Route::patch(
+    'importaciones/unidades/{unidad}/anular',
+    [
+        ImportacionController::class,
+        'anularUnidad'
+    ]
+)
+->name(
+    'importaciones.unidades.anular'
+);
 
 
 

@@ -52,8 +52,12 @@
 
 
 @include('importaciones.partials.equipos-registrados')
-
-
+@include(
+'importaciones.partials.costos-lote'
+)
+@include('importaciones.partials.resumen-financiero')
+@include('importaciones.partials.modal-costo')
+@include('importaciones.partials.modal-editar-costo')
 @include('importaciones.partials.modal-producto')
 
 

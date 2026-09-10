@@ -1,240 +1,396 @@
 <section class="mb-6 rounded-2xl border border-slate-200 bg-white shadow-sm">
 
 
-<div class="border-b border-slate-200 px-6 py-5">
+    <div class="border-b border-slate-200 px-6 py-5">
 
-<h2 class="font-semibold text-slate-950">
-Productos del lote
-</h2>
+        <h2 class="font-semibold text-slate-950">
+            Productos del lote
+        </h2>
 
-<p class="text-sm text-slate-500">
-Productos esperados dentro de esta importación.
-</p>
+        <p class="text-sm text-slate-500">
+            Productos esperados dentro de esta importación.
+        </p>
 
-</div>
+    </div>
 
 
 
-<div class="p-6">
 
+    <div class="p-6">
 
-<table class="w-full text-sm">
 
 
-<thead>
+        <table class="w-full text-sm">
 
-<tr class="border-b text-left text-slate-500">
 
-<th class="py-3">
-Producto
-</th>
 
-<th>
-Cantidad esperada
-</th>
+            <thead>
 
-<th>
-Cantidad recibida
-</th>
+                <tr class="border-b text-left text-slate-500">
 
-</tr>
 
-</thead>
+                    <th class="py-3">
+                        Producto
+                    </th>
 
 
+                    <th>
+                        Cantidad esperada
+                    </th>
 
 
-<tbody id="tablaDetalles">
+                    <th>
+                        Cantidad recibida
+                    </th>
 
 
-@forelse($lote->detalles as $detalle)
+                    <th>
+                        Pendiente
+                    </th>
 
 
-<tr
-class="border-b"
-data-detalle-id="{{ $detalle->id }}"
->
+                </tr>
 
 
-<td class="py-3 font-medium">
+            </thead>
 
-{{ $detalle->producto?->marca?->nombre }}
 
-{{ $detalle->producto?->nombre }}
 
-{{ $detalle->producto?->modelo }}
 
-</td>
 
 
+            <tbody id="tablaDetalles">
 
-<td class="cantidad-esperada">
 
-{{ $detalle->cantidad_esperada }}
 
-</td>
+            @forelse($lote->detalles as $detalle)
 
 
 
-<td>
+                @php
 
-{{ $detalle->cantidad_recibida }}
+                    $recibidas = 
+                        $detalle->unidadesAdquiridas
+                        ->where(
+                            'estado',
+                            '!=',
+                            'ANULADA'
+                        )
+                        ->count();
 
-</td>
 
 
+                    $pendientes =
+                        $detalle->cantidad_esperada
+                        -
+                        $recibidas;
 
-</tr>
 
+                @endphp
 
 
-@empty
 
 
-<tr id="filaVacia">
 
-<td colspan="3"
-class="py-6 text-center text-slate-500">
+                <tr
 
-Todavía no existen productos registrados en este lote.
+                    class="border-b"
 
-</td>
+                    data-detalle-id="{{ $detalle->id }}"
 
-</tr>
+                >
 
 
-@endforelse
 
+                    <td class="py-3 font-medium">
 
-</tbody>
 
+                        {{ $detalle->producto?->marca?->nombre }}
 
-</table>
+                        {{ $detalle->producto?->nombre }}
 
+                        {{ $detalle->producto?->modelo }}
 
 
+                    </td>
 
 
-<hr class="my-6">
 
 
 
-<h3 class="mb-4 font-semibold">
+                    <td class="cantidad-esperada">
 
-Agregar producto al lote
 
-</h3>
+                        {{ $detalle->cantidad_esperada }}
 
 
+                    </td>
 
 
-<form id="formAgregarProducto">
 
 
-@csrf
 
+                    <td class="cantidad-recibida">
 
 
-<div class="grid gap-4 md:grid-cols-3">
+                        {{ $recibidas }}
 
 
+                    </td>
 
-<select
 
-name="producto_id"
 
-id="selectProducto"
 
-class="rounded-xl border p-3"
 
-required
+                    <td>
 
->
 
+                        @if($pendientes > 0)
 
-<option value="">
-Seleccione producto
-</option>
 
+                            <span
 
+                            class="rounded-full bg-yellow-100 px-3 py-1 text-xs text-yellow-700"
 
-<option value="crear">
-+ Crear producto nuevo
-</option>
+                            >
 
+                                {{ $pendientes }}
 
+                                pendiente(s)
 
-@foreach($productos as $producto)
+                            </span>
 
 
-<option value="{{ $producto->id }}">
+                        @else
 
 
-{{ $producto->marca?->nombre }}
+                            <span
 
-{{ $producto->nombre }}
+                            class="rounded-full bg-green-100 px-3 py-1 text-xs text-green-700"
 
-{{ $producto->modelo }}
+                            >
 
+                                COMPLETO
 
-</option>
+                            </span>
 
 
-@endforeach
+                        @endif
 
 
+                    </td>
 
-</select>
 
 
 
+                </tr>
 
 
 
-<input
 
-type="number"
+            @empty
 
-name="cantidad_esperada"
 
-value="1"
 
-min="1"
+                <tr id="filaVacia">
 
-class="rounded-xl border p-3"
 
-required
+                    <td
 
->
+                    colspan="4"
 
+                    class="py-6 text-center text-slate-500"
 
+                    >
 
+                        Todavía no existen productos registrados en este lote.
 
 
+                    </td>
 
-<button
 
-type="submit"
+                </tr>
 
-class="rounded-xl bg-slate-950 px-5 text-white"
 
->
 
-Agregar
+            @endforelse
 
-</button>
 
 
 
 
-</div>
+            </tbody>
 
 
-</form>
 
+        </table>
 
 
-</div>
+
+
+
+
+
+
+
+        <hr class="my-6">
+
+
+
+
+
+
+        <h3 class="mb-4 font-semibold">
+
+            Agregar producto al lote
+
+        </h3>
+
+
+
+
+
+
+        <form id="formAgregarProducto">
+
+
+
+            @csrf
+
+
+
+
+
+            <div class="grid gap-4 md:grid-cols-3">
+
+
+
+
+
+
+                <select
+
+                name="producto_id"
+
+                id="selectProducto"
+
+                class="rounded-xl border p-3"
+
+                required
+
+                >
+
+
+
+
+                    <option value="">
+
+                        Seleccione producto
+
+                    </option>
+
+
+
+
+                    <option value="crear">
+
+                        + Crear producto nuevo
+
+                    </option>
+
+
+
+
+
+                    @foreach($productos as $producto)
+
+
+
+                        <option value="{{ $producto->id }}">
+
+
+                            {{ $producto->marca?->nombre }}
+
+                            {{ $producto->nombre }}
+
+                            {{ $producto->modelo }}
+
+
+
+                        </option>
+
+
+
+                    @endforeach
+
+
+
+
+
+                </select>
+
+
+
+
+
+
+
+
+                <input
+
+                type="number"
+
+                name="cantidad_esperada"
+
+                value="1"
+
+                min="1"
+
+                class="rounded-xl border p-3"
+
+                required
+
+                >
+
+
+
+
+
+
+
+                <button
+
+                type="submit"
+
+                class="rounded-xl bg-slate-950 px-5 text-white"
+
+                >
+
+                    Agregar
+
+                </button>
+
+
+
+
+
+
+            </div>
+
+
+
+
+
+        </form>
+
+
+
+
+
+
+    </div>
+
+
 
 
 
@@ -245,28 +401,35 @@ Agregar
 
 
 
+
+
 <script>
 
 
-// Abrir modal crear producto
+// Crear producto nuevo
 
 document
+
 .getElementById('selectProducto')
+
 .addEventListener(
+
 'change',
+
 function(){
 
 
-if(this.value === 'crear'){
+
+    if(this.value === 'crear'){
 
 
-window.abrirModalProducto();
+        window.abrirModalProducto();
 
 
-this.value = "";
+        this.value = "";
 
 
-}
+    }
 
 
 });
@@ -276,206 +439,311 @@ this.value = "";
 
 
 
-// Agregar producto al lote
+
+
+
+// Agregar producto lote
 
 document
+
 .getElementById('formAgregarProducto')
+
 .addEventListener(
+
 'submit',
+
 async function(e){
 
 
-e.preventDefault();
 
+    e.preventDefault();
 
 
-let formulario=this;
 
 
+    let formulario = this;
 
-let datos =
-new FormData(formulario);
 
 
+    let datos = new FormData(formulario);
 
 
-let respuesta =
-await fetch(
 
-"{{ route('importaciones.detalles.store',$lote) }}",
 
-{
 
 
-method:"POST",
 
+    let respuesta = await fetch(
 
-headers:{
 
+        "{{ route('importaciones.detalles.store',$lote) }}",
 
-"X-CSRF-TOKEN":
 
-document
-.querySelector(
-'meta[name="csrf-token"]'
-)
-.content,
+        {
 
 
-"Accept":"application/json"
 
+            method:"POST",
 
-},
 
+            headers:{
 
-body:datos
 
+                "X-CSRF-TOKEN":
 
-}
+                document
 
+                .querySelector(
 
+                'meta[name="csrf-token"]'
 
-);
+                )
 
+                .content,
 
 
-let json =
-await respuesta.json();
 
+                "Accept":"application/json"
 
 
-console.log(json);
 
+            },
 
 
 
+            body:datos
 
-if(json.ok){
 
 
-let detalle=json.detalle;
+        }
 
 
 
+    );
 
-let filaExistente =
-document.querySelector(
 
-`[data-detalle-id="${detalle.id}"]`
 
-);
 
 
 
 
+    let json = await respuesta.json();
 
-if(filaExistente){
 
 
-filaExistente
-.querySelector(
-'.cantidad-esperada'
-)
-.innerText =
-detalle.cantidad_esperada;
 
 
 
-}
+    if(json.ok){
 
-else{
 
 
-let fila = `
+        let detalle = json.detalle;
 
-<tr
 
-class="border-b"
 
-data-detalle-id="${detalle.id}"
 
->
 
+        let filaExistente =
 
-<td class="py-3 font-medium">
+        document.querySelector(
 
-${detalle.producto}
+            `[data-detalle-id="${detalle.id}"]`
 
-</td>
+        );
 
 
-<td class="cantidad-esperada">
 
-${detalle.cantidad_esperada}
 
-</td>
 
 
-<td>
 
-${detalle.cantidad_recibida}
+        if(filaExistente){
 
-</td>
 
 
-</tr>
+            filaExistente
 
-`;
+            .querySelector(
 
+                '.cantidad-esperada'
 
+            )
 
+            .innerText =
 
-let vacia =
-document.getElementById(
-'filaVacia'
-);
+            detalle.cantidad_esperada;
 
 
 
-if(vacia){
 
-vacia.remove();
+            filaExistente
 
-}
+            .querySelector(
 
+                '.cantidad-recibida'
 
+            )
 
-document
-.getElementById(
-'tablaDetalles'
-)
-.insertAdjacentHTML(
-'beforeend',
-fila
-);
+            .innerText =
 
+            detalle.cantidad_recibida;
 
 
-}
 
+        }
 
+        else{
 
 
-formulario.reset();
 
+            let fila = `
 
 
-}
 
-else{
+            <tr
 
+            class="border-b"
 
-alert(
-json.message ??
-"Error registrando producto"
-);
+            data-detalle-id="${detalle.id}"
 
+            >
 
-}
+
+
+                <td class="py-3 font-medium">
+
+                    ${detalle.producto}
+
+                </td>
+
+
+
+
+                <td class="cantidad-esperada">
+
+                    ${detalle.cantidad_esperada}
+
+                </td>
+
+
+
+
+
+                <td class="cantidad-recibida">
+
+                    ${detalle.cantidad_recibida}
+
+                </td>
+
+
+
+
+
+                <td>
+
+
+                    <span
+
+                    class="rounded-full bg-yellow-100 px-3 py-1 text-xs text-yellow-700"
+
+                    >
+
+                        Pendiente
+
+                    </span>
+
+
+                </td>
+
+
+
+            </tr>
+
+
+
+            `;
+
+
+
+
+
+
+            let vacia =
+
+            document.getElementById(
+
+                'filaVacia'
+
+            );
+
+
+
+
+
+            if(vacia){
+
+                vacia.remove();
+
+            }
+
+
+
+
+
+
+            document
+
+            .getElementById(
+
+                'tablaDetalles'
+
+            )
+
+            .insertAdjacentHTML(
+
+                'beforeend',
+
+                fila
+
+            );
+
+
+
+        }
+
+
+
+
+
+
+        formulario.reset();
+
+
+
+
+    }
+
+    else{
+
+
+        alert(
+
+            json.message ??
+
+            "Error registrando producto"
+
+        );
+
+
+    }
+
+
 
 
 
 });
+
 
 
 

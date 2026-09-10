@@ -31,19 +31,22 @@ class UnidadAdquiridaService
      * recibidas desde la compra.
      */
     public function registrarLlegadaCochabamba(
-        int $usuarioId,
-        int $detalleLoteId,
-        int $cantidad,
-        ?string $fechaLlegada = null,
-        ?string $observacion = null
-    ): Collection {
+    int $usuarioId,
+    int $detalleLoteId,
+    int $cantidad,
+    ?string $fechaLlegada = null,
+    ?string $observacion = null,
+    array $datosCompra = []
+
+): Collection {
         return DB::transaction(
             function () use (
-                $usuarioId,
-                $detalleLoteId,
-                $cantidad,
-                $fechaLlegada,
-                $observacion
+                 $usuarioId,
+    $detalleLoteId,
+    $cantidad,
+    $fechaLlegada,
+    $observacion,
+    $datosCompra
             ) {
                 $usuario =
                     $this->obtenerUsuarioAutorizado(
@@ -104,13 +107,17 @@ class UnidadAdquiridaService
                 */
 
                 $registradas =
-                    UnidadAdquirida::query()
-                        ->where(
-                            'detalle_lote_id',
-                            $detalle->id
-                        )
-                        ->lockForUpdate()
-                        ->count();
+UnidadAdquirida::query()
+->where(
+    'detalle_lote_id',
+    $detalle->id
+)
+->where(
+    'estado',
+    '!=',
+    UnidadAdquirida::ESTADO_ANULADA
+)
+->count();
 
                 $pendientes =
                     $detalle->cantidad_esperada
@@ -318,48 +325,67 @@ for (
         );
 
 
-    $unidad = UnidadAdquirida::create([
+   $unidad = UnidadAdquirida::create([
 
-        'detalle_lote_id' =>
-            $detalle->id,
+    'detalle_lote_id' =>
+        $detalle->id,
 
+    'adquisicion_directa_id' =>
+        null,
 
-        'adquisicion_directa_id' =>
-            null,
-
-
-        'producto_id' =>
-            $detalle->producto_id,
+    'producto_id' =>
+        $detalle->producto_id,
 
 
-        'almacen_actual_id' =>
-            $almacenCochabamba->id,
+    // Datos económicos de compra
+    'precio_compra' =>
+        $datosCompra['precio_compra'] ?? null,
+
+    'moneda_id' =>
+        $datosCompra['moneda_id'] ?? null,
+
+    'tipo_cambio_compra_id' =>
+        $datosCompra['tipo_cambio_compra_id'] ?? null,
+
+    'precio_compra_bob' =>
+        $datosCompra['precio_compra_bob'] ?? null,
+
+    'fecha_compra' =>
+    $datosCompra['fecha_compra'] ?? null,
+
+'referencia_compra' =>
+    $datosCompra['referencia_compra'] ?? null,
+
+'proveedor_compra' =>
+    $datosCompra['proveedor_compra'] ?? null,
+    'almacen_actual_id' =>
+        $almacenCochabamba->id,
 
 
-        'estado' =>
-            UnidadAdquirida::ESTADO_RECIBIDA_ORIGEN,
+    'estado' =>
+        UnidadAdquirida::ESTADO_RECIBIDA_ORIGEN,
 
 
-        'codigo_trazabilidad' =>
-            $codigoTrazabilidad,
+    'codigo_trazabilidad' =>
+        $codigoTrazabilidad,
 
 
-        'fecha_llegada' =>
-            $fecha,
+    'fecha_llegada' =>
+        $fecha,
 
 
-        'registrado_por_id' =>
-            $usuario->id,
+    'registrado_por_id' =>
+        $usuario->id,
 
 
-        'requiere_servicio' =>
-            false,
+    'requiere_servicio' =>
+        false,
 
 
-        'observacion_revision' =>
-            $observacion,
+    'observacion_revision' =>
+        $observacion,
 
-    ]);
+]);
 
 
     $unidades->push($unidad);
