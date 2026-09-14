@@ -18,7 +18,6 @@ use App\Services\IncorporacionUnidadAdquiridaService;
 use App\Services\LoteService;
 use App\Services\UnidadAdquiridaService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
-use Illuminate\Validation\ValidationException;
 use Tests\TestCase;
 
 class IncorporacionUnidadAdquiridaServiceTest extends TestCase
@@ -35,11 +34,13 @@ class IncorporacionUnidadAdquiridaServiceTest extends TestCase
 
     private UnidadAdquirida $unidad;
 
+
     protected function setUp(): void
     {
         parent::setUp();
 
         $this->seed();
+
 
         /*
         |--------------------------------------------------------------------------
@@ -65,6 +66,7 @@ class IncorporacionUnidadAdquiridaServiceTest extends TestCase
             ->attach(
                 $rolOperativo->id
             );
+
 
         /*
         |--------------------------------------------------------------------------
@@ -98,6 +100,7 @@ class IncorporacionUnidadAdquiridaServiceTest extends TestCase
                 'activo' =>
                     true,
             ]);
+
 
         /*
         |--------------------------------------------------------------------------
@@ -152,6 +155,7 @@ class IncorporacionUnidadAdquiridaServiceTest extends TestCase
                     true,
             ]);
 
+
         /*
         |--------------------------------------------------------------------------
         | Lote
@@ -159,7 +163,9 @@ class IncorporacionUnidadAdquiridaServiceTest extends TestCase
         */
 
         $loteService =
-            app(LoteService::class);
+            app(
+                LoteService::class
+            );
 
         $lote =
             $loteService->crearLote(
@@ -195,6 +201,7 @@ class IncorporacionUnidadAdquiridaServiceTest extends TestCase
                 ]
             );
 
+
         /*
         |--------------------------------------------------------------------------
         | Llegada a Cochabamba
@@ -202,7 +209,9 @@ class IncorporacionUnidadAdquiridaServiceTest extends TestCase
         */
 
         $unidadAdquiridaService =
-            app(UnidadAdquiridaService::class);
+            app(
+                UnidadAdquiridaService::class
+            );
 
         $unidades =
             $unidadAdquiridaService
@@ -221,6 +230,7 @@ class IncorporacionUnidadAdquiridaServiceTest extends TestCase
             $this->unidad
         );
     }
+
 
     /*
     |--------------------------------------------------------------------------
@@ -247,6 +257,7 @@ class IncorporacionUnidadAdquiridaServiceTest extends TestCase
         return $condicion->id;
     }
 
+
     private function prepararUnidadRecibidaEnOruro(): UnidadAdquirida
     {
         $this->unidad->refresh();
@@ -255,16 +266,17 @@ class IncorporacionUnidadAdquiridaServiceTest extends TestCase
          * Para estas pruebas aislamos la responsabilidad
          * del servicio de incorporación.
          *
-         * El flujo de traslado y recepción a Oruro ya cuenta
-         * con sus propias pruebas.
+         * El flujo de traslado y recepción a Oruro
+         * tiene sus propias pruebas.
          */
 
         $this->unidad->estado =
             UnidadAdquirida::ESTADO_RECIBIDA_ORURO;
 
+
         /*
-         * La unidad debe encontrarse en el almacén principal
-         * de Oruro antes de incorporarse al inventario.
+         * La unidad debe encontrarse físicamente
+         * en el almacén principal de Oruro.
          */
 
         $almacenOruro =
@@ -290,6 +302,7 @@ class IncorporacionUnidadAdquiridaServiceTest extends TestCase
         ]);
     }
 
+
     /*
     |--------------------------------------------------------------------------
     | Pruebas de incorporación
@@ -310,11 +323,11 @@ class IncorporacionUnidadAdquiridaServiceTest extends TestCase
             $servicio->incorporar(
                 $this->usuarioOperativo->id,
                 $unidad->id,
-                '1542',
                 $this->obtenerCondicionFisicaId(),
                 'SN-INCORPORACION-001',
                 'Equipo incorporado desde importación.'
             );
+
 
         $this->assertNotNull(
             $unidad->equipo_id
@@ -325,12 +338,27 @@ class IncorporacionUnidadAdquiridaServiceTest extends TestCase
             $unidad->equipo
         );
 
-        $this->assertSame(
-            '1542',
+
+        /*
+         * El código interno ahora se genera
+         * automáticamente al incorporar.
+         */
+
+        $this->assertNotNull(
             $unidad
                 ->equipo
                 ->codigo_interno
         );
+
+        $this->assertNotSame(
+            '',
+            trim(
+                $unidad
+                    ->equipo
+                    ->codigo_interno
+            )
+        );
+
 
         $this->assertSame(
             'SN-INCORPORACION-001',
@@ -344,6 +372,7 @@ class IncorporacionUnidadAdquiridaServiceTest extends TestCase
             $unidad->estado
         );
     }
+
 
     public function test_crea_equipo_en_almacen_principal_de_oruro(): void
     {
@@ -359,7 +388,6 @@ class IncorporacionUnidadAdquiridaServiceTest extends TestCase
             $servicio->incorporar(
                 $this->usuarioOperativo->id,
                 $unidad->id,
-                '1543',
                 $this->obtenerCondicionFisicaId()
             );
 
@@ -379,6 +407,7 @@ class IncorporacionUnidadAdquiridaServiceTest extends TestCase
         );
     }
 
+
     public function test_conserva_codigo_de_trazabilidad_de_la_unidad(): void
     {
         $unidad =
@@ -396,7 +425,6 @@ class IncorporacionUnidadAdquiridaServiceTest extends TestCase
             $servicio->incorporar(
                 $this->usuarioOperativo->id,
                 $unidad->id,
-                '1544',
                 $this->obtenerCondicionFisicaId()
             );
 
@@ -405,11 +433,26 @@ class IncorporacionUnidadAdquiridaServiceTest extends TestCase
             $unidad->codigo_trazabilidad
         );
 
-        $this->assertSame(
-            '1544',
+
+        /*
+         * El código de inventario se genera al
+         * incorporar y es distinto del código
+         * técnico de trazabilidad.
+         */
+
+        $this->assertNotNull(
             $unidad
                 ->equipo
                 ->codigo_interno
+        );
+
+        $this->assertNotSame(
+            '',
+            trim(
+                $unidad
+                    ->equipo
+                    ->codigo_interno
+            )
         );
 
         $this->assertNotSame(
@@ -419,6 +462,7 @@ class IncorporacionUnidadAdquiridaServiceTest extends TestCase
                 ->codigo_interno
         );
     }
+
 
     public function test_equipo_inicia_en_estado_recibido(): void
     {
@@ -434,7 +478,6 @@ class IncorporacionUnidadAdquiridaServiceTest extends TestCase
             $servicio->incorporar(
                 $this->usuarioOperativo->id,
                 $unidad->id,
-                '1545',
                 $this->obtenerCondicionFisicaId()
             );
 
@@ -446,6 +489,7 @@ class IncorporacionUnidadAdquiridaServiceTest extends TestCase
                 ->codigo
         );
     }
+
 
     public function test_no_permite_incorporar_unidad_que_no_llego_a_oruro(): void
     {
@@ -468,10 +512,10 @@ class IncorporacionUnidadAdquiridaServiceTest extends TestCase
         $servicio->incorporar(
             $this->usuarioOperativo->id,
             $this->unidad->id,
-            '1546',
             $this->obtenerCondicionFisicaId()
         );
     }
+
 
     public function test_no_permite_incorporar_dos_veces_la_misma_unidad(): void
     {
@@ -486,7 +530,6 @@ class IncorporacionUnidadAdquiridaServiceTest extends TestCase
         $servicio->incorporar(
             $this->usuarioOperativo->id,
             $unidad->id,
-            '1547',
             $this->obtenerCondicionFisicaId()
         );
 
@@ -497,32 +540,10 @@ class IncorporacionUnidadAdquiridaServiceTest extends TestCase
         $servicio->incorporar(
             $this->usuarioOperativo->id,
             $unidad->id,
-            '1548',
             $this->obtenerCondicionFisicaId()
         );
     }
 
-    public function test_no_permite_codigo_interno_vacio(): void
-    {
-        $unidad =
-            $this->prepararUnidadRecibidaEnOruro();
-
-        $servicio =
-            app(
-                IncorporacionUnidadAdquiridaService::class
-            );
-
-        $this->expectException(
-            ValidationException::class
-        );
-
-        $servicio->incorporar(
-            $this->usuarioOperativo->id,
-            $unidad->id,
-            '   ',
-            $this->obtenerCondicionFisicaId()
-        );
-    }
 
     /*
     |--------------------------------------------------------------------------
@@ -544,7 +565,6 @@ class IncorporacionUnidadAdquiridaServiceTest extends TestCase
             $servicio->incorporar(
                 $this->usuarioOperativo->id,
                 $unidad->id,
-                '1550',
                 $this->obtenerCondicionFisicaId()
             );
 
@@ -562,10 +582,13 @@ class IncorporacionUnidadAdquiridaServiceTest extends TestCase
         $this->assertNotNull(
             $unidad
                 ->historialCostos()
-                ->latest('fecha_calculo')
+                ->latest(
+                    'fecha_calculo'
+                )
                 ->first()
         );
     }
+
 
     public function test_conserva_el_historial_de_costo_si_la_incorporacion_es_exitosa(): void
     {
@@ -581,14 +604,15 @@ class IncorporacionUnidadAdquiridaServiceTest extends TestCase
             $servicio->incorporar(
                 $this->usuarioOperativo->id,
                 $unidad->id,
-                '1551',
                 $this->obtenerCondicionFisicaId()
             );
 
         $historial =
             $unidad
                 ->historialCostos()
-                ->latest('fecha_calculo')
+                ->latest(
+                    'fecha_calculo'
+                )
                 ->first();
 
         $this->assertNotNull(
@@ -597,17 +621,21 @@ class IncorporacionUnidadAdquiridaServiceTest extends TestCase
 
         $this->assertSame(
             $unidad->id,
-            $historial->unidad_adquirida_id
+            $historial
+                ->unidad_adquirida_id
         );
 
         $this->assertSame(
             $this->usuarioOperativo->id,
-            $historial->calculado_por_id
+            $historial
+                ->calculado_por_id
         );
 
         $this->assertGreaterThanOrEqual(
             0,
-            (float) $historial->costo_total
+            (float)
+            $historial
+                ->costo_total
         );
     }
 }

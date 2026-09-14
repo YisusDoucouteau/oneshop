@@ -37,252 +37,221 @@ class UnidadAdquiridaService
     ?string $fechaLlegada = null,
     ?string $observacion = null,
     array $datosCompra = []
-
 ): Collection {
-        return DB::transaction(
-            function () use (
-                 $usuarioId,
-    $detalleLoteId,
-    $cantidad,
-    $fechaLlegada,
-    $observacion,
-    $datosCompra
+
+    return DB::transaction(
+        function () use (
+            $usuarioId,
+            $detalleLoteId,
+            $cantidad,
+            $fechaLlegada,
+            $observacion,
+            $datosCompra
+        ) {
+
+            /*
+            |--------------------------------------------------------------------------
+            | Usuario autorizado
+            |--------------------------------------------------------------------------
+            */
+
+            $usuario =
+                $this->obtenerUsuarioAutorizado(
+                    $usuarioId
+                );
+
+
+            /*
+            |--------------------------------------------------------------------------
+            | Cantidad
+            |--------------------------------------------------------------------------
+            */
+
+            if ($cantidad < 1) {
+
+                throw ValidationException::withMessages([
+                    'cantidad' =>
+                        'La cantidad recibida en Cochabamba debe ser al menos 1.',
+                ]);
+            }
+
+
+            /*
+            |--------------------------------------------------------------------------
+            | Línea de compra
+            |--------------------------------------------------------------------------
+            */
+
+            $detalle =
+                DetalleLote::query()
+                    ->with([
+                        'lote',
+                        'producto',
+                    ])
+                    ->lockForUpdate()
+                    ->find(
+                        $detalleLoteId
+                    );
+
+
+            if (!$detalle) {
+
+                throw new ReglaNegocioException(
+                    'La línea de compra indicada no existe.'
+                );
+            }
+
+
+            if (
+                in_array(
+                    $detalle->lote->estado,
+                    [
+                        'CANCELADO',
+                        'CERRADO',
+                    ],
+                    true
+                )
             ) {
-                $usuario =
-                    $this->obtenerUsuarioAutorizado(
-                        $usuarioId
-                    );
 
-                if ($cantidad < 1) {
-                    throw ValidationException::withMessages([
-                        'cantidad' =>
-                            'La cantidad recibida en Cochabamba debe ser al menos 1.',
-                    ]);
-                }
+                throw new ReglaNegocioException(
+                    'No se pueden registrar llegadas en un lote cerrado o cancelado.'
+                );
+            }
 
-                /*
-                |--------------------------------------------------------------------------
-                | Línea de compra
-                |--------------------------------------------------------------------------
-                */
 
-                $detalle =
-                    DetalleLote::query()
-                        ->with([
-                            'lote',
-                            'producto',
-                        ])
-                        ->lockForUpdate()
-                        ->find($detalleLoteId);
+            /*
+            |--------------------------------------------------------------------------
+            | Unidades físicas ya registradas
+            |--------------------------------------------------------------------------
+            |
+            | IMPORTANTE:
+            |
+            | Aquí NO usamos cantidad_recibida.
+            |
+            | cantidad_recibida corresponde a la recepción/incorporación
+            | posterior en Oruro.
+            |
+            | Para saber cuántas máquinas ya llegaron físicamente a
+            | Cochabamba contamos las UnidadAdquirida activas.
+            |--------------------------------------------------------------------------
+            */
 
-                if (!$detalle) {
-                    throw new ReglaNegocioException(
-                        'La línea de compra indicada no existe.'
-                    );
-                }
+            $registradas =
+                UnidadAdquirida::query()
+                    ->where(
+                        'detalle_lote_id',
+                        $detalle->id
+                    )
+                    ->where(
+                        'estado',
+                        '!=',
+                        UnidadAdquirida::ESTADO_ANULADA
+                    )
+                    ->count();
 
-                if (
-                    in_array(
-                        $detalle->lote->estado,
-                        [
-                            'CANCELADO',
-                            'CERRADO',
-                        ],
+
+            $pendientes =
+                $detalle->cantidad_esperada
+                - $registradas;
+
+
+            if ($pendientes <= 0) {
+
+                throw new ReglaNegocioException(
+                    'Todas las unidades esperadas de esta línea ya fueron registradas físicamente.'
+                );
+            }
+
+
+            if ($cantidad > $pendientes) {
+
+                throw ValidationException::withMessages([
+                    'cantidad' =>
+                        "Solo quedan {$pendientes} unidad(es) pendientes para este producto.",
+                ]);
+            }
+
+
+            /*
+            |--------------------------------------------------------------------------
+            | Depósito Cochabamba
+            |--------------------------------------------------------------------------
+            */
+
+            $almacenCochabamba =
+                Almacen::query()
+                    ->where(
+                        'codigo',
+                        'COCHABAMBA'
+                    )
+                    ->where(
+                        'activo',
                         true
                     )
-                ) {
-                    throw new ReglaNegocioException(
-                        'No se pueden registrar llegadas en un lote cerrado o cancelado.'
-                    );
-                }
+                    ->first();
 
-                /*
-                |--------------------------------------------------------------------------
-                | Unidades ya registradas físicamente
-                |--------------------------------------------------------------------------
-                |
-                | Se cuentan todas las unidades creadas desde esta línea,
-                | independientemente de que después hayan viajado a Oruro.
-                |
-                */
 
-                $registradas =
-UnidadAdquirida::query()
-->where(
-    'detalle_lote_id',
-    $detalle->id
-)
-->where(
-    'estado',
-    '!=',
-    UnidadAdquirida::ESTADO_ANULADA
-)
-->count();
+            if (!$almacenCochabamba) {
 
-                $pendientes =
-                    $detalle->cantidad_esperada
-                    - $registradas;
+                throw new ReglaNegocioException(
+                    'No se encuentra disponible el depósito de Cochabamba.'
+                );
+            }
 
-                if ($pendientes <= 0) {
-                    throw new ReglaNegocioException(
-                        'Todas las unidades esperadas de esta línea ya fueron registradas físicamente.'
-                    );
-                }
 
-                if ($cantidad > $pendientes) {
+            /*
+            |--------------------------------------------------------------------------
+            | Fecha real de llegada
+            |--------------------------------------------------------------------------
+            */
 
-    throw ValidationException::withMessages([
-
-        'cantidad'=>
-        "Solo quedan {$pendientes} unidad(es) pendientes para este producto.",
-
-    ]);
-
-}
-
-                /*
-                |--------------------------------------------------------------------------
-                | Depósito Cochabamba
-                |--------------------------------------------------------------------------
-                */
-
-                $almacenCochabamba =
-                    Almacen::query()
-                        ->where(
-                            'codigo',
-                            'COCHABAMBA'
-                        )
-                        ->where(
-                            'activo',
-                            true
-                        )
-                        ->first();
-
-                if (!$almacenCochabamba) {
-                    throw new ReglaNegocioException(
-                        'No se encuentra disponible el depósito de Cochabamba.'
-                    );
-                }
-
-                /*
-                |--------------------------------------------------------------------------
-                | Fecha real de llegada
-                |--------------------------------------------------------------------------
-                |
-                | Esta fecha representa el ingreso físico de la unidad
-                | al depósito de Cochabamba.
-                |
-                | También será utilizada como parte del código
-                | temporal de trazabilidad.
-                |
-                */
-
-                $fecha =
-                    $fechaLlegada
-                        ? Carbon::parse(
-                            $fechaLlegada
-                        )
-                        : now();
-
-                /*
-                |--------------------------------------------------------------------------
-                | Reservar correlativos de trazabilidad
-                |--------------------------------------------------------------------------
-                |
-                | El código visible nace cuando la unidad llega físicamente
-                | a Cochabamba.
-                |
-                | Formato:
-                |
-                | OS-YYMMDD-NNNN
-                |
-                | Ejemplo:
-                |
-                | OS-260827-0023
-                |
-                | No corresponde al serial del fabricante ni al código
-                | interno comercial que posteriormente se asigna en Oruro.
-                |
-                | Se reserva el bloque completo de correlativos dentro
-                | de la misma transacción para evitar códigos duplicados.
-                |
-                */
-
-                $fechaCorrelativo =
-                    $fecha
-                        ->copy()
-                        ->startOfDay()
-                        ->toDateString();
-
-                /*
-                 * Si todavía no existe contador para esta fecha,
-                 * se crea inicialmente en cero.
-                 *
-                 * insertOrIgnore evita error si otra transacción
-                 * intenta crear simultáneamente la misma fecha.
-                 */
-                DB::table(
-                    'correlativos_trazabilidad_unidades'
-                )->insertOrIgnore([
-                    'fecha' =>
-                        $fechaCorrelativo,
-
-                    'ultimo_correlativo' =>
-                        0,
-
-                    'created_at' =>
-                        now(),
-
-                    'updated_at' =>
-                        now(),
-                ]);
-
-                /*
-                 * Se bloquea el contador del día durante esta
-                 * transacción para impedir que dos procesos
-                 * reserven el mismo rango.
-                 */
-                $correlativo =
-                    DB::table(
-                        'correlativos_trazabilidad_unidades'
+            $fecha =
+                $fechaLlegada
+                    ? Carbon::parse(
+                        $fechaLlegada
                     )
-                        ->where(
-                            'fecha',
-                            $fechaCorrelativo
-                        )
-                        ->lockForUpdate()
-                        ->first();
+                    : now();
 
-                if (!$correlativo) {
-                    throw new ReglaNegocioException(
-                        'No fue posible obtener el correlativo de trazabilidad.'
-                    );
-                }
 
-                $primerCorrelativo =
-                    ((int) $correlativo->ultimo_correlativo)
-                    + 1;
+            /*
+            |--------------------------------------------------------------------------
+            | Correlativo temporal de trazabilidad
+            |--------------------------------------------------------------------------
+            |
+            | Formato:
+            |
+            | OS-YYMMDD-NNNN
+            |
+            | Este código identifica a la unidad antes de que Dani
+            | le asigne su código interno comercial en Oruro.
+            |--------------------------------------------------------------------------
+            */
 
-                $ultimoCorrelativo =
-                    $primerCorrelativo
-                    + $cantidad
-                    - 1;
+            $fechaCorrelativo =
+                $fecha
+                    ->copy()
+                    ->startOfDay()
+                    ->toDateString();
 
-                /*
-                 * El formato utiliza cuatro posiciones.
-                 * Por tanto admite hasta 9.999 registros
-                 * físicos en una misma fecha.
-                 */
-                if ($ultimoCorrelativo > 9999) {
-                    throw new ReglaNegocioException(
-                        'Se alcanzó el límite diario de códigos de trazabilidad.'
-                    );
-                }
 
-                /*
-                 * Se reserva anticipadamente todo el rango
-                 * correspondiente a esta llegada.
-                 */
+            DB::table(
+                'correlativos_trazabilidad_unidades'
+            )->insertOrIgnore([
+                'fecha' =>
+                    $fechaCorrelativo,
+
+                'ultimo_correlativo' =>
+                    0,
+
+                'created_at' =>
+                    now(),
+
+                'updated_at' =>
+                    now(),
+            ]);
+
+
+            $correlativo =
                 DB::table(
                     'correlativos_trazabilidad_unidades'
                 )
@@ -290,182 +259,306 @@ UnidadAdquirida::query()
                         'fecha',
                         $fechaCorrelativo
                     )
-                    ->update([
-                        'ultimo_correlativo' =>
-                            $ultimoCorrelativo,
+                    ->lockForUpdate()
+                    ->first();
 
-                        'updated_at' =>
-                            now(),
+
+            if (!$correlativo) {
+
+                throw new ReglaNegocioException(
+                    'No fue posible obtener el correlativo de trazabilidad.'
+                );
+            }
+
+
+            $primerCorrelativo =
+                ((int) $correlativo->ultimo_correlativo)
+                + 1;
+
+
+            $ultimoCorrelativo =
+                $primerCorrelativo
+                + $cantidad
+                - 1;
+
+
+            if ($ultimoCorrelativo > 9999) {
+
+                throw new ReglaNegocioException(
+                    'Se alcanzó el límite diario de códigos de trazabilidad.'
+                );
+            }
+
+
+            /*
+            |--------------------------------------------------------------------------
+            | Reservar rango de correlativos
+            |--------------------------------------------------------------------------
+            */
+
+            DB::table(
+                'correlativos_trazabilidad_unidades'
+            )
+                ->where(
+                    'fecha',
+                    $fechaCorrelativo
+                )
+                ->update([
+                    'ultimo_correlativo' =>
+                        $ultimoCorrelativo,
+
+                    'updated_at' =>
+                        now(),
+                ]);
+
+
+            /*
+            |--------------------------------------------------------------------------
+            | Crear unidades físicas
+            |--------------------------------------------------------------------------
+            */
+
+            $unidades =
+                collect();
+
+
+            for (
+                $indice = 0;
+                $indice < $cantidad;
+                $indice++
+            ) {
+
+                $numeroCorrelativo =
+                    $primerCorrelativo
+                    + $indice;
+
+
+                $codigoTrazabilidad =
+                    sprintf(
+                        'OS-%s-%04d',
+                        $fecha->format('ymd'),
+                        $numeroCorrelativo
+                    );
+
+
+                $unidad =
+                    UnidadAdquirida::create([
+
+                        /*
+                         * Procedencia
+                         */
+
+                        'detalle_lote_id' =>
+                            $detalle->id,
+
+                        'adquisicion_directa_id' =>
+                            null,
+
+                        'producto_id' =>
+                            $detalle->producto_id,
+
+
+                        /*
+                         * Datos económicos de compra
+                         */
+
+                        'precio_compra' =>
+                            $datosCompra[
+                                'precio_compra'
+                            ]
+                            ?? null,
+
+                        'moneda_id' =>
+                            $datosCompra[
+                                'moneda_id'
+                            ]
+                            ?? null,
+
+                        'tipo_cambio_compra_id' =>
+                            $datosCompra[
+                                'tipo_cambio_compra_id'
+                            ]
+                            ?? null,
+
+                        'precio_compra_bob' =>
+                            $datosCompra[
+                                'precio_compra_bob'
+                            ]
+                            ?? null,
+
+                        'fecha_compra' =>
+                            $datosCompra[
+                                'fecha_compra'
+                            ]
+                            ?? null,
+
+                        'referencia_compra' =>
+                            $datosCompra[
+                                'referencia_compra'
+                            ]
+                            ?? null,
+
+                        'proveedor_compra' =>
+                            $datosCompra[
+                                'proveedor_compra'
+                            ]
+                            ?? null,
+
+
+                        /*
+                         * Ubicación física
+                         */
+
+                        'almacen_actual_id' =>
+                            $almacenCochabamba->id,
+
+
+                        /*
+                         * Estado inicial
+                         */
+
+                        'estado' =>
+                            UnidadAdquirida::ESTADO_RECIBIDA_ORIGEN,
+
+
+                        /*
+                         * Trazabilidad
+                         */
+
+                        'codigo_trazabilidad' =>
+                            $codigoTrazabilidad,
+
+
+                        /*
+                         * Fecha
+                         */
+
+                        'fecha_llegada' =>
+                            $fecha,
+
+
+                        /*
+                         * Usuario
+                         */
+
+                        'registrado_por_id' =>
+                            $usuario->id,
+
+
+                        /*
+                         * Preparación
+                         */
+
+                        'requiere_servicio' =>
+                            false,
+
+
+                        /*
+                         * Observación de llegada
+                         */
+
+                        'observacion_revision' =>
+                            $observacion,
                     ]);
 
-                /*
-|--------------------------------------------------------------------------
-| Crear unidades físicas
-|--------------------------------------------------------------------------
-*/
 
-$unidades = collect();
+                $unidades->push(
+                    $unidad
+                );
+            }
 
 
-for (
-    $indice = 0;
-    $indice < $cantidad;
-    $indice++
-) {
-
-    $numeroCorrelativo =
-        $primerCorrelativo + $indice;
-
-
-    $codigoTrazabilidad =
-        sprintf(
-            'OS-%s-%04d',
-            $fecha->format('ymd'),
-            $numeroCorrelativo
-        );
-
-
-   $unidad = UnidadAdquirida::create([
-
-    'detalle_lote_id' =>
-        $detalle->id,
-
-    'adquisicion_directa_id' =>
-        null,
-
-    'producto_id' =>
-        $detalle->producto_id,
-
-
-    // Datos económicos de compra
-    'precio_compra' =>
-        $datosCompra['precio_compra'] ?? null,
-
-    'moneda_id' =>
-        $datosCompra['moneda_id'] ?? null,
-
-    'tipo_cambio_compra_id' =>
-        $datosCompra['tipo_cambio_compra_id'] ?? null,
-
-    'precio_compra_bob' =>
-        $datosCompra['precio_compra_bob'] ?? null,
-
-    'fecha_compra' =>
-    $datosCompra['fecha_compra'] ?? null,
-
-'referencia_compra' =>
-    $datosCompra['referencia_compra'] ?? null,
-
-'proveedor_compra' =>
-    $datosCompra['proveedor_compra'] ?? null,
-    'almacen_actual_id' =>
-        $almacenCochabamba->id,
+            /*
+            |--------------------------------------------------------------------------
+            | MUY IMPORTANTE
+            |--------------------------------------------------------------------------
+            |
+            | Aquí NO se incrementa:
+            |
+            | $detalle->cantidad_recibida
+            |
+            | La llegada a Cochabamba únicamente genera unidades adquiridas.
+            |
+            | El flujo es:
+            |
+            | compra/lote
+            |      ↓
+            | llegada Cochabamba
+            |      ↓
+            | UnidadAdquirida
+            |      ↓
+            | revisión / preparación
+            |      ↓
+            | envío a Oruro
+            |      ↓
+            | recepción Oruro
+            |      ↓
+            | incorporación a inventario
+            |
+            |--------------------------------------------------------------------------
+            */
 
 
-    'estado' =>
-        UnidadAdquirida::ESTADO_RECIBIDA_ORIGEN,
+            /*
+            |--------------------------------------------------------------------------
+            | Evento logístico del lote
+            |--------------------------------------------------------------------------
+            */
+
+            $tipoEvento =
+                TipoEventoLogistico::query()
+                    ->where(
+                        'codigo',
+                        'RECEPCION_COCHABAMBA'
+                    )
+                    ->where(
+                        'activo',
+                        true
+                    )
+                    ->first();
 
 
-    'codigo_trazabilidad' =>
-        $codigoTrazabilidad,
+            if ($tipoEvento) {
+
+                EventoLogisticoLote::create([
+
+                    'lote_id' =>
+                        $detalle->lote_id,
 
 
-    'fecha_llegada' =>
-        $fecha,
+                    'tipo_evento_logistico_id' =>
+                        $tipoEvento->id,
 
 
-    'registrado_por_id' =>
-        $usuario->id,
+                    'usuario_id' =>
+                        $usuario->id,
 
 
-    'requiere_servicio' =>
-        false,
+                    'fecha_evento' =>
+                        $fecha,
 
 
-    'observacion_revision' =>
-        $observacion,
-
-]);
+                    'ubicacion' =>
+                        'Depósito Cochabamba',
 
 
-    $unidades->push($unidad);
+                    'descripcion' =>
+                        $this->descripcionLlegada(
+                            $detalle,
+                            $cantidad,
+                            $registradas
+                                + $cantidad,
+                            $observacion
+                        ),
+                ]);
+            }
 
+
+            return $unidades;
+        },
+        3
+    );
 }
-
-
-/*
-|--------------------------------------------------------------------------
-| Actualizar cantidad recibida del detalle del lote
-|--------------------------------------------------------------------------
-*/
-
-$detalle->increment(
-    'cantidad_recibida',
-    $cantidad
-);
-
-
-/*
-|--------------------------------------------------------------------------
-| Evento general del lote
-|--------------------------------------------------------------------------
-*/
-
-$tipoEvento =
-    TipoEventoLogistico::query()
-        ->where(
-            'codigo',
-            'RECEPCION_COCHABAMBA'
-        )
-        ->where(
-            'activo',
-            true
-        )
-        ->first();
-
-
-if ($tipoEvento) {
-
-    EventoLogisticoLote::create([
-
-        'lote_id' =>
-            $detalle->lote_id,
-
-
-        'tipo_evento_logistico_id' =>
-            $tipoEvento->id,
-
-
-        'usuario_id' =>
-            $usuario->id,
-
-
-        'fecha_evento' =>
-            $fecha,
-
-
-        'ubicacion' =>
-            'Depósito Cochabamba',
-
-
-        'descripcion' =>
-            $this->descripcionLlegada(
-                $detalle,
-                $cantidad,
-                $registradas + $cantidad,
-                $observacion
-            ),
-
-    ]);
-
-}
-
-
-return $unidades;
-            },
-            3
-        );
-    }
 
     private function descripcionLlegada(
         DetalleLote $detalle,

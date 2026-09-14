@@ -3,73 +3,100 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
-
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 
 class UnidadAdquirida extends Model
 {
-
     protected $table = 'unidades_adquiridas';
 
+    /*
+    |--------------------------------------------------------------------------
+    | Estados
+    |--------------------------------------------------------------------------
+    */
+
     public const ESTADO_PENDIENTE_LLEGADA =
-    'PENDIENTE_LLEGADA';
+        'PENDIENTE_LLEGADA';
 
     public const ESTADO_RECIBIDA_ORIGEN =
-    'RECIBIDA_ORIGEN';
+        'RECIBIDA_ORIGEN';
 
     public const ESTADO_EN_REVISION =
-    'EN_REVISION';
+        'EN_REVISION';
 
     public const ESTADO_EN_PREPARACION =
-    'EN_PREPARACION';
+        'EN_PREPARACION';
 
     public const ESTADO_LISTA_ENVIO =
-    'LISTA_ENVIO';
+        'LISTA_ENVIO';
 
     public const ESTADO_ENVIADA =
-    'ENVIADA';
+        'ENVIADA';
 
     public const ESTADO_RECIBIDA_ORURO =
-    'RECIBIDA_ORURO';
+        'RECIBIDA_ORURO';
 
     public const ESTADO_INCORPORADA =
-    'INCORPORADA';
+        'INCORPORADA';
+
     public const ESTADO_ANULADA =
-    'ANULADA';
+        'ANULADA';
+
+
+    /*
+    |--------------------------------------------------------------------------
+    | Fillable
+    |--------------------------------------------------------------------------
+    */
+
     protected $fillable = [
         'detalle_lote_id',
         'adquisicion_directa_id',
         'producto_id',
+
         'nombre_equipo',
         'modelo_equipo',
+
         'precio_compra',
         'moneda_id',
         'tipo_cambio_compra_id',
         'precio_compra_bob',
+
         'fecha_compra',
         'referencia_compra',
         'proveedor_compra',
+
         'almacen_actual_id',
         'estado',
         'codigo_trazabilidad',
+
         'fecha_llegada',
         'fecha_revision',
         'fecha_lista_envio',
-        'motivo_anulacion',
-        'anulado_por_id',
-        'fecha_anulacion',
+
         'serial_fabricante',
+
+        /*
+         * Clasificación física/técnica.
+         */
+        'grado_recibido',
+        'grado_final',
 
         'procesador',
         'generacion_procesador',
+
         'ram_gb',
+
         'almacenamiento_gb',
         'tipo_almacenamiento',
+
         'tarjeta_grafica',
+
         'pantalla_pulgadas',
         'resolucion',
+
         'sistema_operativo',
 
         'enciende',
@@ -84,23 +111,63 @@ class UnidadAdquirida extends Model
         'revisado_por_id',
 
         'equipo_id',
+
+        'motivo_anulacion',
+        'anulado_por_id',
+        'fecha_anulacion',
     ];
+
+
+    /*
+    |--------------------------------------------------------------------------
+    | Casts
+    |--------------------------------------------------------------------------
+    */
 
     protected $casts = [
-        'fecha_llegada' => 'datetime',
-        'fecha_revision' => 'datetime',
-        'fecha_lista_envio' => 'datetime',
-        'fecha_compra' => 'date',
+        'fecha_llegada' =>
+            'datetime',
 
-        'ram_gb' => 'integer',
-        'almacenamiento_gb' => 'integer',
-        'pantalla_pulgadas' => 'decimal:1',
+        'fecha_revision' =>
+            'datetime',
 
-        'enciende' => 'boolean',
-        'tiene_sistema_operativo' => 'boolean',
-        'tiene_cargador' => 'boolean',
-        'requiere_servicio' => 'boolean',
+        'fecha_lista_envio' =>
+            'datetime',
+
+        'fecha_compra' =>
+            'date',
+
+        'fecha_anulacion' =>
+            'datetime',
+
+        'ram_gb' =>
+            'integer',
+
+        'almacenamiento_gb' =>
+            'integer',
+
+        'pantalla_pulgadas' =>
+            'decimal:1',
+
+        'enciende' =>
+            'boolean',
+
+        'tiene_sistema_operativo' =>
+            'boolean',
+
+        'tiene_cargador' =>
+            'boolean',
+
+        'requiere_servicio' =>
+            'boolean',
     ];
+
+
+    /*
+    |--------------------------------------------------------------------------
+    | Relaciones de origen
+    |--------------------------------------------------------------------------
+    */
 
     public function detalleLote(): BelongsTo
     {
@@ -110,6 +177,7 @@ class UnidadAdquirida extends Model
         );
     }
 
+
     public function adquisicionDirecta(): BelongsTo
     {
         return $this->belongsTo(
@@ -117,6 +185,13 @@ class UnidadAdquirida extends Model
             'adquisicion_directa_id'
         );
     }
+
+
+    /*
+    |--------------------------------------------------------------------------
+    | Producto y ubicación
+    |--------------------------------------------------------------------------
+    */
 
     public function producto(): BelongsTo
     {
@@ -126,6 +201,7 @@ class UnidadAdquirida extends Model
         );
     }
 
+
     public function almacenActual(): BelongsTo
     {
         return $this->belongsTo(
@@ -133,6 +209,13 @@ class UnidadAdquirida extends Model
             'almacen_actual_id'
         );
     }
+
+
+    /*
+    |--------------------------------------------------------------------------
+    | Usuarios
+    |--------------------------------------------------------------------------
+    */
 
     public function registradoPor(): BelongsTo
     {
@@ -142,6 +225,7 @@ class UnidadAdquirida extends Model
         );
     }
 
+
     public function revisadoPor(): BelongsTo
     {
         return $this->belongsTo(
@@ -149,6 +233,22 @@ class UnidadAdquirida extends Model
             'revisado_por_id'
         );
     }
+
+
+    public function anuladoPor(): BelongsTo
+    {
+        return $this->belongsTo(
+            User::class,
+            'anulado_por_id'
+        );
+    }
+
+
+    /*
+    |--------------------------------------------------------------------------
+    | Inventario oficial
+    |--------------------------------------------------------------------------
+    */
 
     public function equipo(): BelongsTo
     {
@@ -158,27 +258,45 @@ class UnidadAdquirida extends Model
         );
     }
 
-    public function provieneDeLote(): bool
-    {
-        return $this->detalle_lote_id !== null;
-    }
 
-    public function provieneDeAdquisicionDirecta(): bool
-    {
-        return $this->adquisicion_directa_id !== null;
-    }
+    /*
+    |--------------------------------------------------------------------------
+    | Intervenciones de preparación
+    |--------------------------------------------------------------------------
+    */
 
-    public function estaIncorporadaInventario(): bool
-    {
-        return $this->equipo_id !== null;
-    }
     public function intervenciones(): HasMany
     {
         return $this->hasMany(
             IntervencionUnidadAdquirida::class,
             'unidad_adquirida_id'
-        )->orderBy('fecha_inicio');
+        )
+            ->orderBy('fecha_inicio');
     }
+
+
+    /*
+    |--------------------------------------------------------------------------
+    | Costos de preparación
+    |--------------------------------------------------------------------------
+    */
+
+    public function costosPreparacion(): HasMany
+    {
+        return $this->hasMany(
+            CostoUnidadAdquirida::class,
+            'unidad_adquirida_id'
+        )
+            ->orderBy('fecha_costo');
+    }
+
+
+    /*
+    |--------------------------------------------------------------------------
+    | Envío Cochabamba -> Oruro
+    |--------------------------------------------------------------------------
+    */
+
     public function envioImportacionUnidad(): HasOne
     {
         return $this->hasOne(
@@ -186,6 +304,14 @@ class UnidadAdquirida extends Model
             'unidad_adquirida_id'
         );
     }
+
+
+    /*
+    |--------------------------------------------------------------------------
+    | Costos de importación del lote
+    |--------------------------------------------------------------------------
+    */
+
     public function asignacionesCostos(): HasMany
     {
         return $this->hasMany(
@@ -193,20 +319,32 @@ class UnidadAdquirida extends Model
             'unidad_adquirida_id'
         );
     }
-    public function historialCostos()
+
+
+    public function historialCostos(): HasMany
     {
         return $this->hasMany(
             HistorialCostoUnidad::class,
             'unidad_adquirida_id'
         );
     }
-    public function moneda()
+
+
+    /*
+    |--------------------------------------------------------------------------
+    | Moneda / tipo de cambio de compra
+    |--------------------------------------------------------------------------
+    */
+
+    public function moneda(): BelongsTo
     {
         return $this->belongsTo(
             Moneda::class,
             'moneda_id'
         );
     }
+
+
     public function tipoCambioCompra(): BelongsTo
     {
         return $this->belongsTo(
@@ -214,73 +352,148 @@ class UnidadAdquirida extends Model
             'tipo_cambio_compra_id'
         );
     }
-    public function getAlmacenamientoCompletoAttribute()
+
+
+    /*
+     * Se mantiene por compatibilidad con código
+     * existente que utiliza $unidad->tipoCambio.
+     */
+    public function tipoCambio(): BelongsTo
+    {
+        return $this->belongsTo(
+            TipoCambio::class,
+            'tipo_cambio_compra_id'
+        );
+    }
+
+
+    /*
+    |--------------------------------------------------------------------------
+    | Helpers de procedencia
+    |--------------------------------------------------------------------------
+    */
+
+    public function provieneDeLote(): bool
+    {
+        return $this->detalle_lote_id !== null;
+    }
+
+
+    public function provieneDeAdquisicionDirecta(): bool
+    {
+        return $this->adquisicion_directa_id !== null;
+    }
+
+
+    /*
+    |--------------------------------------------------------------------------
+    | Helpers de inventario
+    |--------------------------------------------------------------------------
+    */
+
+    public function estaIncorporadaInventario(): bool
+    {
+        return $this->equipo_id !== null;
+    }
+
+
+    /*
+    |--------------------------------------------------------------------------
+    | Helpers de estado
+    |--------------------------------------------------------------------------
+    */
+
+    public function estaEnRevision(): bool
+    {
+        return $this->estado ===
+            self::ESTADO_EN_REVISION;
+    }
+
+
+    public function estaEnPreparacion(): bool
+    {
+        return $this->estado ===
+            self::ESTADO_EN_PREPARACION;
+    }
+
+
+    public function estaListaParaEnvio(): bool
+    {
+        return $this->estado ===
+            self::ESTADO_LISTA_ENVIO;
+    }
+
+
+    /*
+    |--------------------------------------------------------------------------
+    | Accesores
+    |--------------------------------------------------------------------------
+    */
+
+    public function getAlmacenamientoCompletoAttribute(): ?string
     {
         if (!$this->almacenamiento_gb) {
             return null;
         }
 
-        return $this->almacenamiento_gb .
-            ' GB ' .
-            strtoupper($this->tipo_almacenamiento ?? '');
+        return
+            $this->almacenamiento_gb
+            . ' GB '
+            . strtoupper(
+                $this->tipo_almacenamiento
+                ?? ''
+            );
     }
 
 
-    public function tipoCambio()
+    /*
+    |--------------------------------------------------------------------------
+    | Costos de importación
+    |--------------------------------------------------------------------------
+    */
+
+    public function totalCostosImportacion(): float
     {
-        return $this->belongsTo(TipoCambio::class, 'tipo_cambio_compra_id');
+        return (float) $this
+            ->asignacionesCostos()
+            ->sum(
+                'monto_asignado_bob'
+            );
     }
-    public function totalCostosImportacion()
+
+
+    public function getCostoImportacionBobAttribute(): float
     {
-        return $this->asignacionesCostos()
-            ->sum('monto_asignado_bob');
+        return
+            $this->calcularCostoImportacionActivo();
     }
 
 
-    
-
-public function getCostoImportacionBobAttribute(): float
-{
-    return $this->calcularCostoImportacionActivo();
-}
-
-
-private function calcularCostoImportacionActivo(): float
-{
-    return (float) $this
-        ->asignacionesCostos()
-
-        ->whereHas(
-            'costoLote',
-            function ($query) {
-
-                $query->where(
-                    'estado',
-                    'ACTIVO'
-                );
-
-            }
-        )
-
-        ->get()
-
-        ->sum(function ($asignacion) {
-
-            return
-                (float) $asignacion->monto_asignado_bob
-                +
-                (float) $asignacion->ajuste_redondeo_bob;
-
-        });
-}
-
-
-    public function anuladoPor(): BelongsTo
-{
-    return $this->belongsTo(
-        User::class,
-        'anulado_por_id'
-    );
-}
-    
+    private function calcularCostoImportacionActivo(): float
+    {
+        return (float) $this
+            ->asignacionesCostos()
+            ->whereHas(
+                'costoLote',
+                function ($query) {
+                    $query->where(
+                        'estado',
+                        'ACTIVO'
+                    );
+                }
+            )
+            ->get()
+            ->sum(
+                function ($asignacion) {
+                    return
+                        (float)
+                        $asignacion
+                            ->monto_asignado_bob
+                        +
+                        (float)
+                        $asignacion
+                            ->ajuste_redondeo_bob;
+                }
+            );
+    }
 }

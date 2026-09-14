@@ -452,36 +452,7 @@ class LoteService
                     );
             }
         }
-        /*
-|--------------------------------------------------------------------------
-| Evitar productos duplicados dentro del mismo lote
-|--------------------------------------------------------------------------
-*/
-
-$detalleExistente = DetalleLote::query()
-    ->where('lote_id', $lote->id)
-    ->where('producto_id', $producto->id)
-    ->first();
-
-
-if ($detalleExistente) {
-
-
-    $detalleExistente->update([
-
-        'cantidad_esperada' =>
-            $detalleExistente->cantidad_esperada
-            +
-            $validados['cantidad_esperada']
-
-    ]);
-
-
-    return $detalleExistente->fresh([
-        'producto.marca'
-    ]);
-
-}
+        
         /*
         |--------------------------------------------------------------------------
         | Línea de compra

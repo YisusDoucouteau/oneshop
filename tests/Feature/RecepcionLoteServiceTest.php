@@ -9,11 +9,11 @@ use App\Models\Marca;
 use App\Models\Producto;
 use App\Models\Proveedor;
 use App\Models\Rol;
+use App\Models\UnidadAdquirida;
 use App\Models\User;
 use App\Services\LoteService;
 use App\Services\RecepcionLoteService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
-use Illuminate\Validation\ValidationException;
 use Tests\TestCase;
 
 class RecepcionLoteServiceTest extends TestCase
@@ -105,8 +105,7 @@ class RecepcionLoteServiceTest extends TestCase
         ]);
 
         $this->producto = Producto::create([
-            'categoria_producto_id' =>
-                $categoria->id,
+            'categoria_producto_id' => $categoria->id,
             'marca_id' => $marca->id,
             'codigo' => 'REC-P001',
             'nombre' => 'Dell Latitude',
@@ -132,17 +131,10 @@ class RecepcionLoteServiceTest extends TestCase
         $lote = $loteService->crearLote(
             $this->operativo->id,
             [
-                'proveedor_id' =>
-                    $this->proveedor->id,
-
-                'codigo' =>
-                    'IMP-RECEPCION-001',
-
-                'referencia_compra' =>
-                    'REF-REC-001',
-
-                'origen' =>
-                    'Miami, Estados Unidos',
+                'proveedor_id' => $this->proveedor->id,
+                'codigo' => 'IMP-RECEPCION-001',
+                'referencia_compra' => 'REF-REC-001',
+                'origen' => 'Miami, Estados Unidos',
             ]
         );
 
@@ -150,87 +142,74 @@ class RecepcionLoteServiceTest extends TestCase
             $this->operativo->id,
             $lote->id,
             [
-                'producto_id' =>
-                    $this->producto->id,
-
-                'cantidad_esperada' =>
-                    $cantidadEsperada,
+                'producto_id' => $this->producto->id,
+                'cantidad_esperada' => $cantidadEsperada,
             ]
         );
     }
 
-    private function datosEquipo(
-        string $codigo
+    private function datosUnidad(
+        int $cantidad = 1,
+        ?string $observacion = null
     ): array {
         return [
-            'almacen_actual_id' =>
-                $this->almacen->id,
-
-            'codigo_interno' =>
-                $codigo,
-
-            'serial_fabricante' =>
-                'SER-' . $codigo,
-
-            'procesador' =>
-                'Intel Core i5',
-
-            'ram_gb' => 16,
-
-            'almacenamiento_gb' => 512,
-
-            'tipo_almacenamiento' =>
-                'SSD',
-
-            'bateria_porcentaje' => 90,
+            'cantidad' => $cantidad,
+            'observacion' => $observacion,
         ];
     }
 
-    public function test_recibir_equipo_lo_asocia_al_lote_y_actualiza_cantidad(): void
+    public function test_recibir_unidad_crea_unidad_adquirida_en_cochabamba(): void
     {
         $detalle = $this->crearDetalle(2);
 
-        $equipo = app(
+        $unidad = app(
             RecepcionLoteService::class
-        )->recibirEquipo(
+        )->recibirUnidad(
             $this->operativo->id,
             $detalle->id,
-            $this->datosEquipo('REC-0001')
+            $this->datosUnidad(
+                1,
+                'Primera unidad recibida en Cochabamba.'
+            )
         );
 
-        $this->assertDatabaseHas('equipos', [
-            'id' => $equipo->id,
-            'codigo_interno' => 'REC-0001',
-            'detalle_lote_id' => $detalle->id,
-            'producto_id' =>
-                $this->producto->id,
-        ]);
-
-        $this->assertSame(
-            'RECIBIDO',
-            $equipo->estadoActual->codigo
+        $this->assertDatabaseHas(
+            'unidades_adquiridas',
+            [
+                'id' => $unidad->id,
+                'detalle_lote_id' => $detalle->id,
+                'producto_id' => $this->producto->id,
+                'almacen_actual_id' => $this->almacen->id,
+                'estado' => UnidadAdquirida::ESTADO_RECIBIDA_ORIGEN,
+            ]
         );
 
+        $this->assertNotNull(
+            $unidad->codigo_trazabilidad
+        );
+
+        /*
+         * En Cochabamba todavía NO existe Equipo.
+         */
+        $this->assertNull(
+            $unidad->equipo_id
+        );
+
+        /*
+         * cantidad_recibida queda reservada
+         * para la etapa posterior en Oruro.
+         */
         $this->assertDatabaseHas(
             'detalles_lotes',
             [
                 'id' => $detalle->id,
                 'cantidad_esperada' => 2,
-                'cantidad_recibida' => 1,
-            ]
-        );
-
-        $this->assertDatabaseHas(
-            'lotes',
-            [
-                'id' => $detalle->lote_id,
-                'estado' =>
-                    'RECEPCION_PARCIAL',
+                'cantidad_recibida' => 0,
             ]
         );
     }
 
-    public function test_ultima_unidad_marca_lote_como_recibido(): void
+    public function test_puede_recibir_varias_unidades_del_mismo_detalle(): void
     {
         $detalle = $this->crearDetalle(2);
 
@@ -238,36 +217,43 @@ class RecepcionLoteServiceTest extends TestCase
             RecepcionLoteService::class
         );
 
-        $servicio->recibirEquipo(
+        $servicio->recibirUnidad(
             $this->operativo->id,
             $detalle->id,
-            $this->datosEquipo('REC-0010')
+            $this->datosUnidad(1)
         );
 
-        $servicio->recibirEquipo(
+        $servicio->recibirUnidad(
             $this->operativo->id,
             $detalle->id,
-            $this->datosEquipo('REC-0011')
+            $this->datosUnidad(1)
+        );
+
+        $this->assertSame(
+            2,
+            UnidadAdquirida::query()
+                ->where(
+                    'detalle_lote_id',
+                    $detalle->id
+                )
+                ->where(
+                    'estado',
+                    '!=',
+                    UnidadAdquirida::ESTADO_ANULADA
+                )
+                ->count()
         );
 
         $this->assertDatabaseHas(
             'detalles_lotes',
             [
                 'id' => $detalle->id,
-                'cantidad_recibida' => 2,
-            ]
-        );
-
-        $this->assertDatabaseHas(
-            'lotes',
-            [
-                'id' => $detalle->lote_id,
-                'estado' => 'RECIBIDO',
+                'cantidad_recibida' => 0,
             ]
         );
     }
 
-    public function test_no_permite_recibir_mas_unidades_de_las_esperadas(): void
+    public function test_no_permite_recibir_mas_unidades_de_las_compradas(): void
     {
         $detalle = $this->crearDetalle(1);
 
@@ -275,118 +261,128 @@ class RecepcionLoteServiceTest extends TestCase
             RecepcionLoteService::class
         );
 
-        $servicio->recibirEquipo(
+        $servicio->recibirUnidad(
             $this->operativo->id,
             $detalle->id,
-            $this->datosEquipo('REC-0020')
+            $this->datosUnidad(1)
         );
 
         $this->expectException(
             ReglaNegocioException::class
         );
 
-        $this->expectExceptionMessage(
-            'cantidad esperada'
-        );
-
-        $servicio->recibirEquipo(
+        $servicio->recibirUnidad(
             $this->operativo->id,
             $detalle->id,
-            $this->datosEquipo('REC-0021')
+            $this->datosUnidad(1)
         );
     }
 
-    public function test_evento_de_recepcion_del_lote_no_se_duplica_por_equipo(): void
+    public function test_una_llegada_de_varias_unidades_genera_un_solo_evento(): void
+{
+    $detalle = $this->crearDetalle(2);
+
+    $servicio = app(
+        RecepcionLoteService::class
+    );
+
+    /*
+     * Llegan físicamente dos unidades en una sola recepción.
+     *
+     * Deben crearse dos UnidadAdquirida,
+     * pero solamente un evento logístico de llegada.
+     */
+    $servicio->recibirUnidad(
+        $this->operativo->id,
+        $detalle->id,
+        $this->datosUnidad(2)
+    );
+
+    $this->assertSame(
+        2,
+        UnidadAdquirida::query()
+            ->where(
+                'detalle_lote_id',
+                $detalle->id
+            )
+            ->count()
+    );
+
+    $this->assertSame(
+        1,
+        \App\Models\EventoLogisticoLote::query()
+            ->where(
+                'lote_id',
+                $detalle->lote_id
+            )
+            ->whereHas(
+                'tipoEvento',
+                fn ($query) =>
+                    $query->where(
+                        'codigo',
+                        'RECEPCION_COCHABAMBA'
+                    )
+            )
+            ->count()
+    );
+}
+
+    public function test_si_falla_la_llegada_no_crea_unidades_adicionales(): void
     {
-        $detalle = $this->crearDetalle(2);
+        $detalle = $this->crearDetalle(1);
 
         $servicio = app(
             RecepcionLoteService::class
         );
 
-        $servicio->recibirEquipo(
+        $servicio->recibirUnidad(
             $this->operativo->id,
             $detalle->id,
-            $this->datosEquipo('REC-0030')
-        );
-
-        $servicio->recibirEquipo(
-            $this->operativo->id,
-            $detalle->id,
-            $this->datosEquipo('REC-0031')
-        );
-
-        $this->assertSame(
-            1,
-            \App\Models\EventoLogisticoLote::query()
-                ->where(
-                    'lote_id',
-                    $detalle->lote_id
-                )
-                ->whereHas(
-                    'tipoEvento',
-                    fn ($query) =>
-                        $query->where(
-                            'codigo',
-                            'RECEPCION_COCHABAMBA'
-                        )
-                )
-                ->count()
-        );
-    }
-
-    public function test_si_falla_registro_del_equipo_no_incrementa_recepcion(): void
-    {
-        $detalle = $this->crearDetalle(2);
-
-        $servicio = app(
-            RecepcionLoteService::class
-        );
-
-        $servicio->recibirEquipo(
-            $this->operativo->id,
-            $detalle->id,
-            $this->datosEquipo('REC-DUPLICADO')
+            $this->datosUnidad(1)
         );
 
         try {
-            $servicio->recibirEquipo(
+            $servicio->recibirUnidad(
                 $this->operativo->id,
                 $detalle->id,
-                $this->datosEquipo('REC-DUPLICADO')
+                $this->datosUnidad(1)
             );
 
             $this->fail(
-                'Se esperaba una excepción de validación.'
+                'Se esperaba una excepción por superar la cantidad comprada.'
             );
 
-        } catch (
-            ValidationException $exception
-        ) {
-            $this->assertArrayHasKey(
-                'codigo_interno',
-                $exception->errors()
+        } catch (ReglaNegocioException $exception) {
+            $this->assertNotEmpty(
+                $exception->getMessage()
             );
         }
+
+        $this->assertSame(
+            1,
+            UnidadAdquirida::query()
+                ->where(
+                    'detalle_lote_id',
+                    $detalle->id
+                )
+                ->where(
+                    'estado',
+                    '!=',
+                    UnidadAdquirida::ESTADO_ANULADA
+                )
+                ->count()
+        );
 
         $this->assertDatabaseHas(
             'detalles_lotes',
             [
                 'id' => $detalle->id,
-                'cantidad_recibida' => 1,
+                'cantidad_recibida' => 0,
             ]
-        );
-
-        $this->assertSame(
-            1,
-            \App\Models\Equipo::where(
-                'codigo_interno',
-                'REC-DUPLICADO'
-            )->count()
         );
     }
 
-    public function test_vendedor_no_puede_recibir_equipos_de_importacion(): void
+    public function test_vendedor_no_puede_recibir_unidades_de_importacion(): void
     {
         $detalle = $this->crearDetalle(1);
 
@@ -396,10 +392,10 @@ class RecepcionLoteServiceTest extends TestCase
 
         app(
             RecepcionLoteService::class
-        )->recibirEquipo(
+        )->recibirUnidad(
             $this->vendedor->id,
             $detalle->id,
-            $this->datosEquipo('REC-0040')
+            $this->datosUnidad(1)
         );
     }
 }

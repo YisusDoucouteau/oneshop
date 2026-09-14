@@ -8,6 +8,8 @@ use App\Models\EnvioImportacion;
 use App\Models\EnvioImportacionUnidad;
 use App\Models\UnidadAdquirida;
 use App\Models\User;
+use App\Models\EventoLogisticoLote;
+use App\Models\TipoEventoLogistico;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Validation\ValidationException;
@@ -616,16 +618,30 @@ class EnvioImportacionService
                 ]);
 
                 foreach (
-                    $envio->unidadesEnvio
-                    as $detalle
-                ) {
-                    $detalle
-                        ->unidadAdquirida()
-                        ->update([
-                            'estado' =>
-                                UnidadAdquirida::ESTADO_ENVIADA,
-                        ]);
-                }
+    $envio->unidadesEnvio
+    as $detalle
+) {
+    $detalle
+        ->unidadAdquirida()
+        ->update([
+            'estado' =>
+                UnidadAdquirida::ESTADO_ENVIADA,
+        ]);
+}
+
+
+/*
+ * Registro histórico del despacho.
+ *
+ * Se registra a nivel de lote porque
+ * representa la trazabilidad de la importación.
+ */
+$this->registrarEventoLogisticoLotesDelEnvio(
+    $envio,
+    'DESPACHO_ORURO',
+    $usuario,
+    'Despacho de unidades desde Cochabamba hacia Oruro.'
+);
 
                 return $envio->fresh();
             },
@@ -1290,13 +1306,101 @@ public function registrarIncidenciaRecepcion(
                             ? now()
                             : null,
                 ]);
-
+                $this->registrarEventoLogisticoLotesDelEnvio(
+                    $envio,
+                    'RECEPCION_ORURO',
+                    $usuario,
+                    'Recepción de unidades en Oruro.'
+                );
                 return $envio->fresh();
             },
             3
         );
     }
+   private function registrarEventoLogisticoLotesDelEnvio(
+    EnvioImportacion $envio,
+    string $codigoEvento,
+    User $usuario,
+    string $descripcion
+): void {
 
+    $tipoEvento =
+        TipoEventoLogistico::where(
+            'codigo',
+            $codigoEvento
+        )->first();
+
+
+    if (!$tipoEvento) {
+        throw new ReglaNegocioException(
+            "No existe el tipo de evento logístico {$codigoEvento}."
+        );
+    }
+
+
+    $lotes =
+        $envio
+            ->unidadesEnvio()
+            ->with(
+                'unidadAdquirida.detalleLote.lote'
+            )
+            ->get()
+            ->map(function ($detalle) {
+
+                return optional(
+                    optional(
+                        $detalle->unidadAdquirida
+                    )->detalleLote
+                )->lote;
+
+            })
+            ->filter()
+            ->unique(function ($lote) {
+                return $lote->id;
+            });
+
+
+    foreach ($lotes as $lote) {
+$existe =
+    EventoLogisticoLote::where(
+        'lote_id',
+        $lote->id
+    )
+    ->where(
+        'tipo_evento_logistico_id',
+        $tipoEvento->id
+    )
+    ->exists();
+
+
+if ($existe) {
+    continue;
+}
+        EventoLogisticoLote::create([
+
+            'lote_id' =>
+                $lote->id,
+
+            'tipo_evento_logistico_id' =>
+                $tipoEvento->id,
+
+            'usuario_id' =>
+                $usuario->id,
+
+            'fecha_evento' =>
+                now(),
+
+            'ubicacion' =>
+                $codigoEvento === 'DESPACHO_ORURO'
+                    ? 'Cochabamba'
+                    : 'Oruro',
+
+            'descripcion' =>
+                $descripcion,
+
+        ]);
+    }
+}
 
     /**
      * Obtiene un usuario habilitado para
@@ -1333,4 +1437,5 @@ public function registrarIncidenciaRecepcion(
 
         return $usuario;
     }
+        
 }

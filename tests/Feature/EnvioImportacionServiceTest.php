@@ -4,7 +4,8 @@ namespace Tests\Feature;
 
 use Tests\TestCase;
 use Illuminate\Foundation\Testing\RefreshDatabase;
-
+use App\Models\EventoLogisticoLote;
+use App\Models\TipoEventoLogistico;
 use App\Services\EnvioImportacionService;
 use App\Exceptions\ReglaNegocioException;
 use App\Models\EnvioImportacion;
@@ -27,104 +28,120 @@ class EnvioImportacionServiceTest extends TestCase
 
 
     protected function setUp(): void
-    {
-        parent::setUp();
+{
+    parent::setUp();
+
+    $this->seed();
+
+    /*
+    |--------------------------------------------------------------------------
+    | Asegurar catálogo de eventos logísticos
+    |--------------------------------------------------------------------------
+    */
+
+    $this->seed(
+        \Database\Seeders\TipoEventoLogisticoSeeder::class
+    );
 
 
-        /*
-        |--------------------------------------------------------------------------
-        | Permiso importaciones
-        |--------------------------------------------------------------------------
-        */
+    /*
+    |--------------------------------------------------------------------------
+    | Permiso importaciones
+    |--------------------------------------------------------------------------
+    |
+    | Ya existe desde SeguridadSeeder.
+    | No volver a crear porque provoca duplicados.
+    |
+    */
 
-        $permiso = Permiso::create([
-            'codigo' =>
-                'importacion.gestionar',
+    $permiso = Permiso::where(
+        'codigo',
+        'importacion.gestionar'
+    )->firstOrFail();
 
-            'nombre' =>
-                'Gestionar importaciones',
 
-            'activo' =>
-                true,
+
+    /*
+    |--------------------------------------------------------------------------
+    | Rol operativo
+    |--------------------------------------------------------------------------
+    |
+    | Ya existe desde SeguridadSeeder.
+    |
+    */
+
+    $rolOperativo = Rol::where(
+        'codigo',
+        'ADMIN_OPERATIVO'
+    )->firstOrFail();
+
+
+
+    /*
+    |--------------------------------------------------------------------------
+    | Relacionar permiso si todavía no existe
+    |--------------------------------------------------------------------------
+    */
+
+    $rolOperativo
+        ->permisos()
+        ->syncWithoutDetaching([
+            $permiso->id
         ]);
 
 
-        $rolOperativo = Rol::create([
-            'codigo' =>
-                'ADMIN_OPERATIVO',
 
-            'nombre' =>
-                'Administrador operativo',
+    /*
+    |--------------------------------------------------------------------------
+    | Usuario operativo de prueba
+    |--------------------------------------------------------------------------
+    */
 
-            'activo' =>
-                true,
+    $this->usuarioOperativo =
+        User::factory()->create([
+            'activo' => true,
         ]);
 
 
-        $rolOperativo
-            ->permisos()
-            ->attach(
-                $permiso->id
-            );
-
-
-        $this->usuarioOperativo =
-            User::factory()->create([
-                'activo' =>
-                    true,
-            ]);
-
-
-        $this->usuarioOperativo
-            ->roles()
-            ->attach(
-                $rolOperativo->id
-            );
+    $this->usuarioOperativo
+        ->roles()
+        ->attach(
+            $rolOperativo->id
+        );
 
 
 
-        /*
-        |--------------------------------------------------------------------------
-        | Almacenes
-        |--------------------------------------------------------------------------
-        */
+    /*
+    |--------------------------------------------------------------------------
+    | Almacenes
+    |--------------------------------------------------------------------------
+    */
 
-        Almacen::create([
-            'codigo' =>
-                'ORURO_PRINCIPAL',
-
-            'nombre' =>
-                'Tienda Oruro',
-
-            'ciudad' =>
-                'Oruro',
-
-            'principal' =>
-                true,
-
-            'activo' =>
-                true,
-        ]);
+    Almacen::firstOrCreate(
+    [
+        'codigo' => 'ORURO_PRINCIPAL'
+    ],
+    [
+        'nombre' => 'Tienda Oruro',
+        'ciudad' => 'Oruro',
+        'principal' => true,
+        'activo' => true,
+    ]
+);
 
 
-        Almacen::create([
-            'codigo' =>
-                'COCHABAMBA',
-
-            'nombre' =>
-                'Depósito Cochabamba',
-
-            'ciudad' =>
-                'Cochabamba',
-
-            'principal' =>
-                false,
-
-            'activo' =>
-                true,
-        ]);
-    }
-
+Almacen::firstOrCreate(
+    [
+        'codigo' => 'COCHABAMBA'
+    ],
+    [
+        'nombre' => 'Depósito Cochabamba',
+        'ciudad' => 'Cochabamba',
+        'principal' => false,
+        'activo' => true,
+    ]
+);
+}
 
 
     public function test_agrega_unidad_lista_a_envio_borrador(): void
@@ -435,17 +452,27 @@ public function test_marca_envio_como_despachado_y_envia_unidades(): void
         );
 
 
+    $categoria =
+        CategoriaProducto::firstOrCreate(
+            [
+                'codigo' =>
+                    'LAPTOP',
+            ],
+            [
+                'nombre' =>
+                    'Laptops',
+
+                'activo' =>
+                    true,
+            ]
+        );
+
+
     $producto =
         Producto::create([
+
             'categoria_producto_id' =>
-                CategoriaProducto::create([
-                    'codigo' =>
-                        'LAPTOP',
-                    'nombre' =>
-                        'Laptops',
-                    'activo' =>
-                        true,
-                ])->id,
+                $categoria->id,
 
             'codigo' =>
                 'LAP-001',
@@ -466,6 +493,7 @@ public function test_marca_envio_como_despachado_y_envia_unidades(): void
 
     $unidad =
         UnidadAdquirida::create([
+
             'producto_id' =>
                 $producto->id,
 
@@ -528,6 +556,7 @@ public function test_marca_envio_como_despachado_y_envia_unidades(): void
     $this->assertDatabaseHas(
         'envios_importacion',
         [
+
             'id' =>
                 $envio->id,
 
@@ -546,11 +575,13 @@ public function test_marca_envio_como_despachado_y_envia_unidades(): void
     $this->assertDatabaseHas(
         'unidades_adquiridas',
         [
+
             'id' =>
                 $unidad->id,
 
             'estado' =>
                 UnidadAdquirida::ESTADO_ENVIADA,
+
         ]
     );
 }
@@ -578,20 +609,24 @@ public function test_recibe_unidad_enviada_y_actualiza_estado(): void
 
 
     $categoria =
-        CategoriaProducto::create([
-            'codigo' =>
-                'LAPTOP',
+        CategoriaProducto::firstOrCreate(
+            [
+                'codigo' =>
+                    'LAPTOP',
+            ],
+            [
+                'nombre' =>
+                    'Laptops',
 
-            'nombre' =>
-                'Laptops',
-
-            'activo' =>
-                true,
-        ]);
+                'activo' =>
+                    true,
+            ]
+        );
 
 
     $producto =
         Producto::create([
+
             'categoria_producto_id' =>
                 $categoria->id,
 
@@ -609,11 +644,13 @@ public function test_recibe_unidad_enviada_y_actualiza_estado(): void
 
             'activo' =>
                 true,
+
         ]);
 
 
     $unidad =
         UnidadAdquirida::create([
+
             'producto_id' =>
                 $producto->id,
 
@@ -637,6 +674,7 @@ public function test_recibe_unidad_enviada_y_actualiza_estado(): void
 
             'requiere_servicio' =>
                 false,
+
         ]);
 
 
@@ -677,6 +715,7 @@ public function test_recibe_unidad_enviada_y_actualiza_estado(): void
     $this->assertDatabaseHas(
         'unidades_adquiridas',
         [
+
             'id' =>
                 $unidad->id,
 
@@ -685,6 +724,7 @@ public function test_recibe_unidad_enviada_y_actualiza_estado(): void
 
             'almacen_actual_id' =>
                 $envio->almacen_destino_id,
+
         ]
     );
 
@@ -692,6 +732,7 @@ public function test_recibe_unidad_enviada_y_actualiza_estado(): void
     $this->assertDatabaseHas(
         'envios_importacion_unidades',
         [
+
             'envio_importacion_id' =>
                 $envio->id,
 
@@ -700,6 +741,7 @@ public function test_recibe_unidad_enviada_y_actualiza_estado(): void
 
             'estado_recepcion' =>
                 EnvioImportacionUnidad::ESTADO_RECIBIDA,
+
         ]
     );
 }
