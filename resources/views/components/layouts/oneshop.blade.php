@@ -200,7 +200,41 @@
 
         </div>
 
+        @if(
+    auth()->user()?->tienePermiso('importacion.ver')
+)
 
+    <a
+        href="{{ route('envios-importacion.index') }}"
+        class="
+            flex
+            items-center
+            gap-3
+            rounded-xl
+            px-3
+            py-2.5
+            text-sm
+            font-semibold
+            transition
+
+            {{
+                request()->routeIs('envios-importacion.*')
+                    ? 'bg-oneshop-light text-oneshop-primary'
+                    : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
+            }}
+        "
+    >
+        <x-ui.icon
+            name="truck"
+            size="19"
+        />
+
+        <span>
+            Envíos a Oruro
+        </span>
+    </a>
+
+@endif
 
         {{-- Próximos módulos --}}
         <div>

@@ -8,6 +8,7 @@ use App\Models\DetalleLote;
 use App\Models\IntervencionUnidadAdquirida;
 use App\Models\Marca;
 use App\Models\Moneda;
+use App\Models\MovimientoInventario;
 use App\Models\Producto;
 use App\Models\Proveedor;
 use App\Models\Rol;
@@ -18,10 +19,9 @@ use App\Services\IntervencionUnidadAdquiridaService;
 use App\Services\LoteService;
 use App\Services\UnidadAdquiridaService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
-use Illuminate\Validation\ValidationException;
-use App\Models\MovimientoInventario;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Event;
+use Illuminate\Validation\ValidationException;
 use RuntimeException;
 use Tests\TestCase;
 
@@ -39,11 +39,13 @@ class IntervencionUnidadAdquiridaServiceTest extends TestCase
 
     private DetalleLote $detalle;
 
+
     protected function setUp(): void
     {
         parent::setUp();
 
         $this->seed();
+
 
         /*
         |--------------------------------------------------------------------------
@@ -56,6 +58,7 @@ class IntervencionUnidadAdquiridaServiceTest extends TestCase
                 'activo' => true,
             ]);
 
+
         $rolOperativo =
             Rol::query()
                 ->where(
@@ -64,11 +67,13 @@ class IntervencionUnidadAdquiridaServiceTest extends TestCase
                 )
                 ->firstOrFail();
 
+
         $this->usuarioOperativo
             ->roles()
             ->attach(
                 $rolOperativo->id
             );
+
 
         /*
         |--------------------------------------------------------------------------
@@ -81,6 +86,7 @@ class IntervencionUnidadAdquiridaServiceTest extends TestCase
                 'activo' => true,
             ]);
 
+
         $rolVendedor =
             Rol::query()
                 ->where(
@@ -89,11 +95,13 @@ class IntervencionUnidadAdquiridaServiceTest extends TestCase
                 )
                 ->firstOrFail();
 
+
         $this->vendedor
             ->roles()
             ->attach(
                 $rolVendedor->id
             );
+
 
         /*
         |--------------------------------------------------------------------------
@@ -109,6 +117,7 @@ class IntervencionUnidadAdquiridaServiceTest extends TestCase
                 )
                 ->firstOrFail();
 
+
         $marca =
             Marca::create([
                 'nombre' =>
@@ -121,8 +130,10 @@ class IntervencionUnidadAdquiridaServiceTest extends TestCase
                     true,
             ]);
 
+
         $this->productoEquipo =
             Producto::create([
+
                 'categoria_producto_id' =>
                     $categoria->id,
 
@@ -148,6 +159,7 @@ class IntervencionUnidadAdquiridaServiceTest extends TestCase
                     true,
             ]);
 
+
         /*
          * Para estas pruebas lo importante es que exista
          * un producto activo que represente el componente.
@@ -155,8 +167,10 @@ class IntervencionUnidadAdquiridaServiceTest extends TestCase
          * La clasificación definitiva del catálogo de
          * componentes se trabajará posteriormente.
          */
+
         $this->componente =
             Producto::create([
+
                 'categoria_producto_id' =>
                     $categoria->id,
 
@@ -182,6 +196,7 @@ class IntervencionUnidadAdquiridaServiceTest extends TestCase
                     true,
             ]);
 
+
         /*
         |--------------------------------------------------------------------------
         | Proveedor y lote
@@ -190,6 +205,7 @@ class IntervencionUnidadAdquiridaServiceTest extends TestCase
 
         $proveedor =
             Proveedor::create([
+
                 'nombre' =>
                     'Proveedor Intervencion Test',
 
@@ -215,8 +231,12 @@ class IntervencionUnidadAdquiridaServiceTest extends TestCase
                     true,
             ]);
 
+
         $loteService =
-            app(LoteService::class);
+            app(
+                LoteService::class
+            );
+
 
         $lote =
             $loteService->crearLote(
@@ -239,6 +259,7 @@ class IntervencionUnidadAdquiridaServiceTest extends TestCase
                 ]
             );
 
+
         $this->detalle =
             $loteService->agregarDetalle(
                 $this->usuarioOperativo->id,
@@ -259,6 +280,7 @@ class IntervencionUnidadAdquiridaServiceTest extends TestCase
         $unidad =
             $this->crearUnidad();
 
+
         $bob =
             Moneda::query()
                 ->where(
@@ -266,6 +288,7 @@ class IntervencionUnidadAdquiridaServiceTest extends TestCase
                     'BOB'
                 )
                 ->firstOrFail();
+
 
         $intervencion =
             app(
@@ -294,34 +317,41 @@ class IntervencionUnidadAdquiridaServiceTest extends TestCase
                 ]
             );
 
+
         $this->assertSame(
             IntervencionUnidadAdquirida::TIPO_COMPONENTE,
             $intervencion->tipo
         );
+
 
         $this->assertSame(
             IntervencionUnidadAdquirida::ORIGEN_COMPRA_EXTERNA,
             $intervencion->origen_componente
         );
 
+
         $this->assertSame(
             $this->componente->id,
             $intervencion->producto_id
         );
+
 
         $this->assertSame(
             '180.00',
             $intervencion->monto_origen
         );
 
+
         $this->assertSame(
             '180.00',
             $intervencion->monto_bob
         );
 
+
         $this->assertNull(
             $intervencion->tipo_cambio_id
         );
+
 
         $this->assertSame(
             'REPUESTO_EXTERNO',
@@ -330,15 +360,32 @@ class IntervencionUnidadAdquiridaServiceTest extends TestCase
                 ->codigo
         );
 
+
         /*
-         * Registrar el costo no equivale a confirmar
-         * físicamente que la unidad ya tiene cargador.
-         */
+        |--------------------------------------------------------------------------
+        | La unidad entra en preparación
+        |--------------------------------------------------------------------------
+        |
+        | Si se incorpora un componente comprado específicamente
+        | para la máquina, la unidad se encuentra dentro del
+        | proceso técnico previo al despacho a Oruro.
+        |
+        | Esto no significa que quede automáticamente lista
+        | para envío.
+        |
+        */
+
         $unidad->refresh();
 
+
         $this->assertSame(
-            UnidadAdquirida::ESTADO_RECIBIDA_ORIGEN,
+            UnidadAdquirida::ESTADO_EN_PREPARACION,
             $unidad->estado
+        );
+
+
+        $this->assertNull(
+            $unidad->fecha_lista_envio
         );
     }
 
@@ -348,6 +395,7 @@ class IntervencionUnidadAdquiridaServiceTest extends TestCase
         $unidad =
             $this->crearUnidad();
 
+
         $usd =
             Moneda::query()
                 ->where(
@@ -355,6 +403,7 @@ class IntervencionUnidadAdquiridaServiceTest extends TestCase
                     'USD'
                 )
                 ->firstOrFail();
+
 
         $intervencion =
             app(
@@ -380,34 +429,41 @@ class IntervencionUnidadAdquiridaServiceTest extends TestCase
                 ]
             );
 
+
         $this->assertSame(
             '25.00',
             $intervencion->monto_origen
         );
+
 
         $this->assertSame(
             '287.50',
             $intervencion->monto_bob
         );
 
+
         $this->assertNotNull(
             $intervencion->tipo_cambio_id
         );
+
 
         $tipoCambio =
             TipoCambio::findOrFail(
                 $intervencion->tipo_cambio_id
             );
 
+
         $this->assertSame(
             $usd->id,
             $tipoCambio->moneda_origen_id
         );
 
+
         $this->assertSame(
             '11.500000',
             $tipoCambio->valor
         );
+
 
         $this->assertSame(
             'MANUAL_OPERACION',
@@ -421,6 +477,7 @@ class IntervencionUnidadAdquiridaServiceTest extends TestCase
         $unidad =
             $this->crearUnidad();
 
+
         $usdt =
             Moneda::query()
                 ->where(
@@ -429,6 +486,7 @@ class IntervencionUnidadAdquiridaServiceTest extends TestCase
                 )
                 ->firstOrFail();
 
+
         $usd =
             Moneda::query()
                 ->where(
@@ -436,6 +494,7 @@ class IntervencionUnidadAdquiridaServiceTest extends TestCase
                     'USD'
                 )
                 ->firstOrFail();
+
 
         $intervencion =
             app(
@@ -461,25 +520,30 @@ class IntervencionUnidadAdquiridaServiceTest extends TestCase
                 ]
             );
 
+
         $this->assertSame(
             '234.40',
             $intervencion->monto_bob
         );
+
 
         $tipoCambio =
             TipoCambio::findOrFail(
                 $intervencion->tipo_cambio_id
             );
 
+
         $this->assertSame(
             $usdt->id,
             $tipoCambio->moneda_origen_id
         );
 
+
         $this->assertNotSame(
             $usd->id,
             $tipoCambio->moneda_origen_id
         );
+
 
         $this->assertSame(
             '11.720000',
@@ -493,10 +557,12 @@ class IntervencionUnidadAdquiridaServiceTest extends TestCase
         $unidad =
             $this->crearUnidad();
 
+
         /*
          * Primero confirmamos que la unidad estaba
          * funcional y lista para despacho.
          */
+
         $unidad =
             app(
                 UnidadAdquiridaService::class
@@ -518,10 +584,12 @@ class IntervencionUnidadAdquiridaServiceTest extends TestCase
                 ]
             );
 
+
         $this->assertSame(
             UnidadAdquirida::ESTADO_LISTA_ENVIO,
             $unidad->estado
         );
+
 
         $bob =
             Moneda::query()
@@ -530,6 +598,7 @@ class IntervencionUnidadAdquiridaServiceTest extends TestCase
                     'BOB'
                 )
                 ->firstOrFail();
+
 
         $intervencion =
             app(
@@ -558,10 +627,12 @@ class IntervencionUnidadAdquiridaServiceTest extends TestCase
                 ]
             );
 
+
         $this->assertSame(
             IntervencionUnidadAdquirida::TIPO_SERVICIO,
             $intervencion->tipo
         );
+
 
         $this->assertSame(
             'SERVICIO_EXTERNO',
@@ -570,10 +641,12 @@ class IntervencionUnidadAdquiridaServiceTest extends TestCase
                 ->codigo
         );
 
+
         $this->assertSame(
             '80.00',
             $intervencion->monto_bob
         );
+
 
         $this->assertSame(
             '2026-08-24 14:00:00',
@@ -582,6 +655,7 @@ class IntervencionUnidadAdquiridaServiceTest extends TestCase
                 ->format('Y-m-d H:i:s')
         );
 
+
         $this->assertSame(
             '2026-08-24 16:30:00',
             $intervencion
@@ -589,21 +663,26 @@ class IntervencionUnidadAdquiridaServiceTest extends TestCase
                 ->format('Y-m-d H:i:s')
         );
 
+
         $unidad->refresh();
+
 
         $this->assertSame(
             UnidadAdquirida::ESTADO_EN_PREPARACION,
             $unidad->estado
         );
 
+
         $this->assertTrue(
             $unidad->requiere_servicio
         );
+
 
         $this->assertSame(
             'Reprogramación de BIOS.',
             $unidad->servicio_requerido
         );
+
 
         $this->assertNull(
             $unidad->fecha_lista_envio
@@ -616,7 +695,9 @@ class IntervencionUnidadAdquiridaServiceTest extends TestCase
         $unidad =
             $this->crearUnidad();
 
+
         try {
+
             app(
                 IntervencionUnidadAdquiridaService::class
             )->registrarServicio(
@@ -634,17 +715,21 @@ class IntervencionUnidadAdquiridaServiceTest extends TestCase
                 ]
             );
 
+
             $this->fail(
                 'Se esperaba validación por fecha de finalización inválida.'
             );
+
         } catch (
             ValidationException $exception
         ) {
+
             $this->assertArrayHasKey(
                 'fecha_fin',
                 $exception->errors()
             );
         }
+
 
         $this->assertDatabaseCount(
             'intervenciones_unidades_adquiridas',
@@ -658,6 +743,7 @@ class IntervencionUnidadAdquiridaServiceTest extends TestCase
         $unidad =
             $this->crearUnidad();
 
+
         $bob =
             Moneda::query()
                 ->where(
@@ -666,7 +752,9 @@ class IntervencionUnidadAdquiridaServiceTest extends TestCase
                 )
                 ->firstOrFail();
 
+
         try {
+
             app(
                 IntervencionUnidadAdquiridaService::class
             )->registrarComponenteExterno(
@@ -684,17 +772,21 @@ class IntervencionUnidadAdquiridaServiceTest extends TestCase
                 ]
             );
 
+
             $this->fail(
                 'Se esperaba rechazo porque el vendedor no gestiona importaciones.'
             );
+
         } catch (
             ReglaNegocioException $exception
         ) {
+
             $this->assertStringContainsString(
                 'no tiene permiso',
                 $exception->getMessage()
             );
         }
+
 
         $this->assertDatabaseCount(
             'intervenciones_unidades_adquiridas',
@@ -708,10 +800,12 @@ class IntervencionUnidadAdquiridaServiceTest extends TestCase
         $unidad =
             $this->crearUnidad();
 
+
         $unidad->update([
             'estado' =>
                 UnidadAdquirida::ESTADO_ENVIADA,
         ]);
+
 
         $bob =
             Moneda::query()
@@ -721,7 +815,9 @@ class IntervencionUnidadAdquiridaServiceTest extends TestCase
                 )
                 ->firstOrFail();
 
+
         try {
+
             app(
                 IntervencionUnidadAdquiridaService::class
             )->registrarComponenteExterno(
@@ -739,17 +835,21 @@ class IntervencionUnidadAdquiridaServiceTest extends TestCase
                 ]
             );
 
+
             $this->fail(
                 'Se esperaba rechazo porque la unidad ya salió de la etapa de preparación.'
             );
+
         } catch (
             ReglaNegocioException $exception
         ) {
-            $this->assertStringContainsString(
-                'salió de la etapa',
-                $exception->getMessage()
-            );
+
+           $this->assertStringContainsString(
+             'etapa válida',
+        $exception->getMessage()
+        );
         }
+
 
         $this->assertDatabaseCount(
             'intervenciones_unidades_adquiridas',
@@ -763,6 +863,7 @@ class IntervencionUnidadAdquiridaServiceTest extends TestCase
         $unidad =
             $this->crearUnidad();
 
+
         $bob =
             Moneda::query()
                 ->where(
@@ -771,7 +872,9 @@ class IntervencionUnidadAdquiridaServiceTest extends TestCase
                 )
                 ->firstOrFail();
 
+
         try {
+
             app(
                 IntervencionUnidadAdquiridaService::class
             )->registrarServicio(
@@ -786,110 +889,39 @@ class IntervencionUnidadAdquiridaServiceTest extends TestCase
                 ]
             );
 
+
             $this->fail(
                 'Se esperaba validación porque se indicó moneda sin monto.'
             );
+
         } catch (
             ValidationException $exception
         ) {
+
             $this->assertArrayHasKey(
                 'monto_origen',
                 $exception->errors()
             );
         }
 
+
         $this->assertDatabaseCount(
             'intervenciones_unidades_adquiridas',
             0
         );
     }
-public function test_asigna_componente_desde_stock_y_descuenta_existencia(): void
-{
-    $unidad =
-        $this->crearUnidad();
 
-    DB::table(
-        'existencias_productos'
-    )->insert([
-        'producto_id' =>
-            $this->componente->id,
 
-        'almacen_id' =>
-            $unidad->almacen_actual_id,
+    public function test_asigna_componente_desde_stock_y_descuenta_existencia(): void
+    {
+        $unidad =
+            $this->crearUnidad();
 
-        'cantidad_disponible' =>
-            5,
 
-        'cantidad_reservada' =>
-            1,
+        DB::table(
+            'existencias_productos'
+        )->insert([
 
-        'created_at' =>
-            now(),
-
-        'updated_at' =>
-            now(),
-    ]);
-
-    $intervencion =
-        app(
-            IntervencionUnidadAdquiridaService::class
-        )->asignarComponenteDesdeStock(
-            $this->usuarioOperativo->id,
-            $unidad->id,
-            [
-                'producto_id' =>
-                    $this->componente->id,
-
-                'cantidad' =>
-                    2,
-
-                'fecha' =>
-                    '2026-08-24 17:00:00',
-
-                'descripcion' =>
-                    'Asignación de cargadores desde stock.',
-            ]
-        );
-
-    $this->assertSame(
-        IntervencionUnidadAdquirida::TIPO_COMPONENTE,
-        $intervencion->tipo
-    );
-
-    $this->assertSame(
-        IntervencionUnidadAdquirida::ORIGEN_STOCK,
-        $intervencion->origen_componente
-    );
-
-    $this->assertSame(
-        2,
-        $intervencion->cantidad
-    );
-
-    $this->assertSame(
-        $unidad->almacen_actual_id,
-        $intervencion->almacen_id
-    );
-
-    $this->assertNotNull(
-        $intervencion->movimiento_inventario_id
-    );
-
-    /*
-     * Todavía no inventamos una valoración
-     * monetaria del componente tomado de stock.
-     */
-    $this->assertNull(
-        $intervencion->monto_origen
-    );
-
-    $this->assertNull(
-        $intervencion->monto_bob
-    );
-
-    $this->assertDatabaseHas(
-        'existencias_productos',
-        [
             'producto_id' =>
                 $this->componente->id,
 
@@ -897,132 +929,217 @@ public function test_asigna_componente_desde_stock_y_descuenta_existencia(): voi
                 $unidad->almacen_actual_id,
 
             'cantidad_disponible' =>
-                3,
+                5,
 
-            /*
-             * La asignación no debe alterar
-             * las reservas existentes.
-             */
             'cantidad_reservada' =>
                 1,
-        ]
-    );
 
-    $movimiento =
-        MovimientoInventario::findOrFail(
-            $intervencion
-                ->movimiento_inventario_id
+            'created_at' =>
+                now(),
+
+            'updated_at' =>
+                now(),
+        ]);
+
+
+        $intervencion =
+            app(
+                IntervencionUnidadAdquiridaService::class
+            )->asignarComponenteDesdeStock(
+                $this->usuarioOperativo->id,
+                $unidad->id,
+                [
+                    'producto_id' =>
+                        $this->componente->id,
+
+                    'cantidad' =>
+                        2,
+
+                    'fecha' =>
+                        '2026-08-24 17:00:00',
+
+                    'descripcion' =>
+                        'Asignación de cargadores desde stock.',
+                ]
+            );
+
+
+        $this->assertSame(
+            IntervencionUnidadAdquirida::TIPO_COMPONENTE,
+            $intervencion->tipo
         );
 
-    $this->assertSame(
-        -2,
-        $movimiento->cambio_disponible
-    );
 
-    $this->assertSame(
-        0,
-        $movimiento->cambio_reservado
-    );
-
-    $this->assertSame(
-        3,
-        $movimiento
-            ->saldo_disponible_resultante
-    );
-
-    $this->assertSame(
-        1,
-        $movimiento
-            ->saldo_reservado_resultante
-    );
-
-    $this->assertSame(
-        'ASIGNACION_COMPONENTE',
-        $movimiento
-            ->tipoMovimiento
-            ->codigo
-    );
-
-    $this->assertSame(
-        'INTERVENCION_UNIDAD_ADQUIRIDA',
-        $movimiento->tipo_referencia
-    );
-
-    $this->assertSame(
-        $intervencion->id,
-        $movimiento->referencia_id
-    );
-
-    $this->assertSame(
-        '2026-08-24 17:00:00',
-        $movimiento
-            ->fecha_movimiento
-            ->format('Y-m-d H:i:s')
-    );
-}
+        $this->assertSame(
+            IntervencionUnidadAdquirida::ORIGEN_STOCK,
+            $intervencion->origen_componente
+        );
 
 
-public function test_no_permite_asignar_mas_componentes_que_el_stock_disponible(): void
-{
-    $unidad =
-        $this->crearUnidad();
+        $this->assertSame(
+            2,
+            $intervencion->cantidad
+        );
 
-    DB::table(
-        'existencias_productos'
-    )->insert([
-        'producto_id' =>
-            $this->componente->id,
 
-        'almacen_id' =>
+        $this->assertSame(
             $unidad->almacen_actual_id,
+            $intervencion->almacen_id
+        );
 
-        'cantidad_disponible' =>
-            1,
 
-        'cantidad_reservada' =>
-            0,
+        $this->assertNotNull(
+            $intervencion->movimiento_inventario_id
+        );
 
-        'created_at' =>
-            now(),
 
-        'updated_at' =>
-            now(),
-    ]);
+        /*
+         * Todavía no inventamos una valoración
+         * monetaria del componente tomado de stock.
+         */
 
-    try {
-        app(
-            IntervencionUnidadAdquiridaService::class
-        )->asignarComponenteDesdeStock(
-            $this->usuarioOperativo->id,
-            $unidad->id,
+        $this->assertNull(
+            $intervencion->monto_origen
+        );
+
+
+        $this->assertNull(
+            $intervencion->monto_bob
+        );
+
+
+        /*
+        |--------------------------------------------------------------------------
+        | Existencias
+        |--------------------------------------------------------------------------
+        */
+
+        $this->assertDatabaseHas(
+            'existencias_productos',
             [
+
                 'producto_id' =>
                     $this->componente->id,
 
-                'cantidad' =>
-                    2,
+                'almacen_id' =>
+                    $unidad->almacen_actual_id,
+
+                'cantidad_disponible' =>
+                    3,
+
+                /*
+                 * La asignación no debe alterar
+                 * las reservas existentes.
+                 */
+                'cantidad_reservada' =>
+                    1,
             ]
         );
 
-        $this->fail(
-            'Se esperaba rechazo por stock insuficiente.'
+
+        /*
+        |--------------------------------------------------------------------------
+        | Movimiento
+        |--------------------------------------------------------------------------
+        */
+
+        $movimiento =
+            MovimientoInventario::findOrFail(
+                $intervencion
+                    ->movimiento_inventario_id
+            );
+
+
+        $this->assertSame(
+            -2,
+            $movimiento->cambio_disponible
         );
-    } catch (
-        ValidationException $exception
-    ) {
-        $this->assertArrayHasKey(
-            'cantidad',
-            $exception->errors()
+
+
+        $this->assertSame(
+            0,
+            $movimiento->cambio_reservado
+        );
+
+
+        $this->assertSame(
+            3,
+            $movimiento
+                ->saldo_disponible_resultante
+        );
+
+
+        $this->assertSame(
+            1,
+            $movimiento
+                ->saldo_reservado_resultante
+        );
+
+
+        $this->assertSame(
+            'ASIGNACION_COMPONENTE',
+            $movimiento
+                ->tipoMovimiento
+                ->codigo
+        );
+
+
+        $this->assertSame(
+            'INTERVENCION_UNIDAD_ADQUIRIDA',
+            $movimiento->tipo_referencia
+        );
+
+
+        $this->assertSame(
+            $intervencion->id,
+            $movimiento->referencia_id
+        );
+
+
+        $this->assertSame(
+            '2026-08-24 17:00:00',
+            $movimiento
+                ->fecha_movimiento
+                ->format('Y-m-d H:i:s')
+        );
+
+
+        /*
+        |--------------------------------------------------------------------------
+        | Unidad vuelve a preparación
+        |--------------------------------------------------------------------------
+        |
+        | La asignación de un componente desde el stock significa
+        | que la máquina continúa en preparación y no puede
+        | considerarse automáticamente lista para envío.
+        |
+        */
+
+        $unidad->refresh();
+
+
+        $this->assertSame(
+            UnidadAdquirida::ESTADO_EN_PREPARACION,
+            $unidad->estado
+        );
+
+
+        $this->assertNull(
+            $unidad->fecha_lista_envio
         );
     }
 
-    /*
-     * El intento rechazado no debe modificar
-     * la existencia.
-     */
-    $this->assertDatabaseHas(
-        'existencias_productos',
-        [
+
+    public function test_no_permite_asignar_mas_componentes_que_el_stock_disponible(): void
+    {
+        $unidad =
+            $this->crearUnidad();
+
+
+        DB::table(
+            'existencias_productos'
+        )->insert([
+
             'producto_id' =>
                 $this->componente->id,
 
@@ -1034,127 +1151,151 @@ public function test_no_permite_asignar_mas_componentes_que_el_stock_disponible(
 
             'cantidad_reservada' =>
                 0,
-        ]
-    );
 
-    $this->assertDatabaseCount(
-        'intervenciones_unidades_adquiridas',
-        0
-    );
+            'created_at' =>
+                now(),
 
-    $this->assertDatabaseCount(
-        'movimientos_inventario',
-        0
-    );
-}
+            'updated_at' =>
+                now(),
+        ]);
 
 
-public function test_no_permite_asignar_componente_si_no_existe_stock_en_el_almacen(): void
-{
-    $unidad =
-        $this->crearUnidad();
+        try {
 
-    try {
-        app(
-            IntervencionUnidadAdquiridaService::class
-        )->asignarComponenteDesdeStock(
-            $this->usuarioOperativo->id,
-            $unidad->id,
+            app(
+                IntervencionUnidadAdquiridaService::class
+            )->asignarComponenteDesdeStock(
+                $this->usuarioOperativo->id,
+                $unidad->id,
+                [
+                    'producto_id' =>
+                        $this->componente->id,
+
+                    'cantidad' =>
+                        2,
+                ]
+            );
+
+
+            $this->fail(
+                'Se esperaba rechazo por stock insuficiente.'
+            );
+
+        } catch (
+            ValidationException $exception
+        ) {
+
+            $this->assertArrayHasKey(
+                'cantidad',
+                $exception->errors()
+            );
+        }
+
+
+        /*
+         * El intento rechazado no debe modificar
+         * la existencia.
+         */
+
+        $this->assertDatabaseHas(
+            'existencias_productos',
             [
+
                 'producto_id' =>
                     $this->componente->id,
 
-                'cantidad' =>
+                'almacen_id' =>
+                    $unidad->almacen_actual_id,
+
+                'cantidad_disponible' =>
                     1,
+
+                'cantidad_reservada' =>
+                    0,
             ]
         );
 
-        $this->fail(
-            'Se esperaba rechazo porque no existe stock registrado en el almacén.'
-        );
-    } catch (
-        ValidationException $exception
-    ) {
-        $this->assertArrayHasKey(
-            'producto_id',
-            $exception->errors()
-        );
-    }
 
-    $this->assertDatabaseCount(
-        'intervenciones_unidades_adquiridas',
-        0
-    );
-
-    $this->assertDatabaseCount(
-        'movimientos_inventario',
-        0
-    );
-}
-
-
-public function test_no_permite_usar_producto_serializado_como_componente_de_stock(): void
-{
-    $unidad =
-        $this->crearUnidad();
-
-    /*
-     * El propio producto principal de la laptop
-     * es serializado, por lo que no debe consumirse
-     * mediante existencias cuantitativas.
-     */
-    DB::table(
-        'existencias_productos'
-    )->insert([
-        'producto_id' =>
-            $this->productoEquipo->id,
-
-        'almacen_id' =>
-            $unidad->almacen_actual_id,
-
-        'cantidad_disponible' =>
-            2,
-
-        'cantidad_reservada' =>
-            0,
-
-        'created_at' =>
-            now(),
-
-        'updated_at' =>
-            now(),
-    ]);
-
-    try {
-        app(
-            IntervencionUnidadAdquiridaService::class
-        )->asignarComponenteDesdeStock(
-            $this->usuarioOperativo->id,
-            $unidad->id,
-            [
-                'producto_id' =>
-                    $this->productoEquipo->id,
-
-                'cantidad' =>
-                    1,
-            ]
+        $this->assertDatabaseCount(
+            'intervenciones_unidades_adquiridas',
+            0
         );
 
-        $this->fail(
-            'Se esperaba rechazo porque el producto es serializado.'
-        );
-    } catch (
-        ReglaNegocioException $exception
-    ) {
-        $this->assertStringContainsString(
-            'serializado',
-            $exception->getMessage()
+
+        $this->assertDatabaseCount(
+            'movimientos_inventario',
+            0
         );
     }
 
-    $this->assertDatabaseHas(
-        'existencias_productos',
-        [
+
+    public function test_no_permite_asignar_componente_si_no_existe_stock_en_el_almacen(): void
+    {
+        $unidad =
+            $this->crearUnidad();
+
+
+        try {
+
+            app(
+                IntervencionUnidadAdquiridaService::class
+            )->asignarComponenteDesdeStock(
+                $this->usuarioOperativo->id,
+                $unidad->id,
+                [
+                    'producto_id' =>
+                        $this->componente->id,
+
+                    'cantidad' =>
+                        1,
+                ]
+            );
+
+
+            $this->fail(
+                'Se esperaba rechazo porque no existe stock registrado en el almacén.'
+            );
+
+        } catch (
+            ValidationException $exception
+        ) {
+
+            $this->assertArrayHasKey(
+                'producto_id',
+                $exception->errors()
+            );
+        }
+
+
+        $this->assertDatabaseCount(
+            'intervenciones_unidades_adquiridas',
+            0
+        );
+
+
+        $this->assertDatabaseCount(
+            'movimientos_inventario',
+            0
+        );
+    }
+
+
+    public function test_no_permite_usar_producto_serializado_como_componente_de_stock(): void
+    {
+        $unidad =
+            $this->crearUnidad();
+
+
+        /*
+         * El propio producto principal de la laptop
+         * es serializado, por lo que no debe consumirse
+         * mediante existencias cuantitativas.
+         */
+
+        DB::table(
+            'existencias_productos'
+        )->insert([
+
             'producto_id' =>
                 $this->productoEquipo->id,
 
@@ -1163,110 +1304,89 @@ public function test_no_permite_usar_producto_serializado_como_componente_de_sto
 
             'cantidad_disponible' =>
                 2,
-        ]
-    );
 
-    $this->assertDatabaseCount(
-        'intervenciones_unidades_adquiridas',
-        0
-    );
+            'cantidad_reservada' =>
+                0,
 
-    $this->assertDatabaseCount(
-        'movimientos_inventario',
-        0
-    );
-}
-public function test_si_falla_movimiento_se_revierte_toda_la_asignacion_desde_stock(): void
-{
-    $unidad =
-        $this->crearUnidad();
+            'created_at' =>
+                now(),
 
-    DB::table(
-        'existencias_productos'
-    )->insert([
-        'producto_id' =>
-            $this->componente->id,
+            'updated_at' =>
+                now(),
+        ]);
 
-        'almacen_id' =>
-            $unidad->almacen_actual_id,
 
-        'cantidad_disponible' =>
-            5,
+        try {
 
-        'cantidad_reservada' =>
-            0,
+            app(
+                IntervencionUnidadAdquiridaService::class
+            )->asignarComponenteDesdeStock(
+                $this->usuarioOperativo->id,
+                $unidad->id,
+                [
+                    'producto_id' =>
+                        $this->productoEquipo->id,
 
-        'created_at' =>
-            now(),
+                    'cantidad' =>
+                        1,
+                ]
+            );
 
-        'updated_at' =>
-            now(),
-    ]);
 
-    /*
-     * Provocamos un fallo exactamente cuando Eloquent
-     * intenta crear MovimientoInventario.
-     *
-     * Para ese punto, el servicio ya creó la intervención
-     * y actualizó existencias dentro de la transacción.
-     */
-    $evento =
-        'eloquent.creating: '
-        . MovimientoInventario::class;
+            $this->fail(
+                'Se esperaba rechazo porque el producto es serializado.'
+            );
 
-    Event::listen(
-        $evento,
-        function () {
-            throw new RuntimeException(
-                'Fallo provocado para comprobar rollback.'
+        } catch (
+            ReglaNegocioException $exception
+        ) {
+
+            $this->assertStringContainsString(
+                'serializado',
+                $exception->getMessage()
             );
         }
-    );
 
-    try {
-        app(
-            IntervencionUnidadAdquiridaService::class
-        )->asignarComponenteDesdeStock(
-            $this->usuarioOperativo->id,
-            $unidad->id,
+
+        $this->assertDatabaseHas(
+            'existencias_productos',
             [
+
                 'producto_id' =>
-                    $this->componente->id,
+                    $this->productoEquipo->id,
 
-                'cantidad' =>
+                'almacen_id' =>
+                    $unidad->almacen_actual_id,
+
+                'cantidad_disponible' =>
                     2,
-
-                'descripcion' =>
-                    'Asignación que debe revertirse.',
             ]
         );
 
-        $this->fail(
-            'Se esperaba el fallo provocado al crear el movimiento.'
+
+        $this->assertDatabaseCount(
+            'intervenciones_unidades_adquiridas',
+            0
         );
-    } catch (
-        RuntimeException $exception
-    ) {
-        $this->assertSame(
-            'Fallo provocado para comprobar rollback.',
-            $exception->getMessage()
-        );
-    } finally {
-        /*
-         * Quitamos únicamente el listener temporal
-         * utilizado para esta prueba.
-         */
-        Event::forget(
-            $evento
+
+
+        $this->assertDatabaseCount(
+            'movimientos_inventario',
+            0
         );
     }
 
-    /*
-     * El stock debe quedar exactamente como estaba.
-     */
-    $this->assertDatabaseHas(
-        'existencias_productos',
-        [
+
+    public function test_si_falla_movimiento_se_revierte_toda_la_asignacion_desde_stock(): void
+    {
+        $unidad =
+            $this->crearUnidad();
+
+
+        DB::table(
+            'existencias_productos'
+        )->insert([
+
             'producto_id' =>
                 $this->componente->id,
 
@@ -1278,26 +1398,135 @@ public function test_si_falla_movimiento_se_revierte_toda_la_asignacion_desde_st
 
             'cantidad_reservada' =>
                 0,
-        ]
-    );
+
+            'created_at' =>
+                now(),
+
+            'updated_at' =>
+                now(),
+        ]);
+
+
+        /*
+         * Provocamos un fallo exactamente cuando Eloquent
+         * intenta crear MovimientoInventario.
+         *
+         * Para ese punto, el servicio ya creó la intervención
+         * y actualizó existencias dentro de la transacción.
+         */
+
+        $evento =
+            'eloquent.creating: '
+            . MovimientoInventario::class;
+
+
+        Event::listen(
+            $evento,
+            function () {
+
+                throw new RuntimeException(
+                    'Fallo provocado para comprobar rollback.'
+                );
+            }
+        );
+
+
+        try {
+
+            app(
+                IntervencionUnidadAdquiridaService::class
+            )->asignarComponenteDesdeStock(
+                $this->usuarioOperativo->id,
+                $unidad->id,
+                [
+                    'producto_id' =>
+                        $this->componente->id,
+
+                    'cantidad' =>
+                        2,
+
+                    'descripcion' =>
+                        'Asignación que debe revertirse.',
+                ]
+            );
+
+
+            $this->fail(
+                'Se esperaba el fallo provocado al crear el movimiento.'
+            );
+
+        } catch (
+            RuntimeException $exception
+        ) {
+
+            $this->assertSame(
+                'Fallo provocado para comprobar rollback.',
+                $exception->getMessage()
+            );
+
+        } finally {
+
+            /*
+             * Quitamos únicamente el listener temporal
+             * utilizado para esta prueba.
+             */
+
+            Event::forget(
+                $evento
+            );
+        }
+
+
+        /*
+         * El stock debe quedar exactamente como estaba.
+         */
+
+        $this->assertDatabaseHas(
+            'existencias_productos',
+            [
+
+                'producto_id' =>
+                    $this->componente->id,
+
+                'almacen_id' =>
+                    $unidad->almacen_actual_id,
+
+                'cantidad_disponible' =>
+                    5,
+
+                'cantidad_reservada' =>
+                    0,
+            ]
+        );
+
+
+        /*
+         * La intervención creada antes del fallo
+         * también debe haberse revertido.
+         */
+
+        $this->assertDatabaseCount(
+            'intervenciones_unidades_adquiridas',
+            0
+        );
+
+
+        /*
+         * Tampoco debe quedar un movimiento parcial.
+         */
+
+        $this->assertDatabaseCount(
+            'movimientos_inventario',
+            0
+        );
+    }
+
 
     /*
-     * La intervención creada antes del fallo
-     * también debe haberse revertido.
-     */
-    $this->assertDatabaseCount(
-        'intervenciones_unidades_adquiridas',
-        0
-    );
-
-    /*
-     * Tampoco debe quedar un movimiento parcial.
-     */
-    $this->assertDatabaseCount(
-        'movimientos_inventario',
-        0
-    );
-}
+    |--------------------------------------------------------------------------
+    | Helpers
+    |--------------------------------------------------------------------------
+    */
 
     private function crearUnidad(): UnidadAdquirida
     {

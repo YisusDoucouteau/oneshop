@@ -7,7 +7,11 @@ use App\Http\Controllers\ImportacionController;
 use App\Http\Controllers\CatalogoImportacionController;
 use App\Http\Controllers\UnidadAdquiridaController;
 use App\Http\Controllers\RecepcionLoteController;
+use App\Http\Controllers\EnvioImportacionController;
+use App\Models\Producto;
+use App\Models\Moneda;
 use App\Http\Controllers\CostoLoteController;
+use App\Http\Controllers\IntervencionUnidadAdquiridaController;
 use App\Services\UnidadAdquiridaService;
 use Illuminate\Support\Facades\Route;
 
@@ -337,6 +341,43 @@ Route::patch(
 ->middleware('permiso:importacion.gestionar')
 ->name('unidades-adquiridas.revision');
 
+   Route::post(
+    '/unidades-adquiridas/{unidad}/intervenciones/componente-externo',
+    [
+        IntervencionUnidadAdquiridaController::class,
+        'componenteExterno',
+    ]
+)
+->middleware('permiso:importacion.gestionar')
+->name(
+    'unidades-adquiridas.intervenciones.componente-externo'
+);
+
+
+Route::post(
+    '/unidades-adquiridas/{unidad}/intervenciones/componente-stock',
+    [
+        IntervencionUnidadAdquiridaController::class,
+        'componenteStock',
+    ]
+)
+->middleware('permiso:importacion.gestionar')
+->name(
+    'unidades-adquiridas.intervenciones.componente-stock'
+);
+
+
+Route::post(
+    '/unidades-adquiridas/{unidad}/intervenciones/servicio',
+    [
+        IntervencionUnidadAdquiridaController::class,
+        'servicio',
+    ]
+)
+->middleware('permiso:importacion.gestionar')
+->name(
+    'unidades-adquiridas.intervenciones.servicio'
+); 
 /*
 |--------------------------------------------------------------------------
 | INVENTARIO
@@ -374,7 +415,131 @@ Route::post(
 ->middleware('permiso:inventario.registrar')
 ->name('inventario.store');
 
+/*
+|--------------------------------------------------------------------------
+| Envíos de importación Cochabamba -> Oruro
+|--------------------------------------------------------------------------
+*/
 
+Route::get(
+    '/envios-importacion',
+    [
+        EnvioImportacionController::class,
+        'index',
+    ]
+)
+->middleware('permiso:importacion.ver')
+->name('envios-importacion.index');
+
+
+Route::post(
+    '/envios-importacion',
+    [
+        EnvioImportacionController::class,
+        'store',
+    ]
+)
+->middleware('permiso:importacion.gestionar')
+->name('envios-importacion.store');
+
+
+Route::get(
+    '/envios-importacion/{envio}',
+    [
+        EnvioImportacionController::class,
+        'show',
+    ]
+)
+->middleware('permiso:importacion.ver')
+->name('envios-importacion.show');
+
+
+Route::post(
+    '/envios-importacion/{envio}/unidades/{unidad}',
+    [
+        EnvioImportacionController::class,
+        'agregarUnidad',
+    ]
+)
+->middleware('permiso:importacion.gestionar')
+->name('envios-importacion.unidades.agregar');
+
+
+Route::delete(
+    '/envios-importacion/{envio}/unidades/{unidad}',
+    [
+        EnvioImportacionController::class,
+        'quitarUnidad',
+    ]
+)
+->middleware('permiso:importacion.gestionar')
+->name('envios-importacion.unidades.quitar');
+
+
+Route::post(
+    '/envios-importacion/{envio}/preparar',
+    [
+        EnvioImportacionController::class,
+        'preparar',
+    ]
+)
+->middleware('permiso:importacion.gestionar')
+->name('envios-importacion.preparar');
+
+
+Route::post(
+    '/envios-importacion/{envio}/despachar',
+    [
+        EnvioImportacionController::class,
+        'despachar',
+    ]
+)
+->middleware('permiso:importacion.gestionar')
+->name('envios-importacion.despachar');
+
+
+Route::post(
+    '/envios-importacion/{envio}/unidades/{unidad}/recibir',
+    [
+        EnvioImportacionController::class,
+        'recibirUnidad',
+    ]
+)
+->middleware('permiso:importacion.gestionar')
+->name('envios-importacion.unidades.recibir');
+
+
+Route::post(
+    '/envios-importacion/{envio}/unidades/{unidad}/faltante',
+    [
+        EnvioImportacionController::class,
+        'marcarFaltante',
+    ]
+)
+->middleware('permiso:importacion.gestionar')
+->name('envios-importacion.unidades.faltante');
+
+
+Route::post(
+    '/envios-importacion/{envio}/unidades/{unidad}/incidencia',
+    [
+        EnvioImportacionController::class,
+        'registrarIncidencia',
+    ]
+)
+->middleware('permiso:importacion.gestionar')
+->name('envios-importacion.unidades.incidencia');
+
+
+Route::post(
+    '/envios-importacion/{envio}/cerrar-recepcion',
+    [
+        EnvioImportacionController::class,
+        'cerrarRecepcion',
+    ]
+)
+->middleware('permiso:importacion.gestionar')
+->name('envios-importacion.cerrar-recepcion');
 
 
 

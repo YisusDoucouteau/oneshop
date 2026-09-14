@@ -130,7 +130,7 @@ class UnidadAdquiridaController extends Controller
 
 
 
-        return view(
+          return view(
             'unidades_adquiridas.create',
             compact(
                 'lotes',
@@ -354,10 +354,22 @@ public function show(
         'tipoCambioCompra',
 
         'almacenActual',
-        'envioImportacionUnidad',
+    
+        'envioImportacionUnidad.envioImportacion.almacenOrigen',
+'envioImportacionUnidad.envioImportacion.almacenDestino',
+'envioImportacionUnidad.envioImportacion.preparadoPor',
+'envioImportacionUnidad.envioImportacion.despachadoPor',
+'envioImportacionUnidad.envioImportacion.recibidoPor',
 
+'envioImportacionUnidad.recibidoPor',
+'envioImportacionUnidad.incidencias',
         'intervenciones',
-
+        'intervenciones.producto',
+'intervenciones.tipoCosto',
+'intervenciones.moneda',
+'intervenciones.tipoCambio',
+'intervenciones.registradoPor',
+'intervenciones.movimientoInventario.tipoMovimiento',
         'costosPreparacion.tipoCosto',
         'costosPreparacion.moneda',
 
