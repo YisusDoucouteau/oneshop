@@ -6,31 +6,112 @@ use App\Models\UnidadAdquirida;
 use App\Models\Lote;
 use App\Models\Almacen;
 use App\Models\Moneda;
+use App\Models\CondicionFisica;
+use Illuminate\Http\JsonResponse;
+use App\Services\IncorporacionUnidadAdquiridaService;
+use App\Services\UnidadAdquiridaService;
+use App\Exceptions\ReglaNegocioException;
 use Illuminate\Http\Request;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\View\View;
 
 class UnidadAdquiridaController extends Controller
 {
+    public function __construct(
+    private IncorporacionUnidadAdquiridaService $incorporacionService,
+    private UnidadAdquiridaService $unidadAdquiridaService
+) {
+}
+   public function index(Request $request): View
+{
 
-    public function index(): View
-    {
+    $unidades = UnidadAdquirida::query()
 
-        $unidades = UnidadAdquirida::query()
-            ->with([
-                'almacenActual',
-                'moneda',
-            ])
-            ->latest()
-            ->paginate(15);
+        ->with([
+            'producto.marca',
+            'detalleLote.lote.proveedor',
+            'adquisicionDirecta',
+            'almacenActual',
+            'equipo',
+        ])
+
+        ->when(
+            $request->buscar,
+            function($query) use ($request){
+
+                $buscar = $request->buscar;
 
 
-        return view(
-            'unidades_adquiridas.index',
-            compact('unidades')
-        );
+                $query->where(function($q) use ($buscar){
 
-    }
+                    $q->where(
+                        'codigo_trazabilidad',
+                        'like',
+                        "%{$buscar}%"
+                    )
+
+                    ->orWhere(
+                        'serial_fabricante',
+                        'like',
+                        "%{$buscar}%"
+                    )
+
+                    ->orWhere(
+                        'nombre_equipo',
+                        'like',
+                        "%{$buscar}%"
+                    );
+
+                });
+
+            }
+        )
+
+
+        ->when(
+            $request->estado,
+            function($query) use ($request){
+
+                $query->where(
+                    'estado',
+                    $request->estado
+                );
+
+            }
+        )
+
+
+        ->latest()
+
+        ->paginate(15)
+
+        ->withQueryString();
+
+
+
+    $estados = [
+        UnidadAdquirida::ESTADO_PENDIENTE_LLEGADA,
+        UnidadAdquirida::ESTADO_RECIBIDA_ORIGEN,
+        UnidadAdquirida::ESTADO_EN_REVISION,
+        UnidadAdquirida::ESTADO_EN_PREPARACION,
+        UnidadAdquirida::ESTADO_LISTA_ENVIO,
+        UnidadAdquirida::ESTADO_ENVIADA,
+        UnidadAdquirida::ESTADO_RECIBIDA_ORURO,
+        UnidadAdquirida::ESTADO_INCORPORADA,
+        UnidadAdquirida::ESTADO_ANULADA,
+    ];
+
+
+
+    return view(
+        'unidades_adquiridas.index',
+        compact(
+            'unidades',
+            'estados'
+        )
+    );
+
+}
 
 
 
@@ -251,10 +332,281 @@ class UnidadAdquiridaController extends Controller
                 'unidades-adquiridas.index'
             )
             ->with(
-                'success',
-                'Equipo comprado registrado correctamente.'
+                'success', 
+                'Equipo  registrado correctamente.'
             );
 
     }
+public function show(
+    UnidadAdquirida $unidad
+): View {
 
+    $unidad->load([
+
+        'producto.marca',
+        'producto.categoria',
+
+        'detalleLote.lote.proveedor',
+        'detalleLote.producto',
+        'adquisicionDirecta',
+
+        'moneda',
+        'tipoCambioCompra',
+
+        'almacenActual',
+        'envioImportacionUnidad',
+
+        'intervenciones',
+
+        'costosPreparacion.tipoCosto',
+        'costosPreparacion.moneda',
+
+        'historialCostos',
+
+        'incorporacionInventario.usuario',
+        'incorporacionInventario.condicionFisica',
+
+        'equipo.estadoActual',
+        'equipo.almacenActual',
+        'equipo.condicionFisica',
+    ]);
+
+
+    $condicionesFisicas =
+        CondicionFisica::query()
+            ->where('activo', true)
+            ->orderBy('nombre')
+            ->get();
+
+
+    return view(
+        'unidades_adquiridas.show',
+        compact(
+            'unidad',
+            'condicionesFisicas'
+        )
+    );
+}
+public function incorporar(
+    Request $request,
+    UnidadAdquirida $unidad
+): JsonResponse|RedirectResponse {
+
+    $datos = $request->validate([
+
+        'condicion_fisica_id' => [
+            'required',
+            'integer',
+            'exists:condiciones_fisicas,id',
+        ],
+
+        'serial_fabricante' => [
+            'nullable',
+            'string',
+            'max:150',
+        ],
+
+        'observacion' => [
+            'nullable',
+            'string',
+            'max:2000',
+        ],
+
+    ]);
+
+
+    $unidadActualizada =
+        $this->incorporacionService
+            ->incorporar(
+                $request->user()->id,
+                $unidad->id,
+                (int) $datos['condicion_fisica_id'],
+                $datos['serial_fabricante'] ?? null,
+                $datos['observacion'] ?? null
+            );
+
+
+    $mensaje =
+        'La unidad fue incorporada correctamente al inventario.';
+
+
+    if ($request->expectsJson()) {
+
+        return response()->json([
+
+            'ok' => true,
+
+            'message' => $mensaje,
+
+            'unidad_id' =>
+                $unidadActualizada->id,
+
+            'estado' =>
+                $unidadActualizada->estado,
+
+            'equipo' => [
+
+                'id' =>
+                    $unidadActualizada->equipo?->id,
+
+                'codigo_interno' =>
+                    $unidadActualizada
+                        ->equipo
+                        ?->codigo_interno,
+
+            ],
+
+        ]);
+    }
+
+
+    return redirect()
+        ->route(
+            'unidades-adquiridas.show',
+            $unidadActualizada
+        )
+        ->with(
+            'success',
+            $mensaje
+        );
+}
+public function revision(
+    Request $request,
+    UnidadAdquirida $unidad
+): JsonResponse|RedirectResponse {
+
+    $datos = $request->validate([
+
+        'serial_fabricante' => [
+            'nullable',
+            'string',
+            'max:150',
+        ],
+
+        'procesador' => [
+            'nullable',
+            'string',
+            'max:150',
+        ],
+
+        'generacion_procesador' => [
+            'nullable',
+            'string',
+            'max:80',
+        ],
+
+        'ram_gb' => [
+            'nullable',
+            'integer',
+            'min:0',
+        ],
+
+        'almacenamiento_gb' => [
+            'nullable',
+            'integer',
+            'min:0',
+        ],
+
+        'tipo_almacenamiento' => [
+            'nullable',
+            'string',
+            'max:50',
+        ],
+
+        'tarjeta_grafica' => [
+            'nullable',
+            'string',
+            'max:150',
+        ],
+
+        'pantalla_pulgadas' => [
+            'nullable',
+            'numeric',
+            'min:0',
+        ],
+
+        'resolucion' => [
+            'nullable',
+            'string',
+            'max:50',
+        ],
+
+        'sistema_operativo' => [
+            'nullable',
+            'string',
+            'max:100',
+        ],
+
+        'enciende' => [
+            'nullable',
+            'boolean',
+        ],
+
+        'tiene_sistema_operativo' => [
+            'nullable',
+            'boolean',
+        ],
+
+        'tiene_cargador' => [
+            'nullable',
+            'boolean',
+        ],
+
+        'requiere_servicio' => [
+            'nullable',
+            'boolean',
+        ],
+
+        'servicio_requerido' => [
+            'nullable',
+            'string',
+            'max:2000',
+        ],
+
+        'observacion_revision' => [
+            'nullable',
+            'string',
+            'max:2000',
+        ],
+
+    ]);
+
+
+    $unidadActualizada =
+        $this->unidadAdquiridaService
+            ->registrarRevisionPreliminar(
+                $request->user()->id,
+                $unidad->id,
+                $datos
+            );
+
+
+    $mensaje =
+        'La revisión preliminar fue registrada correctamente.';
+
+
+    if ($request->expectsJson()) {
+
+        return response()->json([
+
+            'ok' => true,
+
+            'message' => $mensaje,
+
+            'unidad' => [
+                'id' => $unidadActualizada->id,
+                'estado' => $unidadActualizada->estado,
+            ],
+
+        ]);
+    }
+
+
+    return redirect()
+        ->route(
+            'unidades-adquiridas.show',
+            $unidadActualizada
+        )
+        ->with('success', $mensaje);
+}
 }

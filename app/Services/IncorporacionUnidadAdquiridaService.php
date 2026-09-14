@@ -6,9 +6,11 @@ use App\Exceptions\ReglaNegocioException;
 use App\Models\Almacen;
 use App\Models\UnidadAdquirida;
 use App\Models\User;
+use App\Models\IncorporacionUnidadAdquirida;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Validation\Rule;
+
 
 class IncorporacionUnidadAdquiridaService
 {
@@ -380,7 +382,39 @@ class IncorporacionUnidadAdquiridaService
                         $datosEquipo
                     );
 
+                    /*
+|--------------------------------------------------------------------------
+| Registro histórico de incorporación
+|--------------------------------------------------------------------------
+*/
 
+IncorporacionUnidadAdquirida::create([
+
+    'unidad_adquirida_id' =>
+        $unidad->id,
+
+
+    'equipo_id' =>
+        $equipo->id,
+
+
+    'usuario_id' =>
+        $usuario->id,
+
+
+    'condicion_fisica_id' =>
+        $condicionFisicaId,
+
+
+    'fecha_incorporacion' =>
+        now(),
+
+
+    'observacion' =>
+        $observacion
+            ?? $unidad->observacion_revision,
+
+]);
 
             /*
             |--------------------------------------------------------------------------

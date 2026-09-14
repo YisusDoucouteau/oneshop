@@ -1,3 +1,95 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+
+
+@layer components {
+
+
+.card-oneshop {
+
+    @apply
+    rounded-2xl
+    border
+    border-slate-200
+    bg-white
+    shadow-sm
+    transition
+    duration-200
+    hover:shadow-lg;
+
+}
+
+
+
+.btn-primary {
+
+    @apply
+    rounded-xl
+    bg-oneshop-primary
+    px-5
+    py-2.5
+    text-sm
+    font-semibold
+    text-white
+    transition
+    hover:bg-oneshop-dark;
+
+}
+
+
+
+.btn-secondary {
+
+    @apply
+    rounded-xl
+    border
+    border-slate-200
+    bg-white
+    px-5
+    py-2.5
+    text-sm
+    font-semibold
+    text-slate-700
+    transition
+    hover:bg-slate-50;
+
+}
+
+
+
+.input-oneshop {
+
+    @apply
+    rounded-xl
+    border-slate-300
+    focus:border-oneshop-primary
+    focus:ring-oneshop-primary;
+
+}
+
+
+.table-oneshop {
+
+    @apply
+    overflow-hidden
+    rounded-2xl
+    border
+    border-slate-200
+    bg-white;
+
+}
+
+
+.section-title {
+
+    @apply
+    text-xl
+    font-bold
+    text-slate-900;
+
+}
+
+
+}

@@ -275,21 +275,7 @@ class UnidadAdquirida extends Model
     }
 
 
-    /*
-    |--------------------------------------------------------------------------
-    | Costos de preparación
-    |--------------------------------------------------------------------------
-    */
-
-    public function costosPreparacion(): HasMany
-    {
-        return $this->hasMany(
-            CostoUnidadAdquirida::class,
-            'unidad_adquirida_id'
-        )
-            ->orderBy('fecha_costo');
-    }
-
+   
 
     /*
     |--------------------------------------------------------------------------
@@ -496,4 +482,20 @@ class UnidadAdquirida extends Model
                 }
             );
     }
+    public function costosPreparacion(): HasMany
+{
+    return $this->hasMany(
+        CostoUnidadAdquirida::class,
+        'unidad_adquirida_id'
+    )
+    ->orderBy('fecha_costo');
+}
+    public function incorporacionInventario(): HasOne
+{
+    return $this->hasOne(
+        IncorporacionUnidadAdquirida::class,
+        'unidad_adquirida_id'
+    );
+}
+
 }

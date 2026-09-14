@@ -183,4 +183,12 @@ public function detallesGarantia(): HasMany
         'equipo_id'
     );
 }
+public function incorporacionUnidad(): HasOne
+{
+    return $this->hasOne(
+        IncorporacionUnidadAdquirida::class,
+        'equipo_id'
+    );
+}
+
 }

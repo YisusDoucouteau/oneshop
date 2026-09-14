@@ -8,6 +8,7 @@ use App\Http\Controllers\CatalogoImportacionController;
 use App\Http\Controllers\UnidadAdquiridaController;
 use App\Http\Controllers\RecepcionLoteController;
 use App\Http\Controllers\CostoLoteController;
+use App\Services\UnidadAdquiridaService;
 use Illuminate\Support\Facades\Route;
 
 
@@ -283,7 +284,7 @@ Route::post(
 
 /*
 |--------------------------------------------------------------------------
-| UNIDADES ADQUIRIDAS (vista general)
+| UNIDADES ADQUIRIDAS
 |--------------------------------------------------------------------------
 */
 
@@ -297,14 +298,12 @@ Route::get(
 
 
 
-
 Route::get(
     '/unidades-adquiridas/crear',
     [UnidadAdquiridaController::class,'create']
 )
 ->middleware('permiso:importacion.gestionar')
 ->name('unidades-adquiridas.create');
-
 
 
 
@@ -317,9 +316,26 @@ Route::post(
 
 
 
+Route::get(
+    '/unidades-adquiridas/{unidad}',
+    [UnidadAdquiridaController::class,'show']
+)
+->middleware('permiso:importacion.ver')
+->name('unidades-adquiridas.show');
 
+Route::post(
+    '/unidades-adquiridas/{unidad}/incorporar',
+    [UnidadAdquiridaController::class, 'incorporar']
+)
+->middleware('permiso:inventario.registrar')
+->name('unidades-adquiridas.incorporar');
 
-
+Route::patch(
+    '/unidades-adquiridas/{unidad}/revision',
+    [UnidadAdquiridaController::class, 'revision']
+)
+->middleware('permiso:importacion.gestionar')
+->name('unidades-adquiridas.revision');
 
 /*
 |--------------------------------------------------------------------------
