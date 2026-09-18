@@ -66,10 +66,13 @@
                             name="codigo"
                             required
                             maxlength="50"
-                            value="{{ old('codigo') }}"
+                            value="{{ old('codigo', $codigoSugerido) }}"
                             placeholder="IMP-2026-001"
                             class="w-full rounded-xl border-slate-300 uppercase focus:border-slate-900 focus:ring-slate-900"
                         >
+                        <p class="mt-2 text-xs text-slate-500">
+                            Generado automáticamente. Puedes modificarlo si la documentación de compra utiliza otro código.
+                        </p>
                     </div>
 
 
