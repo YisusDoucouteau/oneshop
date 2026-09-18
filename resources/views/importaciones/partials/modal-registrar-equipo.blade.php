@@ -1,6 +1,6 @@
 <div
     id="modalRegistrarEquipo"
-    class="fixed inset-0 z-50 hidden bg-black/60 backdrop-blur-sm"
+    class="fixed inset-0 z-50 {{ old('_form_context') === 'recepcion_unidad' ? '' : 'hidden' }} bg-black/60 backdrop-blur-sm"
 >
 
     <div class="flex min-h-screen items-center justify-center p-4">
@@ -79,7 +79,7 @@
                         class="h-4 w-4"
                     ></i>
 
-                    Compra
+                    Origen
 
                 </div>
 
@@ -120,6 +120,8 @@
             >
 
                 @csrf
+
+                <input type="hidden" name="_form_context" value="recepcion_unidad">
 
                 <input
                     type="hidden"
@@ -235,6 +237,7 @@
 
                         <select
                             name="detalle_lote_id"
+                            id="detalleLoteRecepcion"
                             class="mt-2 w-full rounded-xl border border-slate-300 p-3"
                         >
 
@@ -263,6 +266,31 @@
                                         -
                                         $unidadesActivas;
 
+                                    $esperada = $detalle->especificacionEsperada;
+
+                                    $datosRecepcion = [
+                                        'campos' => [
+                                            'procesador' => $esperada?->procesador,
+                                            'generacion_procesador' => $esperada?->generacion_procesador,
+                                            'ram_gb' => $esperada?->ram_gb,
+                                            'almacenamiento_gb' => $esperada?->almacenamiento_gb,
+                                            'tipo_almacenamiento' => $esperada?->tipo_almacenamiento,
+                                            'tarjeta_grafica' => $esperada?->tarjeta_grafica,
+                                            'sistema_operativo' => $esperada?->sistema_operativo,
+                                            'resolucion' => $esperada?->resolucion,
+                                            'pantalla_pulgadas' => $esperada?->pantalla_pulgadas,
+                                        ],
+                                        'compra' => [
+                                            'precio' => $detalle->costo_unitario_origen,
+                                            'moneda' => $detalle->moneda?->codigo,
+                                            'tipo_cambio' => $detalle->tipoCambioCompra?->valor,
+                                            'costo_bob' => $detalle->costo_unitario_bob,
+                                            'fecha' => $lote->fecha_compra?->format('d/m/Y'),
+                                            'referencia' => $lote->referencia_compra,
+                                            'proveedor' => $lote->proveedor?->nombre,
+                                        ],
+                                    ];
+
                                 @endphp
 
 
@@ -270,6 +298,7 @@
 
                                     <option
                                         value="{{ $detalle->id }}"
+                                        data-recepcion="{{ json_encode($datosRecepcion) }}"
                                         {{ old('detalle_lote_id') == $detalle->id ? 'selected' : '' }}
                                     >
 
@@ -288,6 +317,10 @@
                             @endforeach
 
                         </select>
+
+                        <p class="mt-2 text-xs text-slate-500">
+                            Al elegir el producto se cargarán como referencia los datos registrados en la compra. Confirma y corrige lo observado físicamente.
+                        </p>
 
                     </div>
 
@@ -315,7 +348,7 @@
 
                         <input
                             type="number"
-                            min="1"
+                            min="0"
                             name="ram_gb"
                             value="{{ old('ram_gb') }}"
                             placeholder="RAM GB"
@@ -325,7 +358,7 @@
 
                         <input
                             type="number"
-                            min="1"
+                            min="0"
                             name="almacenamiento_gb"
                             value="{{ old('almacenamiento_gb') }}"
                             placeholder="Disco GB"
@@ -369,6 +402,13 @@
                                 {{ old('tipo_almacenamiento') === 'HDD' ? 'selected' : '' }}
                             >
                                 HDD
+                            </option>
+
+                            <option
+                                value="EMMC"
+                                {{ old('tipo_almacenamiento') === 'EMMC' ? 'selected' : '' }}
+                            >
+                                eMMC
                             </option>
 
                         </select>
@@ -423,6 +463,23 @@
 
                         </select>
 
+                        <select
+                            name="grado_recibido"
+                            class="rounded-xl border border-slate-300 p-3"
+                            required
+                        >
+                            <option value="">Grado recibido</option>
+                            <option value="A" {{ old('grado_recibido') === 'A' ? 'selected' : '' }}>
+                                Grado A (90–100%)
+                            </option>
+                            <option value="B" {{ old('grado_recibido') === 'B' ? 'selected' : '' }}>
+                                Grado B (70–90%)
+                            </option>
+                            <option value="C" {{ old('grado_recibido') === 'C' ? 'selected' : '' }}>
+                                Grado C (50–70%)
+                            </option>
+                        </select>
+
 
                     </div>
 
@@ -432,7 +489,7 @@
 
 
                 {{-- ===================================================== --}}
-                {{-- PASO 2: COMPRA --}}
+                {{-- PASO 2: ORIGEN DE COMPRA --}}
                 {{-- ===================================================== --}}
 
                 <div
@@ -440,150 +497,54 @@
                     class="hidden"
                 >
 
-
-                    <h3 class="mb-5 flex items-center gap-2 text-lg font-semibold">
-
+                    <h3 class="mb-2 flex items-center gap-2 text-lg font-semibold">
                         <i
                             data-lucide="wallet"
                             class="h-5 w-5 text-slate-600"
                         ></i>
 
-                        Información de compra
-
+                        Origen de compra
                     </h3>
 
+                    <p class="mb-5 text-sm text-slate-500">
+                        Información heredada del lote. En recepción no se modifica el precio, la moneda ni el tipo de cambio.
+                    </p>
 
-
-                    {{-- PRECIO / MONEDA --}}
-                    <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
-
-
-                        <input
-                            type="number"
-                            min="0"
-                            step="0.01"
-                            name="precio_compra"
-                            value="{{ old('precio_compra') }}"
-                            placeholder="Precio compra"
-                            class="rounded-xl border border-slate-300 p-3"
-                        >
-
-
-
-                        <select
-                            id="moneda_compra_equipo"
-                            name="moneda_id"
-                            class="rounded-xl border border-slate-300 p-3"
-                        >
-
-                            <option value="">
-                                Moneda
-                            </option>
-
-
-                            @foreach(
-                                \App\Models\Moneda::where('activo', true)
-                                ->orderBy('codigo')
-                                ->get()
-                                as $moneda
-                            )
-
-                                <option
-                                    value="{{ $moneda->id }}"
-                                    {{ old('moneda_id') == $moneda->id ? 'selected' : '' }}
-                                >
-                                    {{ $moneda->codigo }}
-                                </option>
-
-                            @endforeach
-
-                        </select>
-
-
-                    </div>
-
-
-
-                    {{-- TIPO CAMBIO --}}
-                    <input
-                        id="tipo_cambio_compra_equipo"
-                        type="number"
-                        min="0"
-                        step="0.000001"
-                        name="tipo_cambio_compra"
-                        value="{{ old('tipo_cambio_compra') }}"
-                        placeholder="Tipo cambio"
-                        class="mt-5 w-full rounded-xl border border-slate-300 p-3"
-                    >
-
-                    @if($referenciaUsdBob)
-                        @php
-                            $tipoCambioReferencia = $referenciaUsdBob['tipo_cambio'];
-                        @endphp
-                        <div class="mt-3 flex flex-col gap-3 rounded-xl border border-blue-200 bg-blue-50 p-4 sm:flex-row sm:items-center sm:justify-between">
-                            <div>
-                                <p class="text-sm font-semibold text-blue-950">
-                                    Referencia USD/BOB: {{ number_format((float) $tipoCambioReferencia->valor, 4) }}
-                                </p>
-                                <p class="mt-1 text-xs text-blue-700">
-                                    Fuente: {{ $referenciaUsdBob['origen'] === 'API' ? 'API BCBO' : 'último valor guardado' }}
-                                    · {{ $tipoCambioReferencia->fecha_vigencia?->format('d/m/Y') }}
-                                    @if($referenciaUsdBob['desactualizado'])
-                                        · Puede estar desactualizado
-                                    @endif
-                                </p>
-                            </div>
-                            <button
-                                type="button"
-                                onclick="usarReferenciaUsdBob()"
-                                class="shrink-0 rounded-lg bg-blue-700 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-800"
-                            >
-                                Usar referencia
-                            </button>
+                    <div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                        <div class="rounded-xl border border-slate-200 bg-slate-50 p-4">
+                            <p class="text-xs font-semibold uppercase tracking-wide text-slate-500">Precio de compra</p>
+                            <p id="compraPrecioRecepcion" class="mt-1 text-base font-semibold text-slate-900">—</p>
                         </div>
-                        <p class="mt-2 text-xs text-slate-500">
-                            Es una ayuda para USD. Confirma siempre el tipo de cambio realmente pagado; USDT se registra manualmente.
-                        </p>
-                    @else
-                        <p class="mt-2 text-xs text-amber-700">
-                            No fue posible obtener la referencia USD/BOB. Ingresa el tipo de cambio aplicado manualmente.
-                        </p>
-                    @endif
 
+                        <div class="rounded-xl border border-slate-200 bg-slate-50 p-4">
+                            <p class="text-xs font-semibold uppercase tracking-wide text-slate-500">Costo convertido</p>
+                            <p id="compraCostoBobRecepcion" class="mt-1 text-base font-semibold text-slate-900">—</p>
+                        </div>
 
+                        <div class="rounded-xl border border-slate-200 bg-slate-50 p-4">
+                            <p class="text-xs font-semibold uppercase tracking-wide text-slate-500">Tipo de cambio aplicado</p>
+                            <p id="compraTipoCambioRecepcion" class="mt-1 text-base font-semibold text-slate-900">—</p>
+                        </div>
 
-                    {{-- FECHA / PROVEEDOR --}}
-                    <div class="mt-5 grid grid-cols-1 gap-4 sm:grid-cols-2">
+                        <div class="rounded-xl border border-slate-200 bg-slate-50 p-4">
+                            <p class="text-xs font-semibold uppercase tracking-wide text-slate-500">Fecha de compra</p>
+                            <p id="compraFechaRecepcion" class="mt-1 text-base font-semibold text-slate-900">—</p>
+                        </div>
 
+                        <div class="rounded-xl border border-slate-200 bg-slate-50 p-4">
+                            <p class="text-xs font-semibold uppercase tracking-wide text-slate-500">Proveedor</p>
+                            <p id="compraProveedorRecepcion" class="mt-1 text-base font-semibold text-slate-900">—</p>
+                        </div>
 
-                        <input
-                            type="date"
-                            name="fecha_compra"
-                            value="{{ old('fecha_compra', date('Y-m-d')) }}"
-                            class="rounded-xl border border-slate-300 p-3"
-                        >
-
-
-                        <input
-                            name="proveedor_compra"
-                            value="{{ old('proveedor_compra') }}"
-                            placeholder="Proveedor"
-                            class="rounded-xl border border-slate-300 p-3"
-                        >
-
-
+                        <div class="rounded-xl border border-slate-200 bg-slate-50 p-4">
+                            <p class="text-xs font-semibold uppercase tracking-wide text-slate-500">Referencia</p>
+                            <p id="compraReferenciaRecepcion" class="mt-1 text-base font-semibold text-slate-900">—</p>
+                        </div>
                     </div>
 
-
-
-                    {{-- REFERENCIA --}}
-                    <input
-                        name="referencia_compra"
-                        value="{{ old('referencia_compra') }}"
-                        placeholder="Factura o referencia"
-                        class="mt-5 w-full rounded-xl border border-slate-300 p-3"
-                    >
-
+                    <div id="compraIncompletaRecepcion" class="mt-4 hidden rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">
+                        Esta línea no tiene todos los datos económicos de compra. Puedes registrar la recepción, pero conviene completar la compra antes de cerrar el lote.
+                    </div>
 
                 </div>
 
@@ -754,6 +715,103 @@
 
 let pasoActual = 1;
 
+const detalleLoteRecepcion = document.getElementById('detalleLoteRecepcion');
+const recepcionTieneOldInput = @js(old('_form_context') === 'recepcion_unidad');
+
+function formatearMontoRecepcion(valor, moneda = '')
+{
+    if (valor === null || valor === undefined || valor === '') {
+        return '—';
+    }
+
+    const numero = Number(valor);
+
+    if (Number.isNaN(numero)) {
+        return `${moneda ? moneda + ' ' : ''}${valor}`;
+    }
+
+    return `${moneda ? moneda + ' ' : ''}${numero.toLocaleString('es-BO', {
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2
+    })}`;
+}
+
+function actualizarResumenCompraRecepcion(compra = {})
+{
+    const asignar = (id, valor) => {
+        const elemento = document.getElementById(id);
+
+        if (elemento) {
+            elemento.textContent = valor || '—';
+        }
+    };
+
+    asignar(
+        'compraPrecioRecepcion',
+        formatearMontoRecepcion(compra.precio, compra.moneda || '')
+    );
+
+    asignar(
+        'compraCostoBobRecepcion',
+        formatearMontoRecepcion(compra.costo_bob, 'BOB')
+    );
+
+    asignar(
+        'compraTipoCambioRecepcion',
+        compra.tipo_cambio ? Number(compra.tipo_cambio).toFixed(6) : (compra.moneda === 'BOB' ? 'No aplica' : '—')
+    );
+
+    asignar('compraFechaRecepcion', compra.fecha || '—');
+    asignar('compraProveedorRecepcion', compra.proveedor || '—');
+    asignar('compraReferenciaRecepcion', compra.referencia || '—');
+
+    const advertencia = document.getElementById('compraIncompletaRecepcion');
+    const compraIncompleta = compra.precio === null
+        || compra.precio === undefined
+        || compra.precio === ''
+        || !compra.moneda
+        || !compra.fecha;
+
+    advertencia?.classList.toggle('hidden', !compraIncompleta);
+}
+
+function cargarReferenciaRecepcion(rellenarCampos = true)
+{
+    if (!detalleLoteRecepcion) {
+        return;
+    }
+
+    const opcion = detalleLoteRecepcion.options[detalleLoteRecepcion.selectedIndex];
+    const formulario = detalleLoteRecepcion.closest('form');
+    let datos = {};
+
+    try {
+        datos = opcion?.dataset.recepcion
+            ? JSON.parse(opcion.dataset.recepcion)
+            : {};
+    } catch (error) {
+        console.error('No fue posible leer los datos de referencia de recepción.', error);
+    }
+
+    if (rellenarCampos) {
+        Object.entries(datos.campos || {}).forEach(([nombre, valor]) => {
+            const campo = formulario?.elements.namedItem(nombre);
+
+            if (campo) {
+                campo.value = valor ?? '';
+            }
+        });
+    }
+
+    actualizarResumenCompraRecepcion(datos.compra || {});
+}
+
+detalleLoteRecepcion?.addEventListener('change', () => cargarReferenciaRecepcion(true));
+
+if (detalleLoteRecepcion?.value) {
+    cargarReferenciaRecepcion(!recepcionTieneOldInput);
+}
+
 
 /*
 |--------------------------------------------------------------------------
@@ -915,6 +973,11 @@ function validarPasoActual()
                 '[name="tiene_cargador"]'
             );
 
+        const grado =
+            modal.querySelector(
+                '[name="grado_recibido"]'
+            );
+
 
 
         // PRODUCTO
@@ -963,6 +1026,21 @@ function validarPasoActual()
             return false;
         }
 
+
+        // GRADO DE LLEGADA
+        if (
+            !grado ||
+            grado.value === ''
+        ) {
+
+            mostrarErrorPaso(
+                'Debe indicar el grado en el que llegó el equipo.',
+                grado
+            );
+
+            return false;
+        }
+
     }
 
 
@@ -971,58 +1049,13 @@ function validarPasoActual()
 
     /*
     |--------------------------------------------------------------------------
-    | PASO 2 - COMPRA
+    | PASO 2 - ORIGEN DE COMPRA
+    |--------------------------------------------------------------------------
+    |
+    | Solo informativo. Los datos económicos pertenecen a la compra original
+    | y no se editan durante la recepción física.
     |--------------------------------------------------------------------------
     */
-
-    if (pasoActual === 2) {
-
-
-        const precio =
-            modal.querySelector(
-                '[name="precio_compra"]'
-            );
-
-
-        const moneda =
-            modal.querySelector(
-                '[name="moneda_id"]'
-            );
-
-
-
-        // PRECIO
-        if (
-            !precio ||
-            precio.value.trim() === '' ||
-            Number(precio.value) <= 0
-        ) {
-
-            mostrarErrorPaso(
-                'Debe ingresar un precio de compra válido.',
-                precio
-            );
-
-            return false;
-        }
-
-
-
-        // MONEDA
-        if (
-            !moneda ||
-            moneda.value === ''
-        ) {
-
-            mostrarErrorPaso(
-                'Debe seleccionar la moneda de compra.',
-                moneda
-            );
-
-            return false;
-        }
-
-    }
 
 
 
@@ -1401,41 +1434,6 @@ function actualizarBotones()
 }
 
 
-
-/*
-|--------------------------------------------------------------------------
-| TIPO DE CAMBIO DE REFERENCIA
-|--------------------------------------------------------------------------
-*/
-
-function usarReferenciaUsdBob()
-{
-    const moneda = document.getElementById(
-        'moneda_compra_equipo'
-    );
-
-    const tipoCambio = document.getElementById(
-        'tipo_cambio_compra_equipo'
-    );
-
-    const codigoMoneda = moneda
-        ?.options[moneda.selectedIndex]
-        ?.textContent
-        ?.trim();
-
-    if (codigoMoneda !== 'USD') {
-        alert(
-            'La referencia automática corresponde únicamente a USD/BOB. Selecciona USD o registra manualmente el valor aplicado para USDT.'
-        );
-
-        return;
-    }
-
-    @if($referenciaUsdBob)
-        tipoCambio.value = @js((string) $referenciaUsdBob['tipo_cambio']->valor);
-        tipoCambio.focus();
-    @endif
-}
 
 
 /*

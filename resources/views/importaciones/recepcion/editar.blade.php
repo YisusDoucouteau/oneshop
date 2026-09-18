@@ -53,9 +53,31 @@ class="p-6"
 @csrf
 @method('PATCH')
 
+@if($errors->any())
+<div class="mb-6 rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">
+    <p class="font-semibold">No se pudieron guardar los cambios:</p>
+    <ul class="mt-2 list-disc pl-5">
+        @foreach($errors->all() as $error)
+            <li>{{ $error }}</li>
+        @endforeach
+    </ul>
+</div>
+@endif
 
+<section class="mb-8 rounded-xl border border-slate-200 bg-slate-50 p-5">
+    <div class="flex items-center gap-2">
+        <i data-lucide="wallet" class="h-5 w-5 text-slate-600"></i>
+        <h2 class="font-semibold text-slate-900">Origen de compra</h2>
+    </div>
+    <p class="mt-1 text-xs text-slate-500">Datos heredados del lote. No se modifican durante la corrección de recepción.</p>
 
-
+    <div class="mt-4 grid gap-3 text-sm sm:grid-cols-2 lg:grid-cols-4">
+        <p><span class="font-semibold">Precio:</span> {{ $unidad->precio_compra ?? '—' }} {{ $unidad->moneda?->codigo }}</p>
+        <p><span class="font-semibold">Bs:</span> {{ $unidad->precio_compra_bob !== null ? number_format((float) $unidad->precio_compra_bob, 2) : '—' }}</p>
+        <p><span class="font-semibold">Fecha:</span> {{ $unidad->fecha_compra?->format('d/m/Y') ?? '—' }}</p>
+        <p><span class="font-semibold">Referencia:</span> {{ $unidad->referencia_compra ?: '—' }}</p>
+    </div>
+</section>
 
 {{-- INFORMACION EQUIPO --}}
 
@@ -125,6 +147,7 @@ RAM GB
 
 <input
 type="number"
+min="0"
 name="ram_gb"
 value="{{ old('ram_gb',$unidad->ram_gb) }}"
 class="mt-2 w-full rounded-xl border p-3"
@@ -145,6 +168,7 @@ Disco GB
 
 <input
 type="number"
+min="0"
 name="almacenamiento_gb"
 value="{{ old('almacenamiento_gb',$unidad->almacenamiento_gb) }}"
 class="mt-2 w-full rounded-xl border p-3"
@@ -175,23 +199,29 @@ Seleccione
 
 
 <option value="SSD"
-@if($unidad->tipo_almacenamiento=="SSD") selected @endif
+@selected(old('tipo_almacenamiento', $unidad->tipo_almacenamiento) === 'SSD')
 >
 SSD
 </option>
 
 
 <option value="NVME"
-@if($unidad->tipo_almacenamiento=="NVME") selected @endif
+@selected(old('tipo_almacenamiento', $unidad->tipo_almacenamiento) === 'NVME')
 >
 NVMe
 </option>
 
 
 <option value="HDD"
-@if($unidad->tipo_almacenamiento=="HDD") selected @endif
+@selected(old('tipo_almacenamiento', $unidad->tipo_almacenamiento) === 'HDD')
 >
 HDD
+</option>
+
+<option value="EMMC"
+@selected(old('tipo_almacenamiento', $unidad->tipo_almacenamiento) === 'EMMC')
+>
+eMMC
 </option>
 
 
@@ -255,20 +285,12 @@ class="mt-2 w-full rounded-xl border p-3"
 >
 
 
-<option value="1"
-@if($unidad->tiene_cargador)
-selected
-@endif
->
+<option value="1" @selected((string) old('tiene_cargador', $unidad->tiene_cargador ? '1' : '0') === '1')>
 Sí
 </option>
 
 
-<option value="0"
-@if(!$unidad->tiene_cargador)
-selected
-@endif
->
+<option value="0" @selected((string) old('tiene_cargador', $unidad->tiene_cargador ? '1' : '0') === '0')>
 No
 </option>
 
@@ -277,6 +299,26 @@ No
 
 
 </div>
+
+
+<div>
+
+<label class="text-sm font-medium">
+Grado recibido
+</label>
+
+<select
+name="grado_recibido"
+class="mt-2 w-full rounded-xl border p-3"
+required
+>
+<option value="A" @selected(old('grado_recibido', $unidad->grado_recibido) === 'A')>A (90–100%)</option>
+<option value="B" @selected(old('grado_recibido', $unidad->grado_recibido) === 'B')>B (70–90%)</option>
+<option value="C" @selected(old('grado_recibido', $unidad->grado_recibido) === 'C')>C (50–70%)</option>
+</select>
+
+</div>
+
 
 
 </div>
@@ -340,6 +382,9 @@ class="rounded-xl border p-3"
 
 
 <input
+type="number"
+min="0"
+step="0.1"
 name="pantalla_pulgadas"
 value="{{ old('pantalla_pulgadas',$unidad->pantalla_pulgadas) }}"
 placeholder="Pulgadas"
@@ -366,7 +411,7 @@ class="rounded-xl border p-3"
 name="observacion_revision"
 class="mt-5 w-full rounded-xl border p-3"
 placeholder="Observación"
->{{ old('observacion_revision',$unidad->observacion_revision) }}</textarea>
+>{{ old('observacion_revision', $unidad->observacion_revision) }}</textarea>
 
 
 

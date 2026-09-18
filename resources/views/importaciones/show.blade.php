@@ -35,13 +35,27 @@
         </p>
 
 
-        <p class="mt-2 text-slate-600">
+        <div class="mt-4 grid gap-3 text-sm text-slate-600 sm:grid-cols-2 lg:grid-cols-4">
+            <p>
+                <span class="font-semibold text-slate-800">Estado:</span>
+                {{ $lote->estado }}
+            </p>
 
-            Estado:
+            <p>
+                <span class="font-semibold text-slate-800">Fecha compra:</span>
+                {{ $lote->fecha_compra?->format('d/m/Y') ?? 'No registrada' }}
+            </p>
 
-            {{ $lote->estado }}
+            <p>
+                <span class="font-semibold text-slate-800">Referencia:</span>
+                {{ $lote->referencia_compra ?: 'Sin referencia' }}
+            </p>
 
-        </p>
+            <p>
+                <span class="font-semibold text-slate-800">Origen:</span>
+                {{ $lote->origen ?: 'No especificado' }}
+            </p>
+        </div>
 
 
     </section>

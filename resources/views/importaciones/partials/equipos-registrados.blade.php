@@ -238,7 +238,7 @@
 
 
 
-                            @if($unidad->ram_gb)
+                            @if($unidad->ram_gb !== null)
 
                             <p>
 
@@ -246,13 +246,17 @@
 
                                 {{ $unidad->ram_gb }} GB
 
+                                @if((int) $unidad->ram_gb === 0)
+                                    <span class="font-semibold text-amber-700">(faltante)</span>
+                                @endif
+
                             </p>
 
                             @endif
 
 
 
-                            @if($unidad->almacenamiento_gb)
+                            @if($unidad->almacenamiento_gb !== null)
 
                             <p>
 
@@ -263,6 +267,10 @@
                                 GB
 
                                 {{ $unidad->tipo_almacenamiento }}
+
+                                @if((int) $unidad->almacenamiento_gb === 0)
+                                    <span class="font-semibold text-amber-700">(faltante)</span>
+                                @endif
 
                             </p>
 
@@ -296,6 +304,13 @@
 
                             @endif
 
+                            @if($unidad->grado_recibido)
+                            <p>
+                                Grado recibido:
+                                <span class="font-semibold">{{ $unidad->grado_recibido }}</span>
+                            </p>
+                            @endif
+
 
 
                             @if($unidad->tiene_cargador !== null)
@@ -308,6 +323,13 @@
 
                             </p>
 
+                            @endif
+
+                            @if($unidad->requiere_servicio)
+                                <p class="font-semibold text-amber-700">
+                                    Requiere servicio:
+                                    {{ $unidad->servicio_requerido ?: 'Sí' }}
+                                </p>
                             @endif
 
 
@@ -326,7 +348,7 @@
                     <td class="px-6 py-5 text-sm">
 
 
-                        @if($unidad->precio_compra)
+                        @if($unidad->precio_compra !== null)
 
 
                         <p class="font-semibold">
@@ -341,7 +363,7 @@
 
 
 
-                        @if($unidad->precio_compra_bob)
+                        @if($unidad->precio_compra_bob !== null)
 
                         <p class="text-xs text-green-700">
 
@@ -387,8 +409,14 @@
                         'EN_REVISION'
                         => 'EN REVISIÓN',
 
+                        'EN_PREPARACION'
+                        => 'EN PREPARACIÓN',
+
                         'LISTA_ENVIO'
                         => 'LISTO PARA ENVÍO',
+
+                        'ENVIADA'
+                        => 'ENVIADO A ORURO',
 
                         'RECIBIDA_ORURO'
                         => 'RECIBIDO EN ORURO',
@@ -491,90 +519,43 @@
 
                     <td class="px-6 py-5">
 
+                        @php
+                            $puedeModificarRecepcion = in_array(
+                                $unidad->estado,
+                                [
+                                    \App\Models\UnidadAdquirida::ESTADO_RECIBIDA_ORIGEN,
+                                    \App\Models\UnidadAdquirida::ESTADO_EN_REVISION,
+                                    \App\Models\UnidadAdquirida::ESTADO_EN_PREPARACION,
+                                ],
+                                true
+                            );
+                        @endphp
 
-                        @if(
+                        @if($puedeModificarRecepcion)
+                            <div class="flex items-center gap-2">
+                                <a
+                                    href="{{ route('importaciones.unidades.editar', $unidad) }}"
+                                    class="inline-flex items-center gap-2 rounded-lg bg-blue-50 px-3 py-1.5 text-xs font-semibold text-blue-700 transition hover:bg-blue-100"
+                                >
+                                    <i data-lucide="pencil" class="h-3.5 w-3.5"></i>
+                                    Editar
+                                </a>
 
-                        $unidad->estado !== \App\Models\UnidadAdquirida::ESTADO_ANULADA
-
-                        )
-
-
-
-                        <div class="flex items-center gap-2">
-
-
-                            {{-- FUTURO --}}
-
-                            <a
-href="{{ route('importaciones.unidades.editar',$unidad) }}"
-class="
-inline-flex
-items-center
-gap-2
-rounded-lg
-bg-blue-50
-px-3
-py-1.5
-text-xs
-font-semibold
-text-blue-700
-hover:bg-blue-100
-transition
-"
->
-
-<i data-lucide="pencil"
-class="h-3.5 w-3.5">
-</i>
-
-Editar
-
-</a>
-
-
-
-
-                            {{-- ANULAR --}}
-
-
-                            <button type="button" onclick="abrirModalAnularUnidad({{ $unidad->id }})"
-                                class="inline-flex items-center gap-2 rounded-lg bg-red-50 px-3 py-1.5 text-xs font-semibold text-red-700 hover:bg-red-100 transition"
-                                title="Anular equipo recibido">
-
-
-                                <i data-lucide="ban" class="h-3.5 w-3.5">
-
-                                </i>
-
-
-                                Anular
-
-
-                            </button>
-
-
-
-                        </div>
-
-
-
-
-
+                                <button
+                                    type="button"
+                                    onclick="abrirModalAnularUnidad({{ $unidad->id }})"
+                                    class="inline-flex items-center gap-2 rounded-lg bg-red-50 px-3 py-1.5 text-xs font-semibold text-red-700 transition hover:bg-red-100"
+                                    title="Anular equipo recibido"
+                                >
+                                    <i data-lucide="ban" class="h-3.5 w-3.5"></i>
+                                    Anular
+                                </button>
+                            </div>
+                        @elseif($unidad->estado === \App\Models\UnidadAdquirida::ESTADO_ANULADA)
+                            <span class="text-xs text-slate-400">Sin acciones</span>
                         @else
-
-
-
-                        <span class="text-xs text-slate-400">
-
-                            Sin acciones
-
-                        </span>
-
-
-
+                            <span class="text-xs font-medium text-slate-400">Recepción cerrada</span>
                         @endif
-
-
 
                     </td>
 

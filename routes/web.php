@@ -201,44 +201,6 @@ Route::patch(
 
 /*
 |--------------------------------------------------------------------------
-| RECEPCIÓN ANTIGUA (mantener por ahora)
-|--------------------------------------------------------------------------
-*/
-
-
-
-Route::get(
-    '/importaciones/{lote}/detalles/{detalle}/recepcion',
-    [RecepcionLoteController::class,'create']
-)
-->middleware([
-    'permiso:importacion.gestionar',
-    'permiso:inventario.registrar',
-])
-->name('importaciones.recepcion.create');
-
-
-
-
-
-Route::post(
-    '/importaciones/{lote}/detalles/{detalle}/recepcion',
-    [RecepcionLoteController::class,'store']
-)
-->middleware([
-    'permiso:importacion.gestionar',
-    'permiso:inventario.registrar',
-])
-->name('importaciones.recepcion.store');
-
-
-
-
-
-
-
-/*
-|--------------------------------------------------------------------------
 | CATÁLOGOS RÁPIDOS
 |--------------------------------------------------------------------------
 */

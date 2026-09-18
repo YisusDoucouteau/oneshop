@@ -195,7 +195,10 @@
 
                             @php
                                 $esperadas = (int) ($lote->cantidad_esperada_total ?? 0);
-                                $recibidas = (int) ($lote->cantidad_recibida_total ?? 0);
+                                // Recepción física real en Cochabamba. No usamos
+                                // detalles_lotes.cantidad_recibida porque ese campo
+                                // pertenece a la etapa posterior en Oruro.
+                                $recibidas = (int) ($lote->cantidad_recibida_fisica_total ?? 0);
 
                                 $porcentaje = $esperadas > 0
                                     ? min(100, round(($recibidas / $esperadas) * 100))

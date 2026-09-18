@@ -6,6 +6,7 @@ use App\Exceptions\ReglaNegocioException;
 use App\Models\Almacen;
 use App\Models\DetalleLote;
 use App\Models\EventoLogisticoLote;
+use App\Models\Lote;
 use App\Models\TipoEventoLogistico;
 use App\Models\UnidadAdquirida;
 use App\Models\User;
@@ -26,18 +27,17 @@ class UnidadAdquiridaService
      * - Hoy llegaron 3 al depósito de Cochabamba.
      * - Se crean 3 unidades adquiridas.
      *
-     * Actualiza cantidad_recibida del detalle,
-     * porque representa las unidades físicas
-     * recibidas desde la compra.
+     * La información económica se hereda siempre de la línea de compra.
+     * La recepción física no puede redefinir precio, moneda ni tipo de cambio.
      */
     public function registrarLlegadaCochabamba(
-    int $usuarioId,
-    int $detalleLoteId,
-    int $cantidad,
-    ?string $fechaLlegada = null,
-    ?string $observacion = null,
-    array $datosCompra = []
-): Collection {
+        int $usuarioId,
+        int $detalleLoteId,
+        int $cantidad,
+        ?string $fechaLlegada = null,
+        ?string $observacion = null,
+        array $datosFisicos = []
+    ): Collection {
 
     return DB::transaction(
         function () use (
@@ -46,7 +46,7 @@ class UnidadAdquiridaService
             $cantidad,
             $fechaLlegada,
             $observacion,
-            $datosCompra
+            $datosFisicos
         ) {
 
             /*
@@ -85,7 +85,7 @@ class UnidadAdquiridaService
             $detalle =
                 DetalleLote::query()
                     ->with([
-                        'lote',
+                        'lote.proveedor',
                         'producto',
                     ])
                     ->lockForUpdate()
@@ -117,6 +117,29 @@ class UnidadAdquiridaService
                     'No se pueden registrar llegadas en un lote cerrado o cancelado.'
                 );
             }
+
+
+            /*
+            |--------------------------------------------------------------------------
+            | Compra de origen
+            |--------------------------------------------------------------------------
+            |
+            | La recepción solo constata lo que llegó físicamente. Los datos
+            | económicos pertenecen a la línea de compra y se copian sin
+            | recalcular ni crear un nuevo tipo de cambio.
+            |
+            |--------------------------------------------------------------------------
+            */
+
+            $datosCompra = [
+                'precio_compra' => $detalle->costo_unitario_origen,
+                'moneda_id' => $detalle->moneda_id,
+                'tipo_cambio_compra_id' => $detalle->tipo_cambio_compra_id,
+                'precio_compra_bob' => $detalle->costo_unitario_bob,
+                'fecha_compra' => $detalle->lote->fecha_compra?->toDateString(),
+                'referencia_compra' => $detalle->lote->referencia_compra,
+                'proveedor_compra' => $detalle->lote->proveedor?->nombre,
+            ];
 
 
             /*
@@ -321,6 +344,10 @@ class UnidadAdquiridaService
             $unidades =
                 collect();
 
+            $servicioRequerido = trim(
+                (string) ($datosFisicos['servicio_requerido'] ?? '')
+            );
+
 
             for (
                 $indice = 0;
@@ -438,6 +465,47 @@ class UnidadAdquiridaService
 
 
                         /*
+                         * Ficha física constatada en recepción
+                         */
+
+                        'procesador' =>
+                            $datosFisicos['procesador'] ?? null,
+
+                        'generacion_procesador' =>
+                            $datosFisicos['generacion_procesador'] ?? null,
+
+                        'ram_gb' =>
+                            $datosFisicos['ram_gb'] ?? null,
+
+                        'almacenamiento_gb' =>
+                            $datosFisicos['almacenamiento_gb'] ?? null,
+
+                        'tipo_almacenamiento' =>
+                            $datosFisicos['tipo_almacenamiento'] ?? null,
+
+                        'tarjeta_grafica' =>
+                            $datosFisicos['tarjeta_grafica'] ?? null,
+
+                        'serial_fabricante' =>
+                            $datosFisicos['serial_fabricante'] ?? null,
+
+                        'grado_recibido' =>
+                            $datosFisicos['grado_recibido'] ?? null,
+
+                        'tiene_cargador' =>
+                            $datosFisicos['tiene_cargador'] ?? null,
+
+                        'sistema_operativo' =>
+                            $datosFisicos['sistema_operativo'] ?? null,
+
+                        'resolucion' =>
+                            $datosFisicos['resolucion'] ?? null,
+
+                        'pantalla_pulgadas' =>
+                            $datosFisicos['pantalla_pulgadas'] ?? null,
+
+
+                        /*
                          * Usuario
                          */
 
@@ -450,7 +518,12 @@ class UnidadAdquiridaService
                          */
 
                         'requiere_servicio' =>
-                            false,
+                            $servicioRequerido !== '',
+
+                        'servicio_requerido' =>
+                            $servicioRequerido !== ''
+                                ? $servicioRequerido
+                                : null,
 
 
                         /*
@@ -497,6 +570,17 @@ class UnidadAdquiridaService
             |
             |--------------------------------------------------------------------------
             */
+
+
+            /*
+            |--------------------------------------------------------------------------
+            | Estado de recepción física del lote
+            |--------------------------------------------------------------------------
+            */
+
+            $this->actualizarEstadoRecepcionLote(
+                $detalle->lote_id
+            );
 
 
             /*
@@ -559,6 +643,74 @@ class UnidadAdquiridaService
         3
     );
 }
+
+    /**
+     * Recalcula el estado visible de recepción física de un lote.
+     *
+     * No modifica detalles_lotes.cantidad_recibida: ese contador continúa
+     * reservado para la etapa posterior de Oruro.
+     */
+    public function sincronizarEstadoRecepcionLote(
+        int $loteId
+    ): void {
+        DB::transaction(
+            fn () => $this->actualizarEstadoRecepcionLote($loteId),
+            3
+        );
+    }
+
+    private function actualizarEstadoRecepcionLote(
+        int $loteId
+    ): void {
+        $lote = Lote::query()
+            ->lockForUpdate()
+            ->find($loteId);
+
+        if (!$lote) {
+            return;
+        }
+
+        if (
+            in_array(
+                $lote->estado,
+                ['CERRADO', 'CANCELADO'],
+                true
+            )
+        ) {
+            return;
+        }
+
+        $esperadas = (int) DetalleLote::query()
+            ->where('lote_id', $lote->id)
+            ->sum('cantidad_esperada');
+
+        $recibidasFisicamente = UnidadAdquirida::query()
+            ->whereHas(
+                'detalleLote',
+                fn ($query) => $query->where(
+                    'lote_id',
+                    $lote->id
+                )
+            )
+            ->where(
+                'estado',
+                '!=',
+                UnidadAdquirida::ESTADO_ANULADA
+            )
+            ->count();
+
+        $estado = match (true) {
+            $recibidasFisicamente === 0 => 'ABIERTO',
+            $esperadas > 0 && $recibidasFisicamente >= $esperadas => 'RECIBIDO',
+            default => 'RECEPCION_PARCIAL',
+        };
+
+        if ($lote->estado !== $estado) {
+            $lote->update([
+                'estado' => $estado,
+            ]);
+        }
+    }
 
     private function descripcionLlegada(
         DetalleLote $detalle,

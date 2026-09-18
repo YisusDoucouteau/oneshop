@@ -91,6 +91,22 @@
                         >
                     </div>
 
+                    <div>
+                        <label class="mb-2 block text-sm font-semibold text-slate-700">
+                            Fecha de compra
+                        </label>
+
+                        <input
+                            type="date"
+                            name="fecha_compra"
+                            value="{{ old('fecha_compra') }}"
+                            class="w-full rounded-xl border-slate-300 focus:border-slate-900 focus:ring-slate-900"
+                        >
+                        <p class="mt-2 text-xs text-slate-500">
+                            Fecha real de la compra, remate u orden. Se conservará en la trazabilidad de las unidades recibidas.
+                        </p>
+                    </div>
+
 
                     {{-- Proveedor --}}
 <div

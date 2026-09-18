@@ -2,391 +2,180 @@
 
 namespace App\Http\Controllers;
 
-use App\Exceptions\ReglaNegocioException;
-use App\Models\DetalleLote;
-use App\Models\Lote;
 use App\Models\UnidadAdquirida;
-use App\Services\RecepcionLoteService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\View\View;
 
 class RecepcionLoteController extends Controller
 {
-
-    public function create(
-        Lote $lote,
-        DetalleLote $detalle
-    ): View {
-
-
-        if ($detalle->lote_id !== $lote->id) {
-            abort(404);
-        }
-
-
-        $detalle->load([
+    public function editar(
+        UnidadAdquirida $unidad
+    ): View|RedirectResponse {
+        $unidad->load([
             'producto.marca',
-            'producto.categoria',
+            'detalleLote.lote',
+            'moneda',
+            'tipoCambioCompra',
         ]);
 
+        if (! $this->puedeModificarRecepcion($unidad)) {
+            $lote = $unidad->detalleLote?->lote;
 
-
-        $pendientes =
-            max(
-                0,
-                $detalle->cantidad_esperada
-                -
-                $detalle->cantidad_recibida
-            );
-
-
-
-        if ($pendientes <= 0) {
-
-            return redirect()
-                ->route(
-                    'importaciones.show',
-                    $lote
-                )
-                ->withErrors([
-                    'recepcion'
-                    =>
-                    'No existen unidades pendientes.'
-                ]);
-
+            return $lote
+                ? redirect()
+                    ->route('importaciones.show', $lote)
+                    ->withErrors([
+                        'edicion' => 'La recepción ya fue cerrada para esta unidad. Debe gestionarse desde su etapa logística actual.',
+                    ])
+                : redirect()
+                    ->route('importaciones.index')
+                    ->withErrors([
+                        'edicion' => 'La recepción ya no puede modificarse.',
+                    ]);
         }
-
-
 
         return view(
-            'importaciones.recepcion.create',
-            compact(
-                'lote',
-                'detalle',
-                'pendientes'
-            )
+            'importaciones.recepcion.editar',
+            compact('unidad')
         );
-
     }
 
-   public function editar(
-    UnidadAdquirida $unidad
-): View
-{
+    public function actualizar(
+        Request $request,
+        UnidadAdquirida $unidad
+    ): RedirectResponse {
+        $unidad->loadMissing('detalleLote.lote');
 
-    $unidad->load([
-    'producto.marca',
-    'detalleLote.lote',
-    'moneda',
-]);
+        if (! $this->puedeModificarRecepcion($unidad)) {
+            return back()->withErrors([
+                'edicion' => 'La recepción ya fue cerrada para esta unidad y no puede modificarse desde este módulo.',
+            ]);
+        }
 
+        $datos = $request->validate([
+            'procesador' => [
+                'required',
+                'string',
+                'max:150',
+            ],
+            'generacion_procesador' => [
+                'nullable',
+                'string',
+                'max:80',
+            ],
+            'ram_gb' => [
+                'nullable',
+                'integer',
+                'min:0',
+            ],
+            'almacenamiento_gb' => [
+                'nullable',
+                'integer',
+                'min:0',
+            ],
+            'tipo_almacenamiento' => [
+                'nullable',
+                'in:SSD,NVME,HDD,EMMC',
+            ],
+            'tarjeta_grafica' => [
+                'nullable',
+                'string',
+                'max:150',
+            ],
+            'serial_fabricante' => [
+                'nullable',
+                'string',
+                'max:150',
+            ],
+            'grado_recibido' => [
+                'required',
+                'in:A,B,C',
+            ],
+            'tiene_cargador' => [
+                'required',
+                'boolean',
+            ],
+            'sistema_operativo' => [
+                'nullable',
+                'string',
+                'max:100',
+            ],
+            'resolucion' => [
+                'nullable',
+                'string',
+                'max:50',
+            ],
+            'pantalla_pulgadas' => [
+                'nullable',
+                'numeric',
+                'min:0',
+            ],
+            'servicio_requerido' => [
+                'nullable',
+                'string',
+                'max:255',
+            ],
+            'observacion_revision' => [
+                'nullable',
+                'string',
+                'max:1000',
+            ],
+        ]);
 
-    return view(
-        'importaciones.recepcion.editar',
-        compact('unidad')
-    );
+        $servicioRequerido = trim(
+            (string) ($datos['servicio_requerido'] ?? '')
+        );
 
-}
+        $unidad->update([
+            'procesador' => $datos['procesador'],
+            'generacion_procesador' => $datos['generacion_procesador'] ?? null,
+            'ram_gb' => $datos['ram_gb'] ?? null,
+            'almacenamiento_gb' => $datos['almacenamiento_gb'] ?? null,
+            'tipo_almacenamiento' => $datos['tipo_almacenamiento'] ?? null,
+            'tarjeta_grafica' => $datos['tarjeta_grafica'] ?? null,
+            'serial_fabricante' => $datos['serial_fabricante'] ?? null,
+            'grado_recibido' => $datos['grado_recibido'],
+            'tiene_cargador' => $datos['tiene_cargador'],
+            'sistema_operativo' => $datos['sistema_operativo'] ?? null,
+            'resolucion' => $datos['resolucion'] ?? null,
+            'pantalla_pulgadas' => $datos['pantalla_pulgadas'] ?? null,
+            'requiere_servicio' => $servicioRequerido !== '',
+            'servicio_requerido' => $servicioRequerido !== ''
+                ? $servicioRequerido
+                : null,
+            'observacion_revision' => $datos['observacion_revision'] ?? null,
+        ]);
 
-public function actualizar(
-    Request $request,
-    UnidadAdquirida $unidad
-): RedirectResponse {
+        $lote = $unidad->detalleLote?->lote;
 
-    $datos = $request->validate([
-
-        'procesador' => [
-            'required',
-            'string',
-            'max:150',
-        ],
-
-        'generacion_procesador' => [
-            'nullable',
-            'string',
-            'max:100',
-        ],
-
-        'ram_gb' => [
-            'nullable',
-            'integer',
-            'min:1',
-        ],
-
-        'almacenamiento_gb' => [
-            'nullable',
-            'integer',
-            'min:1',
-        ],
-
-        'tipo_almacenamiento' => [
-            'nullable',
-            'in:SSD,NVME,HDD',
-        ],
-
-        'tarjeta_grafica' => [
-            'nullable',
-            'string',
-            'max:150',
-        ],
-
-        'serial_fabricante' => [
-            'nullable',
-            'string',
-            'max:150',
-        ],
-
-        'tiene_cargador' => [
-            'required',
-            'boolean',
-        ],
-
-        'sistema_operativo' => [
-            'nullable',
-            'string',
-            'max:150',
-        ],
-
-        'resolucion' => [
-            'nullable',
-            'string',
-            'max:100',
-        ],
-
-        'pantalla_pulgadas' => [
-            'nullable',
-            'numeric',
-            'min:1',
-        ],
-
-        'servicio_requerido' => [
-            'nullable',
-            'string',
-            'max:255',
-        ],
-
-        'observacion' => [
-            'nullable',
-            'string',
-            'max:1000',
-        ],
-
-    ]);
-
-
-    /*
-    |--------------------------------------------------------------------------
-    | ACTUALIZAR UNIDAD
-    |--------------------------------------------------------------------------
-    */
-
-    $unidad->update([
-
-        'procesador' =>
-            $datos['procesador'],
-
-        'generacion_procesador' =>
-            $datos['generacion_procesador'] ?? null,
-
-        'ram_gb' =>
-            $datos['ram_gb'] ?? null,
-
-        'almacenamiento_gb' =>
-            $datos['almacenamiento_gb'] ?? null,
-
-        'tipo_almacenamiento' =>
-            $datos['tipo_almacenamiento'] ?? null,
-
-        'tarjeta_grafica' =>
-            $datos['tarjeta_grafica'] ?? null,
-
-        'serial_fabricante' =>
-            $datos['serial_fabricante'] ?? null,
-
-        'tiene_cargador' =>
-            $datos['tiene_cargador'],
-
-        'sistema_operativo' =>
-            $datos['sistema_operativo'] ?? null,
-
-        'resolucion' =>
-            $datos['resolucion'] ?? null,
-
-        'pantalla_pulgadas' =>
-            $datos['pantalla_pulgadas'] ?? null,
-
-        'servicio_requerido' =>
-            $datos['servicio_requerido'] ?? null,
-
-        'observacion_revision' =>
-            $datos['observacion'] ?? null,
-
-    ]);
-
-
-    /*
-    |--------------------------------------------------------------------------
-    | RECUPERAR EL LOTE REAL
-    |--------------------------------------------------------------------------
-    */
-
-    $unidad->load(
-        'detalleLote.lote'
-    );
-
-
-    $lote =
-        $unidad
-        ->detalleLote
-        ?->lote;
-
-
-    if (!$lote) {
+        if (! $lote) {
+            return redirect()
+                ->route('importaciones.index')
+                ->withErrors([
+                    'edicion' => 'El equipo fue actualizado, pero no se pudo determinar el lote de origen.',
+                ]);
+        }
 
         return redirect()
-            ->route('importaciones.index')
-            ->withErrors([
-
-                'edicion' =>
-                    'El equipo fue actualizado, pero no se pudo determinar el lote de origen.'
-
-            ]);
-
+            ->route('importaciones.show', $lote)
+            ->with(
+                'success',
+                'Equipo actualizado correctamente.'
+            );
     }
 
-
-    /*
-    |--------------------------------------------------------------------------
-    | VOLVER AL DETALLE DEL LOTE
-    |--------------------------------------------------------------------------
-    |
-    | IMPORTANTE:
-    | Pasamos $lote completo y NO $lote->id.
-    |
-    */
-
-    return redirect()
-        ->route(
-            'importaciones.show',
-            $lote
-        )
-        ->with(
-            'success',
-            'Equipo actualizado correctamente.'
+    private function puedeModificarRecepcion(
+        UnidadAdquirida $unidad
+    ): bool {
+        return in_array(
+            $unidad->estado,
+            [
+                UnidadAdquirida::ESTADO_RECIBIDA_ORIGEN,
+                UnidadAdquirida::ESTADO_EN_REVISION,
+                UnidadAdquirida::ESTADO_EN_PREPARACION,
+            ],
+            true
         );
-
-}
-
-
-    public function store(
-        Request $request,
-        Lote $lote,
-        DetalleLote $detalle,
-        RecepcionLoteService $service
-    ): RedirectResponse {
-
-
-        if ($detalle->lote_id !== $lote->id) {
-            abort(404);
-        }
-
-
-
-        $datos =
-            $request->validate([
-
-
-                'cantidad' => [
-                    'required',
-                    'integer',
-                    'min:1'
-                ],
-                'procesador'=>[
-'required',
-'string',
-'max:100'
-],
-
-'ram_gb'=>[
-'required',
-'integer',
-'min:1'
-],
-
-'almacenamiento_gb'=>[
-'required',
-'integer',
-'min:1'
-],
-
-'tipo_almacenamiento'=>[
-'required',
-'string'
-],
-
-'tiene_cargador'=>[
-'required'
-],
-
-                'serial_fabricante' => [
-                    'nullable',
-                    'string',
-                    'max:150'
-                ],
-
-
-
-                'observacion' => [
-                    'nullable',
-                    'string'
-                ],
-
-
-            ]);
-
-
-
-        try {
-
-
-            $unidad =
-                $service->recibirUnidad(
-                    $request->user()->id,
-                    $detalle->id,
-                    $datos
-                );
-
-
-
-            return redirect()
-                ->route(
-                    'importaciones.show',
-                    $lote
-                )
-                ->with(
-                    'success',
-                    'Unidad recibida correctamente: '
-                    .
-                    $unidad->codigo_trazabilidad
-                );
-
-
-
-        } catch(ReglaNegocioException $e){
-
-
-            return back()
-                ->withInput()
-                ->withErrors([
-                    'recepcion'
-                    =>
-                    $e->getMessage()
-                ]);
-
-        }
-
-
     }
-
 }

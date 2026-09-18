@@ -31,6 +31,7 @@ class LoteService
                 'codigo' => ['required', 'string', 'max:50', 'unique:lotes,codigo'],
                 'proveedor_id' => ['nullable', 'integer', 'exists:proveedores,id'],
                 'referencia_compra' => ['nullable', 'string', 'max:100'],
+                'fecha_compra' => ['nullable', 'date'],
                 'origen' => ['nullable', 'string', 'max:150'],
                 'observacion' => ['nullable', 'string'],
             ]);
@@ -57,6 +58,7 @@ class LoteService
                 'proveedor_id' => $validados['proveedor_id'] ?? null,
                 'codigo' => $validados['codigo'],
                 'referencia_compra' => $validados['referencia_compra'] ?? null,
+                'fecha_compra' => $validados['fecha_compra'] ?? null,
                 'origen' => $validados['origen'] ?? null,
                 'estado' => 'ABIERTO',
                 'observacion' => $validados['observacion'] ?? null,

@@ -40,10 +40,14 @@ class ImportacionController extends Controller
                 'cantidad_esperada'
             )
 
-            ->withSum(
-                'detalles as cantidad_recibida_total',
-                'cantidad_recibida'
-            )
+            ->withCount([
+                'unidadesAdquiridas as cantidad_recibida_fisica_total' =>
+                    fn ($query) => $query->where(
+                        'unidades_adquiridas.estado',
+                        '!=',
+                        UnidadAdquirida::ESTADO_ANULADA
+                    ),
+            ])
 
             ->when(
                 $buscar !== '',
@@ -217,6 +221,8 @@ class ImportacionController extends Controller
 
             'detalles.moneda',
             'detalles.tipoCambioCompra',
+            'detalles.especificacionEsperada',
+            'detalles.componentesEsperados',
 
             'detalles.unidadesAdquiridas.producto.marca',
             'detalles.unidadesAdquiridas.moneda',
@@ -276,7 +282,16 @@ class ImportacionController extends Controller
 
         $cantidadRecibida =
             $lote->detalles
-                ->sum('cantidad_recibida');
+                ->sum(
+                    fn ($detalle) => $detalle
+                        ->unidadesAdquiridas
+                        ->where(
+                            'estado',
+                            '!=',
+                            UnidadAdquirida::ESTADO_ANULADA
+                        )
+                        ->count()
+                );
 
         $referenciaUsdBob = null;
 
@@ -383,8 +398,7 @@ class ImportacionController extends Controller
     public function storeUnidad(
         Request $request,
         Lote $lote,
-        UnidadAdquiridaService $service,
-        TipoCambioService $tipoCambioService
+        UnidadAdquiridaService $service
     ): RedirectResponse {
 
         $datos = $request->validate([
@@ -400,62 +414,31 @@ class ImportacionController extends Controller
                 'in:1',
             ],
 
-            // COMPRA
-
-            'precio_compra' => [
-                'nullable',
-                'numeric',
-                'min:0',
-            ],
-
-            'moneda_id' => [
-                'nullable',
-                'exists:monedas,id',
-            ],
-
-            'tipo_cambio_compra' => [
-                'nullable',
-                'numeric',
-                'min:0',
-            ],
-
-            'fecha_compra' => [
-                'nullable',
-                'date',
-            ],
-
-            'referencia_compra' => [
-                'nullable',
-                'string',
-                'max:150',
-            ],
-
-            'proveedor_compra' => [
-                'nullable',
-                'string',
-                'max:150',
-            ],
-
             // HARDWARE
 
             'procesador' => [
                 'nullable',
                 'string',
+                'max:150',
             ],
 
             'generacion_procesador' => [
                 'nullable',
                 'string',
+                'max:80',
             ],
 
             'ram_gb' => [
                 'nullable',
                 'integer',
+                'min:0',
+                'max:65535',
             ],
 
             'almacenamiento_gb' => [
                 'nullable',
                 'integer',
+                'min:0',
             ],
 
             'tipo_almacenamiento' => [
@@ -474,6 +457,11 @@ class ImportacionController extends Controller
                 'nullable',
                 'string',
                 'max:150',
+            ],
+
+            'grado_recibido' => [
+                'required',
+                'in:A,B,C',
             ],
 
             'tiene_cargador' => [
@@ -498,80 +486,55 @@ class ImportacionController extends Controller
             'pantalla_pulgadas' => [
                 'nullable',
                 'numeric',
+                'min:0',
             ],
 
             'servicio_requerido' => [
                 'nullable',
                 'string',
+                'max:255',
             ],
 
             'observacion' => [
                 'nullable',
                 'string',
+                'max:1000',
             ],
 
         ]);
-        $tipoCambio = null;
 
-        $precioBob = null;
-        $datosCompra = [];
+        $detalle = $lote->detalles()
+            ->with('especificacionEsperada')
+            ->find($datos['detalle_lote_id']);
 
-        if (
-            ! empty($datos['precio_compra'])
-            &&
-            ! empty($datos['moneda_id'])
-        ) {
+        if (! $detalle) {
+            abort(404);
+        }
 
-            $moneda =
-                Moneda::findOrFail(
-                    $datos['moneda_id']
-                );
+        $especificacionEsperada = $detalle->especificacionEsperada;
 
-            $tipoCambio = null;
-
-            if ($moneda->codigo !== 'BOB') {
-
-                if (empty($datos['tipo_cambio_compra'])) {
-                    return back()
-                        ->withErrors([
-                            'tipo_cambio' => 'Debe ingresar el tipo de cambio.',
-                        ])
-                        ->withInput();
-                }
-
-                $tipoCambio =
-                    $tipoCambioService->registrarAplicado(
-                        $request->user()->id,
-                        $moneda->codigo,
-                        $datos['tipo_cambio_compra'],
-                        'Compra equipo lote '.$lote->codigo
-                    );
+        foreach ([
+            'procesador',
+            'generacion_procesador',
+            'ram_gb',
+            'almacenamiento_gb',
+            'tipo_almacenamiento',
+            'tarjeta_grafica',
+            'sistema_operativo',
+            'resolucion',
+            'pantalla_pulgadas',
+        ] as $campo) {
+            if (($datos[$campo] ?? null) === null) {
+                $datos[$campo] = $especificacionEsperada?->{$campo};
             }
+        }
 
-            $precioBob =
-                $tipoCambioService->convertirABob(
-                    $datos['precio_compra'],
-                    $moneda->codigo,
-                    $tipoCambio
-                );
-
-            $datosCompra = [
-
-                'precio_compra' => $datos['precio_compra'],
-
-                'moneda_id' => $moneda->id,
-
-                'tipo_cambio_compra_id' => $tipoCambio?->id,
-
-                'precio_compra_bob' => $precioBob,
-
-                'fecha_compra' => $datos['fecha_compra'] ?? null,
-
-                'referencia_compra' => $datos['referencia_compra'] ?? null,
-
-                'proveedor_compra' => $datos['proveedor_compra'] ?? null,
-
-            ];
+        if (blank($datos['procesador'] ?? null)) {
+            return back()
+                ->withErrors([
+                    'procesador' => 'Debe registrar o confirmar el procesador del equipo recibido.',
+                ])
+                ->withInput();
         }
 
         if (empty($datos['cantidad'])) {
@@ -582,122 +545,49 @@ class ImportacionController extends Controller
                 ]);
         }
 
-        $unidades =
-
+        try {
             $service->registrarLlegadaCochabamba(
-
                 $request->user()->id,
-
                 $datos['detalle_lote_id'],
-
                 $datos['cantidad'],
-
                 null,
-
                 $datos['observacion'] ?? null,
-
                 [
-
-                    'precio_compra' => $datos['precio_compra'] ?? null,
-
-                    'moneda_id' => $datos['moneda_id'] ?? null,
-
-                    'tipo_cambio_compra_id' => $tipoCambio?->id ?? null,
-
-                    'precio_compra_bob' => $precioBob ?? null,
-
-                    'fecha_compra' => $datos['fecha_compra'] ?? null,
-
-                    'referencia_compra' => $datos['referencia_compra'] ?? null,
-
-                    'proveedor_compra' => $datos['proveedor_compra'] ?? null,
-
+                    'procesador' => $datos['procesador'] ?? null,
+                    'generacion_procesador' => $datos['generacion_procesador'] ?? null,
+                    'ram_gb' => $datos['ram_gb'] ?? null,
+                    'almacenamiento_gb' => $datos['almacenamiento_gb'] ?? null,
+                    'tipo_almacenamiento' => $datos['tipo_almacenamiento'] ?? null,
+                    'tarjeta_grafica' => $datos['tarjeta_grafica'] ?? null,
+                    'serial_fabricante' => $datos['serial_fabricante'] ?? null,
+                    'grado_recibido' => $datos['grado_recibido'],
+                    'tiene_cargador' => $datos['tiene_cargador'],
+                    'sistema_operativo' => $datos['sistema_operativo'] ?? null,
+                    'resolucion' => $datos['resolucion'] ?? null,
+                    'pantalla_pulgadas' => $datos['pantalla_pulgadas'] ?? null,
+                    'servicio_requerido' => $datos['servicio_requerido'] ?? null,
                 ]
-
             );
-
-        foreach ($unidades as $unidad) {
-
-            $unidad->update([
-
-                'procesador' => $datos['procesador'] ?? null,
-
-                'generacion_procesador' => $datos['generacion_procesador'] ?? null,
-
-                'ram_gb' => $datos['ram_gb'] ?? null,
-
-                'almacenamiento_gb' => $datos['almacenamiento_gb'] ?? null,
-
-                'tipo_almacenamiento' => $datos['tipo_almacenamiento'] ?? null,
-
-                'tarjeta_grafica' => $datos['tarjeta_grafica'] ?? null,
-
-                'serial_fabricante' => $datos['serial_fabricante'] ?? null,
-
-                'tiene_cargador' => $datos['tiene_cargador'] ?? null,
-
-                'sistema_operativo' => $datos['sistema_operativo'] ?? null,
-
-                'resolucion' => $datos['resolucion'] ?? null,
-
-                'pantalla_pulgadas' => $datos['pantalla_pulgadas'] ?? null,
-
-                'servicio_requerido' => $datos['servicio_requerido'] ?? null,
-
-                'observacion_revision' => $datos['observacion'] ?? null,
-
-                'precio_compra' => $datosCompra['precio_compra'] ?? null,
-
-                'moneda_id' => $datosCompra['moneda_id'] ?? null,
-
-                'tipo_cambio_compra_id' => $datosCompra['tipo_cambio_compra_id'] ?? null,
-
-                'precio_compra_bob' => $datosCompra['precio_compra_bob'] ?? null,
-
-            ]);
-
-            $lote->refresh();
-
-            $lote->load([
-
-                'proveedor',
-
-                'costos.tipoCosto',
-                'costos.moneda',
-                'costos.tipoCambio',
-
-                'detalles.producto.marca',
-                'detalles.producto.categoria',
-
-                'detalles.moneda',
-                'detalles.tipoCambioCompra',
-
-                'detalles.unidadesAdquiridas.producto.marca',
-                'detalles.unidadesAdquiridas.moneda',
-                'detalles.unidadesAdquiridas.tipoCambio',
-                'detalles.unidadesAdquiridas.almacenActual',
-
-                'detalles.unidadesActivas',
-
-            ]);
-
-            return redirect()
-
-                ->route(
-                    'importaciones.show',
-                    $lote
-                )
-
-                ->with(
-                    'success',
-                    'Equipo recibido registrado correctamente.'
-                );
+        } catch (ReglaNegocioException $e) {
+            return back()
+                ->withInput()
+                ->withErrors([
+                    'recepcion' => $e->getMessage(),
+                ]);
         }
+
+        return redirect()
+            ->route('importaciones.show', $lote)
+            ->with(
+                'success',
+                'Equipo recibido registrado correctamente.'
+            );
     }
 
     public function anularUnidad(
         Request $request,
-        UnidadAdquirida $unidad
+        UnidadAdquirida $unidad,
+        UnidadAdquiridaService $service
     ) {
 
         $datos = $request->validate([
@@ -721,6 +611,22 @@ class ImportacionController extends Controller
 
         }
 
+        if (
+            ! in_array(
+                $unidad->estado,
+                [
+                    UnidadAdquirida::ESTADO_RECIBIDA_ORIGEN,
+                    UnidadAdquirida::ESTADO_EN_REVISION,
+                    UnidadAdquirida::ESTADO_EN_PREPARACION,
+                ],
+                true
+            )
+        ) {
+            return back()->withErrors([
+                'unidad' => 'La recepción de esta unidad ya fue cerrada. No puede anularse desde este módulo.',
+            ]);
+        }
+
         $unidad->update([
 
             'estado' => UnidadAdquirida::ESTADO_ANULADA,
@@ -732,6 +638,14 @@ class ImportacionController extends Controller
             'fecha_anulacion' => now(),
 
         ]);
+
+        $loteId = $unidad->detalleLote?->lote_id;
+
+        if ($loteId) {
+            $service->sincronizarEstadoRecepcionLote(
+                $loteId
+            );
+        }
 
         return back()
             ->with(
