@@ -197,6 +197,44 @@
 
             @endif
 
+            @if(auth()->user()?->tienePermiso('reservas.ver'))
+
+            <a
+                href="{{ route('reservas.index') }}"
+                class="
+                    mt-2 flex items-center gap-3 rounded-xl px-4 py-3
+                    text-sm font-medium transition
+                    {{ request()->routeIs('reservas.*')
+                        ? 'bg-white text-blue-950'
+                        : 'text-blue-100 hover:bg-white/10'
+                    }}
+                "
+            >
+                <x-ui.icon name="bookmark" size="20" />
+                Reservas
+            </a>
+
+            @endif
+
+            @if(auth()->user()?->tienePermiso('ventas.ver'))
+
+            <a
+                href="{{ route('ventas.index') }}"
+                class="
+                    mt-2 flex items-center gap-3 rounded-xl px-4 py-3
+                    text-sm font-medium transition
+                    {{ request()->routeIs('ventas.*')
+                        ? 'bg-white text-blue-950'
+                        : 'text-blue-100 hover:bg-white/10'
+                    }}
+                "
+            >
+                <x-ui.icon name="shopping-cart" size="20" />
+                Ventas
+            </a>
+
+            @endif
+
 
         </div>
 
