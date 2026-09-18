@@ -10,6 +10,7 @@ use App\Http\Controllers\RecepcionLoteController;
 use App\Http\Controllers\EnvioImportacionController;
 use App\Models\Producto;
 use App\Models\Moneda;
+use App\Http\Controllers\ReservaController;
 use App\Http\Controllers\CostoLoteController;
 use App\Http\Controllers\IntervencionUnidadAdquiridaController;
 use App\Services\UnidadAdquiridaService;
@@ -541,8 +542,59 @@ Route::post(
 ->middleware('permiso:importacion.gestionar')
 ->name('envios-importacion.cerrar-recepcion');
 
+/*
+|--------------------------------------------------------------------------
+| RESERVAS
+|--------------------------------------------------------------------------
+*/
 
 
+Route::get(
+    '/reservas',
+    [ReservaController::class,'index']
+)
+->middleware('permiso:reservas.ver')
+->name('reservas.index');
+
+
+Route::get(
+    '/reservas/crear',
+    [ReservaController::class,'create']
+)
+->middleware('permiso:reservas.gestionar')
+->name('reservas.create');
+
+
+Route::post(
+    '/reservas',
+    [ReservaController::class,'store']
+)
+->middleware('permiso:reservas.gestionar')
+->name('reservas.store');
+
+
+Route::get(
+    '/reservas/{reserva}',
+    [ReservaController::class,'show']
+)
+->middleware('permiso:reservas.ver')
+->name('reservas.show');
+
+
+Route::post(
+    '/reservas/{reserva}/cancelar',
+    [ReservaController::class,'cancelar']
+)
+->middleware('permiso:reservas.gestionar')
+->name('reservas.cancelar');
+
+
+Route::post(
+    '/reservas/{reserva}/convertir-venta',
+    [ReservaController::class,'convertirVenta']
+)
+->middleware('permiso:ventas.crear')
+->name('reservas.convertirVenta');
 /*
 |--------------------------------------------------------------------------
 | IMPORTANTE:

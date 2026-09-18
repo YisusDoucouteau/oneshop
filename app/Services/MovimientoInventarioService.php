@@ -585,4 +585,128 @@ public function registrarLiberacionReserva(
     });
 
 }
+public function registrarVentaReserva(
+    int $productoId,
+    int $almacenId,
+    int $cantidad,
+    int $usuarioId,
+    string $tipoReferencia,
+    int $referenciaId,
+    ?string $observacion = null
+): MovimientoInventario {
+
+
+    return DB::transaction(function () use (
+        $productoId,
+        $almacenId,
+        $cantidad,
+        $usuarioId,
+        $tipoReferencia,
+        $referenciaId,
+        $observacion
+    ) {
+
+
+        $existencia = DB::table('existencias_productos')
+            ->where('producto_id', $productoId)
+            ->where('almacen_id', $almacenId)
+            ->lockForUpdate()
+            ->first();
+
+
+
+        if (!$existencia) {
+
+            throw new ReglaNegocioException(
+                'No existe existencia para finalizar venta.'
+            );
+
+        }
+
+
+
+        if (
+            $existencia->cantidad_reservada < $cantidad
+        ) {
+
+            throw new ReglaNegocioException(
+                'No existe cantidad reservada suficiente.'
+            );
+
+        }
+
+
+
+        $nuevoReservado =
+            $existencia->cantidad_reservada - $cantidad;
+
+
+
+        DB::table('existencias_productos')
+            ->where('producto_id',$productoId)
+            ->where('almacen_id',$almacenId)
+            ->update([
+
+                'cantidad_reservada' =>
+                    $nuevoReservado,
+
+                'updated_at' =>
+                    now(),
+
+            ]);
+
+
+
+
+        $tipoMovimiento =
+            $this->obtenerTipoMovimiento(
+                'VENTA_RESERVADA'
+            );
+
+
+
+
+        return MovimientoInventario::create([
+
+            'producto_id' =>
+                $productoId,
+
+            'almacen_id' =>
+                $almacenId,
+
+            'tipo_movimiento_id' =>
+                $tipoMovimiento->id,
+
+            'usuario_id' =>
+                $usuarioId,
+
+            'cambio_disponible' =>
+                0,
+
+            'cambio_reservado' =>
+                -$cantidad,
+
+            'saldo_disponible_resultante' =>
+                $existencia->cantidad_disponible,
+
+            'saldo_reservado_resultante' =>
+                $nuevoReservado,
+
+            'tipo_referencia' =>
+                $tipoReferencia,
+
+            'referencia_id' =>
+                $referenciaId,
+
+            'fecha_movimiento' =>
+                now(),
+
+            'observacion' =>
+                $observacion,
+
+        ]);
+
+    });
+
+}
 }

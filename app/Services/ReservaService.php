@@ -230,31 +230,34 @@ class ReservaService
 
 
                 // Movimiento inventario
-                $this->movimientoInventarioService
-                    ->registrarReserva(
+             
 
-                        productoId:
-                            $equipo->producto_id,
 
-                        almacenId:
-                            $equipo->almacen_actual_id,
+$this->movimientoInventarioService
+    ->registrarReserva(
 
-                        cantidad:
-                            1,
+        productoId:
+            $equipo->producto_id,
 
-                        usuarioId:
-                            $usuarioId,
+        almacenId:
+            $equipo->almacen_actual_id,
 
-                        tipoReferencia:
-                            'RESERVA',
+        cantidad:
+            1,
 
-                        referenciaId:
-                            $reserva->id,
+        usuarioId:
+            $usuarioId,
 
-                        observacion:
-                            "Reserva {$reserva->numero}"
+        tipoReferencia:
+            'RESERVA',
 
-                    );
+        referenciaId:
+            $reserva->id,
+
+        observacion:
+            "Reserva {$reserva->numero}"
+
+    );
 
 
 
@@ -458,9 +461,32 @@ class ReservaService
                             "Liberación reserva {$reserva->numero}"
 
                     );
+// NUEVO: liberar estado del equipo
+
+    $this->estadoEquipoService
+        ->cambiarEstado(
+
+            equipoId:
+                $equipo->id,
+
+            codigoEstadoDestino:
+                'DISPONIBLE',
+
+            usuarioId:
+                $usuarioId,
+
+            motivo:
+                'Liberación de reserva',
+
+            observacion:
+                "Liberación reserva {$reserva->numero}"
+
+        );
 
 
-            }
+}
+
+            
 
 
 

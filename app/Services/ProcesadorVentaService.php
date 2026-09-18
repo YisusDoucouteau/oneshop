@@ -85,14 +85,23 @@ class ProcesadorVentaService
                 ->values()
                 ->all();
 
+        $preciosAcordados =
+    collect($equipos)
+        ->mapWithKeys(
+            fn ($item) => [
+                (int) $item['equipo_id'] =>
+                    (float) $item['precio'],
+            ]
+        )
+        ->all();
 
-
-        return $this->ventaService
+       return $this->ventaService
     ->registrarVentaDirecta(
         vendedorId: $vendedorId,
         equiposIds: $equiposIds,
         clienteId: $clienteId,
-        observacion: $observacion
+        observacion: $observacion,
+        preciosAcordados: $preciosAcordados
     );
     }
 }

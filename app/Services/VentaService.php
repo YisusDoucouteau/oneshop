@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Exceptions\ReglaNegocioException;
+use App\Models\CategoriaProducto;
 use App\Models\Cliente;
 use App\Models\Equipo;
 use App\Models\EstadoEquipo;
@@ -10,7 +11,6 @@ use App\Models\Reserva;
 use App\Models\User;
 use App\Models\Venta;
 use App\Models\Producto;
-
 use App\Models\PoliticaGarantia;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
@@ -19,7 +19,8 @@ class VentaService
 {
     public function __construct(
         private readonly EstadoEquipoService $estadoEquipoService,
-        private readonly GarantiaService $garantiaService
+        private readonly GarantiaService $garantiaService,
+        private readonly MovimientoInventarioService $movimientoInventarioService
     ) {
     }
 
@@ -31,37 +32,55 @@ class VentaService
         int $vendedorId,
         array $equiposIds,
         ?int $clienteId = null,
-        ?string $observacion = null
+        ?string $observacion = null,
+        array $preciosAcordados = []
     ): Venta {
+
 
         return DB::transaction(function () use (
             $vendedorId,
             $equiposIds,
             $clienteId,
-            $observacion
+            $observacion,
+            $preciosAcordados
         ) {
 
-            $vendedor = $this->obtenerVendedorActivo(
-                $vendedorId
-            );
 
-            $cliente = $this->obtenerCliente(
-                $clienteId
-            );
-
-            $equiposIds = $this->normalizarEquiposIds(
-                $equiposIds
-            );
+            $vendedor =
+                $this->obtenerVendedorActivo(
+                    $vendedorId
+                );
 
 
-            $equipos = Equipo::query()
-                ->whereIn('id', $equiposIds)
+            $cliente =
+                $this->obtenerCliente(
+                    $clienteId
+                );
+
+
+            $equiposIds =
+                $this->normalizarEquiposIds(
+                    $equiposIds
+                );
+
+
+            $equipos =
+                Equipo::query()
+                ->whereIn(
+                    'id',
+                    $equiposIds
+                )
                 ->orderBy('id')
                 ->lockForUpdate()
                 ->get();
 
 
-            if ($equipos->count() !== count($equiposIds)) {
+
+            if (
+                $equipos->count()
+                !==
+                count($equiposIds)
+            ) {
 
                 throw new ReglaNegocioException(
                     'Uno o más equipos seleccionados no existen.'
@@ -70,13 +89,23 @@ class VentaService
             }
 
 
-            $estadoDisponible = EstadoEquipo::query()
-                ->where('codigo', 'DISPONIBLE')
-                ->where('activo', true)
+
+            $estadoDisponible =
+                EstadoEquipo::query()
+                ->where(
+                    'codigo',
+                    'DISPONIBLE'
+                )
+                ->where(
+                    'activo',
+                    true
+                )
                 ->firstOrFail();
 
 
+
             $datosDetalles = [];
+
 
 
             foreach ($equipos as $equipo) {
@@ -91,7 +120,12 @@ class VentaService
                 }
 
 
-                if ($equipo->estado_actual_id !== $estadoDisponible->id) {
+
+                if (
+                    $equipo->estado_actual_id
+                    !==
+                    $estadoDisponible->id
+                ) {
 
                     throw new ReglaNegocioException(
                         "El equipo {$equipo->codigo_interno} no está disponible para venta."
@@ -100,10 +134,18 @@ class VentaService
                 }
 
 
-                $precio = $equipo->precios()
-                    ->where('vigente', true)
-                    ->orderByDesc('vigente_desde')
+
+                $precio =
+                    $equipo->precios()
+                    ->where(
+                        'vigente',
+                        true
+                    )
+                    ->orderByDesc(
+                        'vigente_desde'
+                    )
                     ->first();
+
 
 
                 if (!$precio) {
@@ -115,17 +157,57 @@ class VentaService
                 }
 
 
+
+                $precioLista =
+                    (float)
+                    $precio->precio_publico;
+
+
+
+                $precioUnitario =
+                    array_key_exists(
+                        $equipo->id,
+                        $preciosAcordados
+                    )
+                    ?
+                    (float)
+                    $preciosAcordados[$equipo->id]
+                    :
+                    $precioLista;
+
+
+
+                if ($precioUnitario <= 0) {
+
+                    throw new ReglaNegocioException(
+                        "El precio acordado del equipo {$equipo->codigo_interno} debe ser mayor a cero."
+                    );
+
+                }
+
+
+
+                $descuento =
+                    max(
+                        0,
+                        $precioLista - $precioUnitario
+                    );
+
+
+
                 $datosDetalles[$equipo->id] = [
 
                     'precio_lista' =>
-                        $precio->precio_publico,
+                        $precioLista,
 
-                    'descuento' => 0,
+                    'descuento' =>
+                        $descuento,
 
                     'precio_unitario' =>
-                        $precio->precio_publico,
+                        $precioUnitario,
 
                     'costo' =>
+                        (float)
                         $precio->costo_total_snapshot,
 
                 ];
@@ -133,113 +215,139 @@ class VentaService
             }
 
 
-            $subtotal = collect($datosDetalles)
-                ->sum(fn($detalle) =>
-                    (float) $detalle['precio_lista']
+
+
+            $subtotal =
+                collect($datosDetalles)
+                ->sum(
+                    fn($detalle) =>
+                    (float)
+                    $detalle['precio_lista']
                 );
 
 
-            $descuentoTotal = collect($datosDetalles)
-                ->sum(fn($detalle) =>
-                    (float) $detalle['descuento']
+
+            $descuentoTotal =
+                collect($datosDetalles)
+                ->sum(
+                    fn($detalle) =>
+                    (float)
+                    $detalle['descuento']
                 );
 
 
-            $total = collect($datosDetalles)
-                ->sum(fn($detalle) =>
-                    (float) $detalle['precio_unitario']
+
+            $total =
+                collect($datosDetalles)
+                ->sum(
+                    fn($detalle) =>
+                    (float)
+                    $detalle['precio_unitario']
                 );
 
 
-            $venta = Venta::create([
 
-                'numero' =>
-                    $this->generarNumero(),
 
-                'cliente_id' =>
-                    $cliente?->id,
+            $venta =
+                Venta::create([
 
-                'vendedor_id' =>
-                    $vendedor->id,
+                    'numero' =>
+                        $this->generarNumero(),
 
-                'reserva_id' =>
-                    null,
+                    'cliente_id' =>
+                        $cliente?->id,
 
-                'fecha_venta' =>
-                    now(),
+                    'vendedor_id' =>
+                        $vendedor->id,
 
-                'subtotal' =>
-                    $subtotal,
+                    'reserva_id' =>
+                        null,
 
-                'descuento_total' =>
-                    $descuentoTotal,
+                    'fecha_venta' =>
+                        now(),
 
-                'total' =>
-                    $total,
+                    'subtotal' =>
+                        $subtotal,
 
-                'estado' =>
-                    'REGISTRADA',
+                    'descuento_total' =>
+                        $descuentoTotal,
 
-                'observacion' =>
-                    $observacion,
+                    'total' =>
+                        $total,
 
-            ]);
+                    'estado' =>
+                        'REGISTRADA',
+
+                    'observacion' =>
+                        $observacion,
+
+                ]);
+
+
 
 
 
             foreach ($equipos as $equipo) {
 
 
-                $datos = $datosDetalles[$equipo->id];
-
-
-                $detalleVenta = $venta->detalles()->create([
-
-                    'producto_id' =>
-                        $equipo->producto_id,
-
-                    'equipo_id' =>
-                        $equipo->id,
-
-                    'cantidad' =>
-                        1,
-
-                    'precio_lista_snapshot' =>
-                        $datos['precio_lista'],
-
-                    'descuento_unitario' =>
-                        $datos['descuento'],
-
-                    'precio_unitario' =>
-                        $datos['precio_unitario'],
-
-                    'costo_unitario_snapshot' =>
-                        $datos['costo'],
-
-                    'subtotal' =>
-                        $datos['precio_unitario'],
-
-                    'observacion' =>
-                        null,
-
-                ]);
+                $datos =
+                    $datosDetalles[$equipo->id];
 
 
 
-                $this->estadoEquipoService->cambiarEstado(
+                $detalleVenta =
+                    $venta->detalles()->create([
 
-                    equipoId: $equipo->id,
+                        'producto_id' =>
+                            $equipo->producto_id,
 
-                    codigoEstadoDestino: 'VENDIDO',
+                        'equipo_id' =>
+                            $equipo->id,
 
-                    usuarioId: $vendedor->id,
+                        'cantidad' =>
+                            1,
 
-                    autorizadoPorId: null,
+                        'precio_lista_snapshot' =>
+                            $datos['precio_lista'],
 
-                    motivo:
-                        "Venta directa {$venta->numero}"
+                        'descuento_unitario' =>
+                            $datos['descuento'],
 
-                );
+                        'precio_unitario' =>
+                            $datos['precio_unitario'],
+
+                        'costo_unitario_snapshot' =>
+                            $datos['costo'],
+
+                        'subtotal' =>
+                            $datos['precio_unitario'],
+
+                        'observacion' =>
+                            null,
+
+                    ]);
+
+
+
+                $this->estadoEquipoService
+                    ->cambiarEstado(
+
+                        equipoId:
+                            $equipo->id,
+
+                        codigoEstadoDestino:
+                            'VENDIDO',
+
+                        usuarioId:
+                            $vendedor->id,
+
+                        autorizadoPorId:
+                            null,
+
+                        motivo:
+                            "Venta directa {$venta->numero}"
+
+                    );
 
 
 
@@ -249,6 +357,7 @@ class VentaService
                     );
 
             }
+
 
 
             return $venta->fresh([
@@ -263,6 +372,7 @@ class VentaService
 
             ]);
 
+
         },3);
 
     }
@@ -270,20 +380,21 @@ class VentaService
 
 
 
-    /**
-     * Convierte una reserva existente en venta.
-     */
     public function convertirReservaEnVenta(
         int $reservaId,
         int $vendedorId,
         ?string $observacion = null
     ): Venta {
 
+
         return DB::transaction(function () use (
+
             $reservaId,
             $vendedorId,
             $observacion
+
         ) {
+
 
             $vendedor =
                 $this->obtenerVendedorActivo(
@@ -291,7 +402,8 @@ class VentaService
                 );
 
 
-            $reserva = Reserva::query()
+            $reserva =
+                Reserva::query()
                 ->with('detalles')
                 ->lockForUpdate()
                 ->find($reservaId);
@@ -318,7 +430,8 @@ class VentaService
 
 
 
-            $equiposIds = $reserva->detalles
+            $equiposIds =
+                $reserva->detalles
                 ->pluck('equipo_id')
                 ->unique()
                 ->values()
@@ -326,8 +439,12 @@ class VentaService
 
 
 
-            $equipos = Equipo::query()
-                ->whereIn('id',$equiposIds)
+            $equipos =
+                Equipo::query()
+                ->whereIn(
+                    'id',
+                    $equiposIds
+                )
                 ->lockForUpdate()
                 ->get()
                 ->keyBy('id');
@@ -347,6 +464,7 @@ class VentaService
                     );
 
 
+
                 if (!$equipo) {
 
                     throw new ReglaNegocioException(
@@ -359,26 +477,31 @@ class VentaService
 
                 $precioVigente =
                     $equipo->precios()
-                    ->where('vigente',true)
+                    ->where(
+                        'vigente',
+                        true
+                    )
                     ->first();
 
 
 
                 $detallesVenta[] = [
 
-                    'equipo'=>$equipo,
+                    'equipo' =>
+                        $equipo,
 
-                    'precio_lista'=>
-                        $detalleReserva->precio_acordado +
+                    'precio_lista' =>
+                        $detalleReserva->precio_acordado
+                        +
                         $detalleReserva->descuento_acordado,
 
-                    'descuento'=>
+                    'descuento' =>
                         $detalleReserva->descuento_acordado,
 
-                    'precio_unitario'=>
+                    'precio_unitario' =>
                         $detalleReserva->precio_acordado,
 
-                    'costo'=>
+                    'costo' =>
                         $precioVigente->costo_total_snapshot,
 
                 ];
@@ -387,30 +510,43 @@ class VentaService
 
 
 
+            $venta =
+                Venta::create([
 
-            $venta = Venta::create([
+                    'numero' =>
+                        $this->generarNumero(),
 
-                'numero'=>$this->generarNumero(),
+                    'cliente_id' =>
+                        $reserva->cliente_id,
 
-                'cliente_id'=>$reserva->cliente_id,
+                    'vendedor_id' =>
+                        $vendedor->id,
 
-                'vendedor_id'=>$vendedor->id,
+                    'reserva_id' =>
+                        $reserva->id,
 
-                'reserva_id'=>$reserva->id,
+                    'fecha_venta' =>
+                        now(),
 
-                'fecha_venta'=>now(),
+                    'subtotal' =>
+                        collect($detallesVenta)
+                        ->sum('precio_lista'),
 
-                'subtotal'=>collect($detallesVenta)->sum('precio_lista'),
+                    'descuento_total' =>
+                        collect($detallesVenta)
+                        ->sum('descuento'),
 
-                'descuento_total'=>collect($detallesVenta)->sum('descuento'),
+                    'total' =>
+                        collect($detallesVenta)
+                        ->sum('precio_unitario'),
 
-                'total'=>collect($detallesVenta)->sum('precio_unitario'),
+                    'estado' =>
+                        'REGISTRADA',
 
-                'estado'=>'REGISTRADA',
+                    'observacion' =>
+                        $observacion,
 
-                'observacion'=>$observacion,
-
-            ]);
+                ]);
 
 
 
@@ -419,44 +555,89 @@ class VentaService
             foreach ($detallesVenta as $datos) {
 
 
-                $equipo = $datos['equipo'];
+                $equipo =
+                    $datos['equipo'];
 
 
 
-                $detalleVenta = $venta->detalles()->create([
+                $detalleVenta =
+                    $venta->detalles()->create([
 
-                    'producto_id'=>$equipo->producto_id,
+                        'producto_id' =>
+                            $equipo->producto_id,
 
-                    'equipo_id'=>$equipo->id,
+                        'equipo_id' =>
+                            $equipo->id,
 
-                    'cantidad'=>1,
+                        'cantidad' =>
+                            1,
 
-                    'precio_lista_snapshot'=>$datos['precio_lista'],
+                        'precio_lista_snapshot' =>
+                            $datos['precio_lista'],
 
-                    'descuento_unitario'=>$datos['descuento'],
+                        'descuento_unitario' =>
+                            $datos['descuento'],
 
-                    'precio_unitario'=>$datos['precio_unitario'],
+                        'precio_unitario' =>
+                            $datos['precio_unitario'],
 
-                    'costo_unitario_snapshot'=>$datos['costo'],
+                        'costo_unitario_snapshot' =>
+                            $datos['costo'],
 
-                    'subtotal'=>$datos['precio_unitario'],
+                        'subtotal' =>
+                            $datos['precio_unitario'],
 
-                ]);
+                    ]);
 
 
 
-                $this->estadoEquipoService->cambiarEstado(
+               $this->estadoEquipoService
+    ->cambiarEstado(
 
-                    equipoId:$equipo->id,
+        equipoId:
+            $equipo->id,
 
-                    codigoEstadoDestino:'VENDIDO',
+        codigoEstadoDestino:
+            'VENDIDO',
 
-                    usuarioId:$vendedor->id,
+        usuarioId:
+            $vendedor->id,
 
-                    motivo:
-                    "Venta {$venta->numero} desde reserva"
+        autorizadoPorId:
+            null,
 
-                );
+        motivo:
+            "Venta {$venta->numero} desde reserva"
+
+    );
+
+
+
+$this->movimientoInventarioService
+    ->registrarVentaReserva(
+
+        productoId:
+            $equipo->producto_id,
+
+        almacenId:
+            $equipo->almacen_actual_id,
+
+        cantidad:
+            1,
+
+        usuarioId:
+            $vendedor->id,
+
+        tipoReferencia:
+            'VENTA_RESERVADA',
+
+        referenciaId:
+            $venta->id,
+
+        observacion:
+            "Venta {$venta->numero} desde reserva"
+
+    );
 
 
 
@@ -469,9 +650,11 @@ class VentaService
 
 
 
-            $reserva->estado='CONVERTIDA';
+            $reserva->estado =
+                'CONVERTIDA';
 
-            $reserva->fecha_cierre=now();
+            $reserva->fecha_cierre =
+                now();
 
             $reserva->save();
 
@@ -479,9 +662,11 @@ class VentaService
 
             return $venta->fresh();
 
+
         },3);
 
     }
+
 
 
 
@@ -489,12 +674,17 @@ class VentaService
         int $vendedorId
     ): User {
 
-        $vendedor = User::query()
-            ->where('activo',true)
+        $vendedor =
+            User::query()
+            ->where(
+                'activo',
+                true
+            )
             ->find($vendedorId);
 
 
-        if(!$vendedor){
+
+        if (!$vendedor) {
 
             throw new ReglaNegocioException(
                 'El vendedor no existe o está inactivo.'
@@ -509,20 +699,25 @@ class VentaService
 
 
 
+
     private function obtenerCliente(
         ?int $clienteId
     ): ?Cliente {
 
-        if($clienteId===null){
+
+        if ($clienteId === null) {
 
             return null;
 
         }
 
 
-        return Cliente::findOrFail($clienteId);
+        return Cliente::findOrFail(
+            $clienteId
+        );
 
     }
+
 
 
 
@@ -530,14 +725,20 @@ class VentaService
         array $equiposIds
     ): array {
 
-        $ids=array_values(
-            array_unique(
-                array_map('intval',$equiposIds)
-            )
-        );
+
+        $ids =
+            array_values(
+                array_unique(
+                    array_map(
+                        'intval',
+                        $equiposIds
+                    )
+                )
+            );
 
 
-        if(empty($ids)){
+
+        if (empty($ids)) {
 
             throw new ReglaNegocioException(
                 'La venta debe contener al menos un equipo.'
@@ -552,51 +753,20 @@ class VentaService
 
 
 
+
     private function generarNumero(): string
     {
 
-        return 'VEN-'.
-            now()->format('Ymd').
-            '-'.
+        return 'VEN-'
+            .
+            now()->format('Ymd')
+            .
+            '-'
+            .
             Str::upper(
                 Str::ulid()
             );
 
+    }
 
-        }
-        private function crearPoliticaGarantia(
-    CategoriaProducto $categoria,
-    Producto $producto
-): void {
-
-    PoliticaGarantia::create([
-
-        'codigo' => 'GAR-' . Str::uuid(),
-
-        'nombre' => 'Garantía prueba',
-
-        'categoria_producto_id' => $categoria->id,
-
-        'producto_id' => $producto->id,
-
-        'duracion_meses' => 6,
-
-        'condiciones' =>
-            'Garantía de prueba del sistema.',
-
-        'exclusiones' =>
-            'Daños físicos.',
-
-        'vigente_desde' =>
-            now()->subDay(),
-
-        'vigente_hasta' =>
-            null,
-
-        'activo' =>
-            true,
-
-    ]);
-
-}
 }
