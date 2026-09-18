@@ -76,6 +76,16 @@ class CatalogoInventarioSeeder extends Seeder
             ],
 
             [
+                'codigo'=>'VENTA_DIRECTA',
+                'nombre'=>'Venta directa'
+            ],
+
+            [
+                'codigo'=>'VENTA_RESERVADA',
+                'nombre'=>'Venta proveniente de reserva'
+            ],
+
+            [
                 'codigo'=>'ENTRADA',
                 'nombre'=>'Entrada inventario'
             ],

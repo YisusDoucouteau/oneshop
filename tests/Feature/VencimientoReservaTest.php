@@ -11,8 +11,8 @@ use App\Models\ParametroSistema;
 use App\Models\Producto;
 use App\Models\PrecioEquipo;
 use App\Models\Reserva;
-use App\Models\TipoMovimientoInventario;
 use App\Models\User;
+use Database\Seeders\CatalogoInventarioSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Str;
 use Tests\TestCase;
@@ -30,6 +30,8 @@ class VencimientoReservaTest extends TestCase
     {
         parent::setUp();
 
+        $this->seed(CatalogoInventarioSeeder::class);
+
 
         $this->usuario = User::create([
 
@@ -41,36 +43,6 @@ class VencimientoReservaTest extends TestCase
 
             'password' =>
                 bcrypt('123456'),
-
-            'activo' =>
-                true,
-
-        ]);
-
-
-
-        TipoMovimientoInventario::create([
-
-            'codigo' =>
-                'RESERVA',
-
-            'nombre' =>
-                'Reserva',
-
-            'activo' =>
-                true,
-
-        ]);
-
-
-
-        TipoMovimientoInventario::create([
-
-            'codigo' =>
-                'LIBERACION_RESERVA',
-
-            'nombre' =>
-                'Liberacion reserva',
 
             'activo' =>
                 true,
@@ -264,7 +236,7 @@ class VencimientoReservaTest extends TestCase
 
             'codigo',
 
-            'DISPONIBLE'
+            'RESERVADO'
 
         )->first();
 
@@ -275,10 +247,10 @@ class VencimientoReservaTest extends TestCase
             $estado = EstadoEquipo::create([
 
                 'codigo' =>
-                    'DISPONIBLE',
+                    'RESERVADO',
 
                 'nombre' =>
-                    'Disponible',
+                    'Reservado',
 
                 'activo' =>
                     true,
