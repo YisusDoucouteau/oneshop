@@ -261,7 +261,7 @@
 
 
 
-            <div class="grid gap-4 md:grid-cols-3">
+            <div class="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
 
 
 
@@ -352,30 +352,93 @@
 
                 >
 
-
-
-
-
-
-
-                <button
-
-                type="submit"
-
-                class="rounded-xl bg-slate-950 px-5 text-white"
-
+                <input
+                    type="number"
+                    name="costo_unitario_origen"
+                    min="0"
+                    step="0.01"
+                    placeholder="Costo unitario"
+                    class="rounded-xl border p-3"
                 >
 
-                    Agregar
+                <select
+                    name="moneda_id"
+                    id="monedaDetalleLote"
+                    class="rounded-xl border p-3"
+                >
+                    <option value="">Moneda del costo</option>
+                    @foreach($monedas as $moneda)
+                        <option value="{{ $moneda->id }}" data-codigo="{{ $moneda->codigo }}">
+                            {{ $moneda->codigo }}
+                        </option>
+                    @endforeach
+                </select>
 
+                <div id="grupoTipoCambioDetalle" class="hidden">
+                    <input
+                        type="number"
+                        name="tipo_cambio_aplicado"
+                        id="tipoCambioDetalleLote"
+                        min="0.0001"
+                        step="0.0001"
+                        placeholder="Tipo de cambio aplicado"
+                        class="w-full rounded-xl border p-3"
+                    >
+                    <button
+                        type="button"
+                        id="usarReferenciaDetalle"
+                        class="mt-2 hidden text-xs font-semibold text-blue-700 hover:text-blue-900"
+                    >
+                        Usar referencia USD/BOB
+                    </button>
+                </div>
+
+                <button
+                    type="submit"
+                    class="rounded-xl bg-slate-950 px-5 py-3 font-semibold text-white hover:bg-slate-800"
+                >
+                    Agregar producto
                 </button>
 
-
-
-
-
-
             </div>
+
+            <details class="mt-5 rounded-xl border border-slate-200 bg-slate-50 p-4">
+                <summary class="cursor-pointer font-semibold text-slate-800">
+                    Características y accesorios esperados (opcional)
+                </summary>
+
+                <p class="mt-2 text-sm text-slate-500">
+                    Registra lo informado por el proveedor; se comprobará físicamente al recibir los equipos.
+                </p>
+
+                <div class="mt-4 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+                    <input name="especificacion_esperada[procesador]" placeholder="Procesador" class="rounded-xl border p-3">
+                    <input name="especificacion_esperada[generacion_procesador]" placeholder="Generación" class="rounded-xl border p-3">
+                    <input type="number" min="0" name="especificacion_esperada[ram_gb]" placeholder="RAM (GB)" class="rounded-xl border p-3">
+                    <input type="number" min="0" name="especificacion_esperada[almacenamiento_gb]" placeholder="Almacenamiento (GB)" class="rounded-xl border p-3">
+                    <select name="especificacion_esperada[tipo_almacenamiento]" class="rounded-xl border p-3">
+                        <option value="">Tipo de almacenamiento</option>
+                        <option value="SSD">SSD</option>
+                        <option value="HDD">HDD</option>
+                        <option value="NVME">NVMe</option>
+                        <option value="EMMC">eMMC</option>
+                    </select>
+                    <input name="especificacion_esperada[tarjeta_grafica]" placeholder="Tarjeta gráfica" class="rounded-xl border p-3">
+                    <input type="number" min="0" step="0.1" name="especificacion_esperada[pantalla_pulgadas]" placeholder="Pantalla (pulgadas)" class="rounded-xl border p-3">
+                    <input name="especificacion_esperada[resolucion]" placeholder="Resolución" class="rounded-xl border p-3">
+                    <input name="especificacion_esperada[sistema_operativo]" placeholder="Sistema operativo" class="rounded-xl border p-3">
+                </div>
+
+                <div class="mt-5 border-t border-slate-200 pt-4">
+                    <div class="flex items-center justify-between gap-3">
+                        <h4 class="font-semibold text-slate-800">Accesorios por equipo</h4>
+                        <button type="button" id="agregarComponenteEsperado" class="text-sm font-semibold text-blue-700 hover:text-blue-900">
+                            + Agregar accesorio
+                        </button>
+                    </div>
+                    <div id="componentesEsperados" class="mt-3 space-y-3"></div>
+                </div>
+            </details>
 
 
 
@@ -441,6 +504,53 @@ function(){
 
 
 
+
+const monedaDetalle = document.getElementById('monedaDetalleLote');
+const grupoTipoCambioDetalle = document.getElementById('grupoTipoCambioDetalle');
+const tipoCambioDetalle = document.getElementById('tipoCambioDetalleLote');
+const usarReferenciaDetalle = document.getElementById('usarReferenciaDetalle');
+
+function actualizarTipoCambioDetalle() {
+    const codigo = monedaDetalle.options[monedaDetalle.selectedIndex]?.dataset.codigo;
+    const requiereTipoCambio = codigo === 'USD' || codigo === 'USDT';
+
+    grupoTipoCambioDetalle.classList.toggle('hidden', !requiereTipoCambio);
+    tipoCambioDetalle.required = requiereTipoCambio;
+    usarReferenciaDetalle.classList.toggle('hidden', codigo !== 'USD');
+
+    if (!requiereTipoCambio) {
+        tipoCambioDetalle.value = '';
+    }
+}
+
+monedaDetalle.addEventListener('change', actualizarTipoCambioDetalle);
+
+usarReferenciaDetalle.addEventListener('click', function () {
+    @if($referenciaUsdBob)
+        tipoCambioDetalle.value = @js((string) $referenciaUsdBob['tipo_cambio']->valor);
+        tipoCambioDetalle.focus();
+    @endif
+});
+
+let indiceComponenteEsperado = 0;
+
+document.getElementById('agregarComponenteEsperado').addEventListener('click', function () {
+    const indice = indiceComponenteEsperado++;
+    const fila = document.createElement('div');
+
+    fila.className = 'grid gap-3 rounded-xl border border-slate-200 bg-white p-3 md:grid-cols-[2fr_1fr_2fr_auto]';
+    fila.innerHTML = `
+        <input name="componentes_esperados[${indice}][nombre]" placeholder="Ej. cargador" class="rounded-xl border p-3" required>
+        <input type="number" min="1" value="1" name="componentes_esperados[${indice}][cantidad_por_unidad]" class="rounded-xl border p-3" required>
+        <input name="componentes_esperados[${indice}][observacion]" placeholder="Observación opcional" class="rounded-xl border p-3">
+        <button type="button" class="quitar-componente rounded-xl px-3 text-sm font-semibold text-red-700 hover:bg-red-50">Quitar</button>
+        <input type="hidden" name="componentes_esperados[${indice}][incluido_en_compra]" value="1">
+    `;
+
+    fila.querySelector('.quitar-componente').addEventListener('click', () => fila.remove());
+    document.getElementById('componentesEsperados').appendChild(fila);
+    fila.querySelector('input').focus();
+});
 
 // Agregar producto lote
 
@@ -718,6 +828,9 @@ async function(e){
 
 
         formulario.reset();
+
+        document.getElementById('componentesEsperados').innerHTML = '';
+        actualizarTipoCambioDetalle();
 
 
 

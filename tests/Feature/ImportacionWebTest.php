@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Models\Lote;
 use App\Models\Rol;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -41,6 +42,26 @@ class ImportacionWebTest extends TestCase
             ->actingAs($vendedor)
             ->get(route('importaciones.create'))
             ->assertForbidden();
+    }
+
+    public function test_formulario_del_lote_expone_datos_de_compra_y_caracteristicas_esperadas(): void
+    {
+        $usuario = $this->usuarioConRol('ADMIN_OPERATIVO');
+        $lote = Lote::query()->create([
+            'codigo' => 'IMP-WEB-001',
+            'estado' => 'ABIERTO',
+        ]);
+
+        $this
+            ->actingAs($usuario)
+            ->get(route('importaciones.show', $lote))
+            ->assertOk()
+            ->assertSee('Costo unitario')
+            ->assertSee('Características y accesorios esperados')
+            ->assertSee('name="moneda_id"', false)
+            ->assertSee('name="tipo_cambio_aplicado"', false)
+            ->assertSee('name="especificacion_esperada[procesador]"', false)
+            ->assertSee('id="agregarComponenteEsperado"', false);
     }
 
     private function usuarioConRol(string $codigoRol): User
