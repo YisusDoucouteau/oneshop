@@ -471,6 +471,7 @@
 
 
                         <select
+                            id="moneda_compra_equipo"
                             name="moneda_id"
                             class="rounded-xl border border-slate-300 p-3"
                         >
@@ -505,6 +506,7 @@
 
                     {{-- TIPO CAMBIO --}}
                     <input
+                        id="tipo_cambio_compra_equipo"
                         type="number"
                         min="0"
                         step="0.000001"
@@ -513,6 +515,40 @@
                         placeholder="Tipo cambio"
                         class="mt-5 w-full rounded-xl border border-slate-300 p-3"
                     >
+
+                    @if($referenciaUsdBob)
+                        @php
+                            $tipoCambioReferencia = $referenciaUsdBob['tipo_cambio'];
+                        @endphp
+                        <div class="mt-3 flex flex-col gap-3 rounded-xl border border-blue-200 bg-blue-50 p-4 sm:flex-row sm:items-center sm:justify-between">
+                            <div>
+                                <p class="text-sm font-semibold text-blue-950">
+                                    Referencia USD/BOB: {{ number_format((float) $tipoCambioReferencia->valor, 4) }}
+                                </p>
+                                <p class="mt-1 text-xs text-blue-700">
+                                    Fuente: {{ $referenciaUsdBob['origen'] === 'API' ? 'API BCBO' : 'último valor guardado' }}
+                                    · {{ $tipoCambioReferencia->fecha_vigencia?->format('d/m/Y') }}
+                                    @if($referenciaUsdBob['desactualizado'])
+                                        · Puede estar desactualizado
+                                    @endif
+                                </p>
+                            </div>
+                            <button
+                                type="button"
+                                onclick="usarReferenciaUsdBob()"
+                                class="shrink-0 rounded-lg bg-blue-700 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-800"
+                            >
+                                Usar referencia
+                            </button>
+                        </div>
+                        <p class="mt-2 text-xs text-slate-500">
+                            Es una ayuda para USD. Confirma siempre el tipo de cambio realmente pagado; USDT se registra manualmente.
+                        </p>
+                    @else
+                        <p class="mt-2 text-xs text-amber-700">
+                            No fue posible obtener la referencia USD/BOB. Ingresa el tipo de cambio aplicado manualmente.
+                        </p>
+                    @endif
 
 
 
@@ -1364,6 +1400,42 @@ function actualizarBotones()
     }
 }
 
+
+
+/*
+|--------------------------------------------------------------------------
+| TIPO DE CAMBIO DE REFERENCIA
+|--------------------------------------------------------------------------
+*/
+
+function usarReferenciaUsdBob()
+{
+    const moneda = document.getElementById(
+        'moneda_compra_equipo'
+    );
+
+    const tipoCambio = document.getElementById(
+        'tipo_cambio_compra_equipo'
+    );
+
+    const codigoMoneda = moneda
+        ?.options[moneda.selectedIndex]
+        ?.textContent
+        ?.trim();
+
+    if (codigoMoneda !== 'USD') {
+        alert(
+            'La referencia automática corresponde únicamente a USD/BOB. Selecciona USD o registra manualmente el valor aplicado para USDT.'
+        );
+
+        return;
+    }
+
+    @if($referenciaUsdBob)
+        tipoCambio.value = @js((string) $referenciaUsdBob['tipo_cambio']->valor);
+        tipoCambio.focus();
+    @endif
+}
 
 
 /*

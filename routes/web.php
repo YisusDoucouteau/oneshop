@@ -81,6 +81,7 @@ Route::get(
     '/importaciones/unidades/{unidad}/editar',
     [RecepcionLoteController::class,'editar']
 )
+->middleware('permiso:importacion.gestionar')
 ->name('importaciones.unidades.editar');
 
 
@@ -88,20 +89,8 @@ Route::patch(
     '/importaciones/unidades/{unidad}',
     [RecepcionLoteController::class,'actualizar']
 )
+->middleware('permiso:importacion.gestionar')
 ->name('importaciones.unidades.actualizar');
-
-
-
-Route::get(
-    '/importaciones/unidades/{unidad}/editar',
-    [RecepcionLoteController::class,'editar']
-)->name('importaciones.unidades.editar');
-
-
-Route::patch(
-    '/importaciones/unidades/{unidad}',
-    [RecepcionLoteController::class,'actualizar']
-)->name('importaciones.unidades.actualizar');
 Route::post(
     '/importaciones/{lote}/costos',
     [
@@ -124,6 +113,7 @@ Route::put(
 'importaciones/costos/{costo}',
 [ CostoLoteController::class,'update']
 )
+->middleware('permiso:importacion.gestionar')
 ->name('importaciones.costos.update');
 
 
@@ -131,6 +121,7 @@ Route::patch(
 'importaciones/costos/{costo}/anular',
 [ CostoLoteController::class,'anular']
 )
+->middleware('permiso:importacion.gestionar')
 ->name('importaciones.costos.anular');
 
 
@@ -182,6 +173,7 @@ Route::post(
         'distribuir'
     ]
 )
+->middleware('permiso:importacion.gestionar')
 ->name(
     'importaciones.costos.distribuir'
 );
@@ -212,6 +204,7 @@ Route::patch(
         'anularUnidad'
     ]
 )
+->middleware('permiso:importacion.gestionar')
 ->name(
     'importaciones.unidades.anular'
 );
