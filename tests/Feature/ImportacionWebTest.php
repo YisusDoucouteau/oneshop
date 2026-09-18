@@ -61,7 +61,9 @@ class ImportacionWebTest extends TestCase
             ->assertSee('name="moneda_id"', false)
             ->assertSee('name="tipo_cambio_aplicado"', false)
             ->assertSee('name="especificacion_esperada[procesador]"', false)
-            ->assertSee('id="agregarComponenteEsperado"', false);
+            ->assertSee('id="agregarComponenteEsperado"', false)
+            ->assertSee('Se mantienen separados')
+            ->assertDontSee('Distribuir costos');
     }
 
     private function usuarioConRol(string $codigoRol): User

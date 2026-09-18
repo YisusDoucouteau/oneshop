@@ -2,173 +2,127 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\Lote;
 use App\Models\CostoLote;
+use App\Models\Lote;
 use App\Models\Moneda;
 use App\Services\TipoCambioService;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\DB;
-use App\Services\AsignacionCostoService;
-use Throwable;
 
 class CostoLoteController extends Controller
 {
-
-
     public function store(
         Request $request,
         Lote $lote,
         TipoCambioService $tipoCambioService
-    )
-    {
-
+    ) {
 
         $datos = $request->validate([
 
-            'tipo_costo_id'=>[
+            'tipo_costo_id' => [
                 'required',
-                'exists:tipos_costos,id'
+                'exists:tipos_costos,id',
             ],
 
-            'moneda_id'=>[
+            'moneda_id' => [
                 'required',
-                'exists:monedas,id'
+                'exists:monedas,id',
             ],
 
-            'monto_origen'=>[
+            'monto_origen' => [
                 'required',
                 'numeric',
-                'min:0.01'
+                'min:0.01',
             ],
 
-            'tipo_cambio'=>[
+            'tipo_cambio' => [
                 'nullable',
                 'numeric',
-                'min:0'
+                'min:0',
             ],
 
-            'fecha_costo'=>[
+            'fecha_costo' => [
                 'required',
-                'date'
+                'date',
             ],
 
-            'referencia'=>[
+            'referencia' => [
                 'nullable',
                 'string',
-                'max:150'
+                'max:150',
             ],
 
-            'observacion'=>[
+            'observacion' => [
                 'nullable',
-                'string'
+                'string',
             ],
 
         ]);
-
-
-
 
         $moneda =
             Moneda::findOrFail(
                 $datos['moneda_id']
             );
 
-
-
         $tipoCambio = null;
 
-
-
-        if(
+        if (
             $moneda->codigo !== 'BOB'
-        ){
+        ) {
 
-
-            if(
+            if (
                 empty($datos['tipo_cambio'])
-            ){
+            ) {
 
                 return back()
                     ->withErrors([
-                        'tipo_cambio'=>
-                        'Debe ingresar el tipo de cambio.'
+                        'tipo_cambio' => 'Debe ingresar el tipo de cambio.',
                     ]);
 
             }
 
-
-
             $tipoCambio =
                 $tipoCambioService
-                ->registrarAplicado(
-                    $request->user()->id,
-                    $moneda->codigo,
-                    $datos['tipo_cambio'],
-                    'Costo de importación lote '.$lote->codigo
-                );
-
-
+                    ->registrarAplicado(
+                        $request->user()->id,
+                        $moneda->codigo,
+                        $datos['tipo_cambio'],
+                        'Costo de importación lote '.$lote->codigo
+                    );
 
         }
 
-
-
         $montoBob =
             $tipoCambioService
-            ->convertirABob(
-                $datos['monto_origen'],
-                $moneda->codigo,
-                $tipoCambio
-            );
-
-
-
+                ->convertirABob(
+                    $datos['monto_origen'],
+                    $moneda->codigo,
+                    $tipoCambio
+                );
 
         CostoLote::create([
 
+            'lote_id' => $lote->id,
 
-            'lote_id'=>
-                $lote->id,
+            'tipo_costo_id' => $datos['tipo_costo_id'],
 
+            'moneda_id' => $moneda->id,
 
-            'tipo_costo_id'=>
-                $datos['tipo_costo_id'],
+            'tipo_cambio_id' => $tipoCambio?->id,
 
+            'monto_origen' => $datos['monto_origen'],
 
-            'moneda_id'=>
-                $moneda->id,
+            'monto_bob' => $montoBob,
 
+            'fecha_costo' => $datos['fecha_costo'],
 
-            'tipo_cambio_id'=>
-                $tipoCambio?->id,
+            'referencia' => $datos['referencia'] ?? null,
 
+            'observacion' => $datos['observacion'] ?? null,
 
-            'monto_origen'=>
-                $datos['monto_origen'],
-
-
-            'monto_bob'=>
-                $montoBob,
-
-
-            'fecha_costo'=>
-                $datos['fecha_costo'],
-
-
-            'referencia'=>
-                $datos['referencia'] ?? null,
-
-
-            'observacion'=>
-                $datos['observacion'] ?? null,
-
-
-            'registrado_por_id'=>$request->user()->id,
-                'estado'=>'ACTIVO',
+            'registrado_por_id' => $request->user()->id,
+            'estado' => 'ACTIVO',
 
         ]);
-
-
 
         return back()
             ->with(
@@ -176,283 +130,129 @@ class CostoLoteController extends Controller
                 'Costo registrado correctamente.'
             );
 
-
     }
-public function update(
-Request $request,
-CostoLote $costo,
-TipoCambioService $tipoCambioService
-)
-{
 
-$datos=$request->validate([
+    public function update(
+        Request $request,
+        CostoLote $costo,
+        TipoCambioService $tipoCambioService
+    ) {
 
-'tipo_costo_id'=>'required|exists:tipos_costos,id',
+        $datos = $request->validate([
 
-'moneda_id'=>'required|exists:monedas,id',
+            'tipo_costo_id' => 'required|exists:tipos_costos,id',
 
-'monto_origen'=>'required|numeric|min:0.01',
+            'moneda_id' => 'required|exists:monedas,id',
 
-'tipo_cambio'=>'nullable|numeric',
+            'monto_origen' => 'required|numeric|min:0.01',
 
-'fecha_costo'=>'required|date',
+            'tipo_cambio' => 'nullable|numeric',
 
-'referencia'=>'nullable|string|max:150',
+            'fecha_costo' => 'required|date',
 
-'observacion'=>'nullable|string',
+            'referencia' => 'nullable|string|max:150',
 
-]);
+            'observacion' => 'nullable|string',
 
-
-$moneda =
-Moneda::findOrFail(
-$datos['moneda_id']
-);
-
-
-$tipoCambio=null;
-
-
-if($moneda->codigo != 'BOB'){
-
-
-    if(empty($datos['tipo_cambio'])){
-
-        return back()
-        ->withErrors([
-            'tipo_cambio' =>
-            'Debe ingresar el tipo de cambio para '.$moneda->codigo
         ]);
 
-    }
-
-
-
-    $tipoCambio =
-    $tipoCambioService->registrarAplicado(
-        $request->user()->id,
-        $moneda->codigo,
-        (float)$datos['tipo_cambio'],
-        'Actualización costo lote'
-    );
-
-
-}
-
-
-$montoBob =
-$tipoCambioService->convertirABob(
-$datos['monto_origen'],
-$moneda->codigo,
-$tipoCambio
-);
-
-
-
-$costo->update([
-
-'tipo_costo_id'=>$datos['tipo_costo_id'],
-
-'moneda_id'=>$moneda->id,
-
-'tipo_cambio_id'=>$tipoCambio?->id,
-
-'monto_origen'=>$datos['monto_origen'],
-
-'monto_bob'=>$montoBob,
-
-'fecha_costo'=>$datos['fecha_costo'],
-
-'referencia'=>$datos['referencia'],
-
-'observacion'=>$datos['observacion'],
-
-]);
-
-$mensaje =
-'Costo actualizado correctamente';
-
-
-if(
-    $costo->asignacionesUnidades()->exists()
-){
-
-    $mensaje .=
-    ' Este costo tenía distribución asignada. Ejecute "Distribuir costos" para actualizar los equipos.';
-}
-
-
-return back()
-->with(
-    'success',
-    $mensaje
-);
-}
-public function anular(
-    Request $request,
-    CostoLote $costo,
-    AsignacionCostoService $asignacionCostoService
-)
-{
-
-    $request->validate([
-    'motivo_anulacion'=>'nullable|string|max:255'
-]);
-
-
-    /*
-    |--------------------------------------------------------------------------
-    | ELIMINAR DISTRIBUCIÓN DEL COSTO ANULADO
-    |--------------------------------------------------------------------------
-    */
-
-    $costo->asignacionesUnidades()->delete();
-
-
-
-    /*
-    |--------------------------------------------------------------------------
-    | ANULAR COSTO
-    |--------------------------------------------------------------------------
-    */
-
-    $costo->update([
-
-        'estado'=>'ANULADO',
-
-        'motivo_anulacion'=>
-            $request->motivo_anulacion,
-
-        'anulado_por_id'=>
-            auth()->id(),
-
-        'fecha_anulacion'=>
-            now(),
-
-    ]);
-
-
-
-
-
-    /*
-    |--------------------------------------------------------------------------
-    | REDISTRIBUIR COSTOS ACTIVOS RESTANTES
-    |--------------------------------------------------------------------------
-    */
-
-
-    $costosActivos =
-        $costo->lote
-            ->costos()
-            ->where(
-                'estado',
-                'ACTIVO'
-            )
-            ->get();
-
-
-
-    foreach($costosActivos as $costoActivo){
-
-
-        $asignacionCostoService
-            ->distribuirPorUnidad(
-                $costoActivo
-            );
-
-
-    }
-
-
-
-
-
-    return back()
-        ->with(
-            'success',
-            'Costo anulado y distribución actualizada correctamente.'
+        $moneda =
+        Moneda::findOrFail(
+            $datos['moneda_id']
         );
 
-}
-public function distribuir(
-    Lote $lote,
-    AsignacionCostoService $asignacionCostoService
-)
-{
+        $tipoCambio = null;
 
-    /*
-    |--------------------------------------------------------------------------
-    | COSTOS ACTIVOS DEL LOTE
-    |--------------------------------------------------------------------------
-    */
+        if ($moneda->codigo != 'BOB') {
 
-    $costos = $lote
-        ->costos()
+            if (empty($datos['tipo_cambio'])) {
 
-        ->where(
-            'estado',
-            'ACTIVO'
-        )
+                return back()
+                    ->withErrors([
+                        'tipo_cambio' => 'Debe ingresar el tipo de cambio para '.$moneda->codigo,
+                    ]);
 
-        ->get();
+            }
 
-
-
-    if ($costos->isEmpty()) {
-
-        return back()
-            ->withErrors([
-
-                'costos' =>
-                    'No existen costos activos para distribuir.'
-
-            ]);
-
-    }
-
-
-
-    try {
-
-
-        foreach ($costos as $costo) {
-
-            $asignacionCostoService
-                ->distribuirPorUnidad(
-                    $costo
-                );
+            $tipoCambio =
+            $tipoCambioService->registrarAplicado(
+                $request->user()->id,
+                $moneda->codigo,
+                (float) $datos['tipo_cambio'],
+                'Actualización costo lote'
+            );
 
         }
 
+        $montoBob =
+        $tipoCambioService->convertirABob(
+            $datos['monto_origen'],
+            $moneda->codigo,
+            $tipoCambio
+        );
 
+        $costo->update([
 
-        return redirect()
+            'tipo_costo_id' => $datos['tipo_costo_id'],
 
-            ->route(
-                'importaciones.show',
-                $lote
-            )
+            'moneda_id' => $moneda->id,
 
-            ->with(
-                'success',
-                'Costos de importación distribuidos correctamente.'
-            );
+            'tipo_cambio_id' => $tipoCambio?->id,
 
+            'monto_origen' => $datos['monto_origen'],
 
-    } catch (Throwable $e) {
+            'monto_bob' => $montoBob,
 
+            'fecha_costo' => $datos['fecha_costo'],
+
+            'referencia' => $datos['referencia'],
+
+            'observacion' => $datos['observacion'],
+
+        ]);
 
         return back()
-
-            ->withErrors([
-
-                'costos' =>
-                    $e->getMessage()
-
-            ]);
-
+            ->with(
+                'success',
+                'Costo actualizado correctamente.'
+            );
     }
 
-}
+    public function anular(
+        Request $request,
+        CostoLote $costo
+    ) {
+
+        $request->validate([
+            'motivo_anulacion' => 'nullable|string|max:255',
+        ]);
+
+        // Limpia cualquier asignación histórica de la implementación anterior.
+        $costo->asignacionesUnidades()->delete();
+
+        /*
+        |--------------------------------------------------------------------------
+        | ANULAR COSTO
+        |--------------------------------------------------------------------------
+        */
+
+        $costo->update([
+
+            'estado' => 'ANULADO',
+
+            'motivo_anulacion' => $request->motivo_anulacion,
+
+            'anulado_por_id' => auth()->id(),
+
+            'fecha_anulacion' => now(),
+
+        ]);
+
+        return back()
+            ->with(
+                'success',
+                'Costo de importación anulado correctamente.'
+            );
+
+    }
 }

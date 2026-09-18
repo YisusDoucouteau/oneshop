@@ -166,19 +166,6 @@ Route::post(
 ->name('importaciones.detalles.store');
 
 
-Route::post(
-    '/importaciones/{lote}/costos/distribuir',
-    [
-        CostoLoteController::class,
-        'distribuir'
-    ]
-)
-->middleware('permiso:importacion.gestionar')
-->name(
-    'importaciones.costos.distribuir'
-);
-
-
 /*
 |--------------------------------------------------------------------------
 | REGISTRO DE EQUIPOS RECIBIDOS POR HUGO

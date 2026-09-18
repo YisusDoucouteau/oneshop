@@ -22,20 +22,17 @@ class RegistroCostoUnidadServiceTest extends TestCase
 {
     use RefreshDatabase;
 
-
     private User $usuario;
 
     private Producto $producto;
 
     private $detalle;
 
-
     protected function setUp(): void
     {
         parent::setUp();
 
         $this->seed();
-
 
         /*
         |--------------------------------------------------------------------------
@@ -48,7 +45,6 @@ class RegistroCostoUnidadServiceTest extends TestCase
                 'activo' => true,
             ]);
 
-
         $rol =
             Rol::query()
                 ->where(
@@ -57,13 +53,11 @@ class RegistroCostoUnidadServiceTest extends TestCase
                 )
                 ->firstOrFail();
 
-
         $this->usuario
             ->roles()
             ->attach(
                 $rol->id
             );
-
 
         /*
         |--------------------------------------------------------------------------
@@ -74,20 +68,15 @@ class RegistroCostoUnidadServiceTest extends TestCase
         $proveedor =
             Proveedor::create([
 
-                'nombre' =>
-                    'Proveedor Historial Costeo Test',
+                'nombre' => 'Proveedor Historial Costeo Test',
 
-                'pais' =>
-                    'Estados Unidos',
+                'pais' => 'Estados Unidos',
 
-                'ciudad' =>
-                    'Miami',
+                'ciudad' => 'Miami',
 
-                'activo' =>
-                    true,
+                'activo' => true,
 
             ]);
-
 
         /*
         |--------------------------------------------------------------------------
@@ -103,7 +92,6 @@ class RegistroCostoUnidadServiceTest extends TestCase
                 )
                 ->firstOrFail();
 
-
         /*
         |--------------------------------------------------------------------------
         | Marca
@@ -113,14 +101,11 @@ class RegistroCostoUnidadServiceTest extends TestCase
         $marca =
             Marca::create([
 
-                'nombre' =>
-                    'Dell Historial Test',
+                'nombre' => 'Dell Historial Test',
 
-                'activo' =>
-                    true,
+                'activo' => true,
 
             ]);
-
 
         /*
         |--------------------------------------------------------------------------
@@ -131,29 +116,21 @@ class RegistroCostoUnidadServiceTest extends TestCase
         $this->producto =
             Producto::create([
 
-                'categoria_producto_id' =>
-                    $categoria->id,
+                'categoria_producto_id' => $categoria->id,
 
-                'marca_id' =>
-                    $marca->id,
+                'marca_id' => $marca->id,
 
-                'codigo' =>
-                    'HISTORIAL-TEST-001',
+                'codigo' => 'HISTORIAL-TEST-001',
 
-                'nombre' =>
-                    'Dell Latitude',
+                'nombre' => 'Dell Latitude',
 
-                'modelo' =>
-                    '5420',
+                'modelo' => '5420',
 
-                'es_serializado' =>
-                    true,
+                'es_serializado' => true,
 
-                'activo' =>
-                    true,
+                'activo' => true,
 
             ]);
-
 
         /*
         |--------------------------------------------------------------------------
@@ -166,28 +143,22 @@ class RegistroCostoUnidadServiceTest extends TestCase
                 LoteService::class
             );
 
-
         $lote =
             $loteService
                 ->crearLote(
                     $this->usuario->id,
                     [
 
-                        'proveedor_id' =>
-                            $proveedor->id,
+                        'proveedor_id' => $proveedor->id,
 
-                        'codigo' =>
-                            'LOTE-HISTORIAL-001',
+                        'codigo' => 'LOTE-HISTORIAL-001',
 
-                        'referencia_compra' =>
-                            'REF-HISTORIAL',
+                        'referencia_compra' => 'REF-HISTORIAL',
 
-                        'origen' =>
-                            'Miami',
+                        'origen' => 'Miami',
 
                     ]
                 );
-
 
         /*
         |--------------------------------------------------------------------------
@@ -202,15 +173,12 @@ class RegistroCostoUnidadServiceTest extends TestCase
                     $lote->id,
                     [
 
-                        'producto_id' =>
-                            $this->producto->id,
+                        'producto_id' => $this->producto->id,
 
-                        'cantidad_esperada' =>
-                            1,
+                        'cantidad_esperada' => 1,
 
                     ]
                 );
-
 
         /*
         |--------------------------------------------------------------------------
@@ -220,13 +188,11 @@ class RegistroCostoUnidadServiceTest extends TestCase
 
         $this->detalle->update([
 
-            'costo_unitario_bob' =>
-                3500,
+            'costo_unitario_bob' => 3500,
 
         ]);
 
     }
-
 
     /*
     |--------------------------------------------------------------------------
@@ -244,20 +210,18 @@ class RegistroCostoUnidadServiceTest extends TestCase
             app(
                 UnidadAdquiridaService::class
             )
-            ->registrarLlegadaCochabamba(
-                $this->usuario->id,
-                $this->detalle->id,
-                1,
-                '2026-08-30 10:00:00'
-            )
-            ->first();
-
+                ->registrarLlegadaCochabamba(
+                    $this->usuario->id,
+                    $this->detalle->id,
+                    1,
+                    '2026-08-30 10:00:00'
+                )
+                ->first();
 
         $servicio =
             app(
                 RegistroCostoUnidadService::class
             );
-
 
         $historial =
             $servicio
@@ -265,7 +229,6 @@ class RegistroCostoUnidadServiceTest extends TestCase
                     $unidad,
                     $this->usuario->id
                 );
-
 
         /*
         |--------------------------------------------------------------------------
@@ -277,33 +240,24 @@ class RegistroCostoUnidadServiceTest extends TestCase
             'historial_costos_unidades',
             [
 
-                'id' =>
-                    $historial->id,
+                'id' => $historial->id,
 
-                'unidad_adquirida_id' =>
-                    $unidad->id,
+                'unidad_adquirida_id' => $unidad->id,
 
-                'costo_compra' =>
-                    3500,
+                'costo_compra' => 3500,
 
-                'costos_lote' =>
-                    0,
+                'costos_lote' => 0,
 
-                'intervenciones' =>
-                    0,
+                'intervenciones' => 0,
 
-                'costo_total' =>
-                    3500,
+                'costo_total' => 3500,
 
-                'completo' =>
-                    1,
+                'completo' => 1,
 
-                'calculado_por_id' =>
-                    $this->usuario->id,
+                'calculado_por_id' => $this->usuario->id,
 
             ]
         );
-
 
         /*
         |--------------------------------------------------------------------------
@@ -319,7 +273,6 @@ class RegistroCostoUnidadServiceTest extends TestCase
         );
 
     }
-
 
     /*
     |--------------------------------------------------------------------------
@@ -337,20 +290,18 @@ class RegistroCostoUnidadServiceTest extends TestCase
             app(
                 UnidadAdquiridaService::class
             )
-            ->registrarLlegadaCochabamba(
-                $this->usuario->id,
-                $this->detalle->id,
-                1,
-                '2026-08-30 11:00:00'
-            )
-            ->first();
-
+                ->registrarLlegadaCochabamba(
+                    $this->usuario->id,
+                    $this->detalle->id,
+                    1,
+                    '2026-08-30 11:00:00'
+                )
+                ->first();
 
         $servicio =
             app(
                 RegistroCostoUnidadService::class
             );
-
 
         /*
         |--------------------------------------------------------------------------
@@ -364,7 +315,6 @@ class RegistroCostoUnidadServiceTest extends TestCase
                     $unidad,
                     $this->usuario->id
                 );
-
 
         /*
         |--------------------------------------------------------------------------
@@ -380,7 +330,6 @@ class RegistroCostoUnidadServiceTest extends TestCase
                 )
                 ->firstOrFail();
 
-
         $moneda =
             Moneda::query()
                 ->where(
@@ -389,30 +338,22 @@ class RegistroCostoUnidadServiceTest extends TestCase
                 )
                 ->firstOrFail();
 
-
         $costoLote =
             CostoLote::create([
 
-                'lote_id' =>
-                    $this->detalle->lote_id,
+                'lote_id' => $this->detalle->lote_id,
 
-                'tipo_costo_id' =>
-                    $tipoCosto->id,
+                'tipo_costo_id' => $tipoCosto->id,
 
-                'moneda_id' =>
-                    $moneda->id,
+                'moneda_id' => $moneda->id,
 
-                'monto_origen' =>
-                    200,
+                'monto_origen' => 200,
 
-                'monto_bob' =>
-                    200,
+                'monto_bob' => 200,
 
-                'fecha_costo' =>
-                    '2026-08-30',
+                'fecha_costo' => '2026-08-30',
 
             ]);
-
 
         /*
         |--------------------------------------------------------------------------
@@ -432,32 +373,23 @@ class RegistroCostoUnidadServiceTest extends TestCase
 
         AsignacionCostoUnidadAdquirida::create([
 
-            'costo_lote_id' =>
-                $costoLote->id,
+            'costo_lote_id' => $costoLote->id,
 
-            'unidad_adquirida_id' =>
-                $unidad->id,
+            'unidad_adquirida_id' => $unidad->id,
 
-            'metodo_asignacion' =>
-                'PRORRATEO',
+            'metodo_asignacion' => 'PRORRATEO',
 
-            'base_individual' =>
-                3500,
+            'base_individual' => 3500,
 
-            'base_total' =>
-                3500,
+            'base_total' => 3500,
 
-            'porcentaje' =>
-                100,
+            'porcentaje' => 100,
 
-            'monto_asignado_bob' =>
-                200,
+            'monto_asignado_bob' => 200,
 
-            'ajuste_redondeo_bob' =>
-                0,
+            'ajuste_redondeo_bob' => 0,
 
         ]);
-
 
         /*
         |--------------------------------------------------------------------------
@@ -472,7 +404,6 @@ class RegistroCostoUnidadServiceTest extends TestCase
                     $this->usuario->id
                 );
 
-
         /*
         |--------------------------------------------------------------------------
         | Deben ser registros diferentes
@@ -483,7 +414,6 @@ class RegistroCostoUnidadServiceTest extends TestCase
             $primerHistorial->id,
             $segundoHistorial->id
         );
-
 
         /*
         |--------------------------------------------------------------------------
@@ -498,20 +428,25 @@ class RegistroCostoUnidadServiceTest extends TestCase
                 ->costo_total
         );
 
-
         /*
         |--------------------------------------------------------------------------
-        | El segundo cálculo incorpora el costo logístico
+        | El segundo cálculo conserva separado el costo logístico del lote
         |--------------------------------------------------------------------------
         */
 
         $this->assertEquals(
-            3700,
+            3500,
             $segundoHistorial
                 ->fresh()
                 ->costo_total
         );
 
+        $this->assertEquals(
+            0,
+            $segundoHistorial
+                ->fresh()
+                ->costos_lote
+        );
 
         /*
         |--------------------------------------------------------------------------
@@ -525,7 +460,6 @@ class RegistroCostoUnidadServiceTest extends TestCase
         );
 
     }
-
 
     /*
     |--------------------------------------------------------------------------
@@ -545,20 +479,18 @@ class RegistroCostoUnidadServiceTest extends TestCase
             app(
                 UnidadAdquiridaService::class
             )
-            ->registrarLlegadaCochabamba(
-                $this->usuario->id,
-                $this->detalle->id,
-                1,
-                '2026-08-30 12:00:00'
-            )
-            ->first();
-
+                ->registrarLlegadaCochabamba(
+                    $this->usuario->id,
+                    $this->detalle->id,
+                    1,
+                    '2026-08-30 12:00:00'
+                )
+                ->first();
 
         $servicio =
             app(
                 RegistroCostoUnidadService::class
             );
-
 
         /*
         |--------------------------------------------------------------------------
@@ -573,7 +505,6 @@ class RegistroCostoUnidadServiceTest extends TestCase
                     $this->usuario->id
                 );
 
-
         /*
         |--------------------------------------------------------------------------
         | Segundo cálculo
@@ -587,7 +518,6 @@ class RegistroCostoUnidadServiceTest extends TestCase
                     $this->usuario->id
                 );
 
-
         /*
         |--------------------------------------------------------------------------
         | Último cálculo
@@ -599,7 +529,6 @@ class RegistroCostoUnidadServiceTest extends TestCase
                 ->ultimo(
                     $unidad
                 );
-
 
         /*
         |--------------------------------------------------------------------------
@@ -613,7 +542,6 @@ class RegistroCostoUnidadServiceTest extends TestCase
                     $unidad
                 );
 
-
         /*
         |--------------------------------------------------------------------------
         | Validaciones
@@ -625,18 +553,15 @@ class RegistroCostoUnidadServiceTest extends TestCase
             $ultimo->id
         );
 
-
         $this->assertCount(
             2,
             $historial
         );
 
-
         $this->assertEquals(
             $segundoHistorial->id,
             $historial->first()->id
         );
-
 
         $this->assertEquals(
             $primerHistorial->id,

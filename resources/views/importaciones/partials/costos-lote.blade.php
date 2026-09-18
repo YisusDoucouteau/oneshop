@@ -9,7 +9,7 @@
         </h2>
 
         <p class="text-sm text-slate-500">
-            Gastos asociados al lote.
+            Gastos asociados al lote para control financiero. Se mantienen separados y no aumentan el costo individual de los equipos.
         </p>
 
     </div>
@@ -37,20 +37,6 @@
 
             </button>
 
-            <form method="POST" action="{{ route('importaciones.costos.distribuir',$lote) }}"
-                onsubmit="return confirm('¿Desea distribuir todos los costos activos del lote?')">
-
-                @csrf
-
-                <button type="submit"
-                    class="inline-flex items-center rounded-xl bg-slate-950 px-5 py-2.5 text-sm font-semibold text-white shadow hover:bg-indigo-700 transition">
-
-                    Distribuir costos
-
-                </button>
-                
-            </form>
-            
         </div>
 
 

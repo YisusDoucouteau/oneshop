@@ -9,8 +9,6 @@
 
     'detalles.unidadesAdquiridas.almacenActual',
 
-    'detalles.unidadesAdquiridas.asignacionesCostos',
-
     'detalles.unidadesAdquiridas.moneda',
 
     ]);
@@ -119,13 +117,6 @@
                     <th class="px-6 py-4 text-left text-xs font-semibold uppercase text-slate-500">
 
                         Compra
-
-                    </th>
-
-
-                    <th class="px-6 py-4 text-left text-xs font-semibold uppercase text-slate-500">
-
-                        Costo importación
 
                     </th>
 
@@ -381,42 +372,6 @@
 
 
 
-                    {{-- COSTO IMPORTACION --}}
-
-                    <td class="px-6 py-5 text-sm">
-
-
-                        @if($unidad->costo_importacion_bob > 0)
-
-
-                        <p class="font-semibold text-slate-900">
-
-                            Bs {{ number_format($unidad->costo_importacion_bob,2) }}
-
-                        </p>
-
-
-                        <p class="text-xs text-slate-500">
-
-                            Costos asignados
-
-                        </p>
-
-
-                        @else
-
-
-                        <span class="text-xs text-slate-400">
-
-                            Sin asignación
-
-                        </span>
-
-
-                        @endif
-
-
-                    </td>
                     {{-- ESTADO --}}
 
                     <td class="px-6 py-5">

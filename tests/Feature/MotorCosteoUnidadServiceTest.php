@@ -2,20 +2,20 @@
 
 namespace Tests\Feature;
 
+use App\Models\AsignacionCostoUnidadAdquirida;
 use App\Models\CategoriaProducto;
+use App\Models\CostoLote;
+use App\Models\IntervencionUnidadAdquirida;
 use App\Models\Marca;
+use App\Models\Moneda;
 use App\Models\Producto;
 use App\Models\Proveedor;
 use App\Models\Rol;
-use App\Models\User;
-use App\Models\CostoLote;
 use App\Models\TipoCosto;
-use App\Models\Moneda;
-use App\Models\AsignacionCostoUnidadAdquirida;
-use App\Models\IntervencionUnidadAdquirida;
+use App\Models\User;
 use App\Services\LoteService;
-use App\Services\UnidadAdquiridaService;
 use App\Services\MotorCosteoUnidadService;
+use App\Services\UnidadAdquiridaService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
@@ -23,13 +23,11 @@ class MotorCosteoUnidadServiceTest extends TestCase
 {
     use RefreshDatabase;
 
-
     private User $usuario;
 
     private Producto $producto;
 
     private $detalle;
-
 
     protected function setUp(): void
     {
@@ -37,12 +35,10 @@ class MotorCosteoUnidadServiceTest extends TestCase
 
         $this->seed();
 
-
         $this->usuario =
             User::factory()->create([
                 'activo' => true,
             ]);
-
 
         $rol =
             Rol::query()
@@ -52,32 +48,24 @@ class MotorCosteoUnidadServiceTest extends TestCase
                 )
                 ->firstOrFail();
 
-
         $this->usuario
             ->roles()
             ->attach(
                 $rol->id
             );
 
-
         $proveedor =
             Proveedor::create([
 
-                'nombre' =>
-                    'Proveedor Costeo Test',
+                'nombre' => 'Proveedor Costeo Test',
 
-                'pais' =>
-                    'Estados Unidos',
+                'pais' => 'Estados Unidos',
 
-                'ciudad' =>
-                    'Miami',
+                'ciudad' => 'Miami',
 
-                'activo' =>
-                    true,
+                'activo' => true,
 
             ]);
-
-
 
         $categoria =
             CategoriaProducto::query()
@@ -87,54 +75,38 @@ class MotorCosteoUnidadServiceTest extends TestCase
                 )
                 ->firstOrFail();
 
-
-
         $marca =
             Marca::create([
 
-                'nombre' =>
-                    'Dell Costeo Test',
+                'nombre' => 'Dell Costeo Test',
 
-                'activo' =>
-                    true,
+                'activo' => true,
 
             ]);
-
-
 
         $this->producto =
             Producto::create([
 
-                'categoria_producto_id' =>
-                    $categoria->id,
+                'categoria_producto_id' => $categoria->id,
 
-                'marca_id' =>
-                    $marca->id,
+                'marca_id' => $marca->id,
 
-                'codigo' =>
-                    'COSTEO-TEST-001',
+                'codigo' => 'COSTEO-TEST-001',
 
-                'nombre' =>
-                    'Dell Latitude',
+                'nombre' => 'Dell Latitude',
 
-                'modelo' =>
-                    '5420',
+                'modelo' => '5420',
 
-                'es_serializado' =>
-                    true,
+                'es_serializado' => true,
 
-                'activo' =>
-                    true,
+                'activo' => true,
 
             ]);
-
-
 
         $loteService =
             app(
                 LoteService::class
             );
-
 
         $lote =
             $loteService
@@ -142,22 +114,16 @@ class MotorCosteoUnidadServiceTest extends TestCase
                     $this->usuario->id,
                     [
 
-                        'proveedor_id' =>
-                            $proveedor->id,
+                        'proveedor_id' => $proveedor->id,
 
-                        'codigo' =>
-                            'LOTE-COSTEO-001',
+                        'codigo' => 'LOTE-COSTEO-001',
 
-                        'referencia_compra' =>
-                            'REF-COSTEO',
+                        'referencia_compra' => 'REF-COSTEO',
 
-                        'origen' =>
-                            'Miami',
+                        'origen' => 'Miami',
 
                     ]
                 );
-
-
 
         $this->detalle =
             $loteService
@@ -166,35 +132,28 @@ class MotorCosteoUnidadServiceTest extends TestCase
                     $lote->id,
                     [
 
-                        'producto_id' =>
-                            $this->producto->id,
+                        'producto_id' => $this->producto->id,
 
-                        'cantidad_esperada' =>
-                            1,
+                        'cantidad_esperada' => 1,
 
                     ]
                 );
 
-
         $this->detalle->update([
 
-            'costo_unitario_bob' =>
-                3500,
+            'costo_unitario_bob' => 3500,
 
         ]);
 
     }
 
-
-
-    public function test_calcula_costo_total_de_una_unidad_con_costos_acumulados(): void
+    public function test_mantiene_costos_del_lote_separados_del_costo_de_la_unidad(): void
     {
 
         $unidadService =
             app(
                 UnidadAdquiridaService::class
             );
-
 
         $unidad =
             $unidadService
@@ -206,8 +165,6 @@ class MotorCosteoUnidadServiceTest extends TestCase
                 )
                 ->first();
 
-
-
         $tipoCosto =
             TipoCosto::query()
                 ->where(
@@ -215,8 +172,6 @@ class MotorCosteoUnidadServiceTest extends TestCase
                     'FLETE_INTERNACIONAL'
                 )
                 ->firstOrFail();
-
-
 
         $moneda =
             Moneda::query()
@@ -226,90 +181,65 @@ class MotorCosteoUnidadServiceTest extends TestCase
                 )
                 ->firstOrFail();
 
-
-
         $costoLote =
             CostoLote::create([
 
-                'lote_id' =>
-                    $this->detalle->lote_id,
+                'lote_id' => $this->detalle->lote_id,
 
-                'tipo_costo_id' =>
-                    $tipoCosto->id,
+                'tipo_costo_id' => $tipoCosto->id,
 
-                'moneda_id' =>
-                    $moneda->id,
+                'moneda_id' => $moneda->id,
 
-                'monto_origen' =>
-                    250,
+                'monto_origen' => 250,
 
-                'monto_bob' =>
-                    250,
+                'monto_bob' => 250,
 
-                'fecha_costo' =>
-                    '2026-08-29',
+                'fecha_costo' => '2026-08-29',
 
             ]);
 
-
-
         AsignacionCostoUnidadAdquirida::create([
 
-            'unidad_adquirida_id' =>
-                $unidad->id,
+            'unidad_adquirida_id' => $unidad->id,
 
-            'costo_lote_id' =>
-                $costoLote->id,
+            'costo_lote_id' => $costoLote->id,
 
-            'metodo_asignacion' =>
-                'PRORRATEO',
+            'metodo_asignacion' => 'PRORRATEO',
 
-            'base_individual' =>
-                3500,
+            'base_individual' => 3500,
 
-            'base_total' =>
-                7000,
+            'base_total' => 7000,
 
-            'porcentaje' =>
-                50,
+            'porcentaje' => 50,
 
-            'monto_asignado_bob' =>
-                250,
+            'monto_asignado_bob' => 250,
 
         ]);
-
-
 
         $resultado =
             app(
                 MotorCosteoUnidadService::class
             )
-            ->calcularCostoUnidad(
-                $unidad
-            );
-
-
+                ->calcularCostoUnidad(
+                    $unidad
+                );
 
         $this->assertEquals(
             3500,
             $resultado['costo_compra']
         );
 
-
         $this->assertEquals(
-            250,
+            0,
             $resultado['costos_lote']
         );
 
-
         $this->assertEquals(
-            3750,
+            3500,
             $resultado['costo_total']
         );
 
     }
-
-
 
     public function test_suma_intervenciones_al_costo_real_de_la_unidad(): void
     {
@@ -318,58 +248,44 @@ class MotorCosteoUnidadServiceTest extends TestCase
             app(
                 UnidadAdquiridaService::class
             )
-            ->registrarLlegadaCochabamba(
-                $this->usuario->id,
-                $this->detalle->id,
-                1,
-                '2026-08-29 11:00:00'
-            )
-            ->first();
-
-
+                ->registrarLlegadaCochabamba(
+                    $this->usuario->id,
+                    $this->detalle->id,
+                    1,
+                    '2026-08-29 11:00:00'
+                )
+                ->first();
 
         IntervencionUnidadAdquirida::create([
 
-            'unidad_adquirida_id' =>
-                $unidad->id,
+            'unidad_adquirida_id' => $unidad->id,
 
-            'tipo' =>
-                'COMPONENTE',
+            'tipo' => 'COMPONENTE',
 
-            'origen_componente' =>
-                'COMPRA_EXTERNA',
+            'origen_componente' => 'COMPRA_EXTERNA',
 
-            'cantidad' =>
-                1,
+            'cantidad' => 1,
 
-            'monto_bob' =>
-                180,
+            'monto_bob' => 180,
 
-            'fecha_inicio' =>
-                '2026-08-29 12:00:00',
+            'fecha_inicio' => '2026-08-29 12:00:00',
 
-            'descripcion' =>
-                'Cambio SSD',
+            'descripcion' => 'Cambio SSD',
 
         ]);
-
-
 
         $resultado =
             app(
                 MotorCosteoUnidadService::class
             )
-            ->calcularCostoUnidad(
-                $unidad
-            );
-
-
+                ->calcularCostoUnidad(
+                    $unidad
+                );
 
         $this->assertEquals(
             180,
             $resultado['intervenciones']
         );
-
 
         $this->assertEquals(
             3680,
@@ -378,8 +294,6 @@ class MotorCosteoUnidadServiceTest extends TestCase
 
     }
 
-
-
     public function test_marca_costo_incompleto_si_existe_intervencion_sin_valoracion(): void
     {
 
@@ -387,62 +301,47 @@ class MotorCosteoUnidadServiceTest extends TestCase
             app(
                 UnidadAdquiridaService::class
             )
-            ->registrarLlegadaCochabamba(
-                $this->usuario->id,
-                $this->detalle->id,
-                1,
-                '2026-08-29 13:00:00'
-            )
-            ->first();
-
-
+                ->registrarLlegadaCochabamba(
+                    $this->usuario->id,
+                    $this->detalle->id,
+                    1,
+                    '2026-08-29 13:00:00'
+                )
+                ->first();
 
         IntervencionUnidadAdquirida::create([
 
-            'unidad_adquirida_id' =>
-                $unidad->id,
+            'unidad_adquirida_id' => $unidad->id,
 
-            'tipo' =>
-                'COMPONENTE',
+            'tipo' => 'COMPONENTE',
 
-            'origen_componente' =>
-                'STOCK',
+            'origen_componente' => 'STOCK',
 
-            'cantidad' =>
-                1,
+            'cantidad' => 1,
 
-            'monto_bob' =>
-                null,
+            'monto_bob' => null,
 
-            'fecha_inicio' =>
-                '2026-08-29 14:00:00',
+            'fecha_inicio' => '2026-08-29 14:00:00',
 
-            'descripcion' =>
-                'RAM tomada de stock sin valoración',
+            'descripcion' => 'RAM tomada de stock sin valoración',
 
         ]);
-
-
 
         $resultado =
             app(
                 MotorCosteoUnidadService::class
             )
-            ->calcularCostoUnidad(
-                $unidad
-            );
-
-
+                ->calcularCostoUnidad(
+                    $unidad
+                );
 
         $this->assertFalse(
             $resultado['completo']
         );
-
 
         $this->assertNotEmpty(
             $resultado['advertencias']
         );
 
     }
-
 }
