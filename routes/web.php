@@ -11,6 +11,8 @@ use App\Http\Controllers\EnvioImportacionController;
 use App\Models\Producto;
 use App\Models\Moneda;
 use App\Http\Controllers\ReservaController;
+use App\Http\Controllers\VentaController;
+use App\Http\Controllers\PagoVentaController;
 use App\Http\Controllers\CostoLoteController;
 use App\Http\Controllers\IntervencionUnidadAdquiridaController;
 use App\Services\UnidadAdquiridaService;
@@ -595,6 +597,33 @@ Route::post(
 )
 ->middleware('permiso:ventas.crear')
 ->name('reservas.convertirVenta');
+
+/*
+|--------------------------------------------------------------------------
+| VENTAS Y PAGOS
+|--------------------------------------------------------------------------
+*/
+
+Route::get(
+    '/ventas',
+    [VentaController::class, 'index']
+)
+->middleware('permiso:ventas.ver')
+->name('ventas.index');
+
+Route::get(
+    '/ventas/{venta}',
+    [VentaController::class, 'show']
+)
+->middleware('permiso:ventas.ver')
+->name('ventas.show');
+
+Route::post(
+    '/ventas/{venta}/pagos',
+    [PagoVentaController::class, 'store']
+)
+->middleware('permiso:pagos.registrar')
+->name('ventas.pagos.store');
 /*
 |--------------------------------------------------------------------------
 | IMPORTANTE:

@@ -269,7 +269,7 @@ class ReservaController extends Controller
     ): RedirectResponse {
 
 
-        $this->ventaService
+        $venta = $this->ventaService
             ->convertirReservaEnVenta(
 
                 reservaId:
@@ -284,8 +284,8 @@ class ReservaController extends Controller
 
         return redirect()
             ->route(
-                'reservas.show',
-                $reserva
+                'ventas.show',
+                $venta
             )
             ->with(
                 'success',
