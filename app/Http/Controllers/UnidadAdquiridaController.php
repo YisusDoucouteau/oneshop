@@ -3,10 +3,13 @@
 namespace App\Http\Controllers;
 
 use App\Models\UnidadAdquirida;
+use App\Models\Auditoria;
 use App\Models\Lote;
 use App\Models\Almacen;
 use App\Models\Moneda;
 use App\Models\CondicionFisica;
+use App\Models\Producto;
+use App\Models\RevisionTecnicaUnidadAdquirida;
 use Illuminate\Http\JsonResponse;
 use App\Services\IncorporacionUnidadAdquiridaService;
 use App\Services\UnidadAdquiridaService;
@@ -370,6 +373,7 @@ public function show(
 'intervenciones.tipoCambio',
 'intervenciones.registradoPor',
 'intervenciones.movimientoInventario.tipoMovimiento',
+        'revisionesTecnicas.usuario',
         'costosPreparacion.tipoCosto',
         'costosPreparacion.moneda',
 
@@ -391,11 +395,39 @@ public function show(
             ->get();
 
 
+    $productosComponentes =
+        Producto::query()
+            ->where('activo', true)
+            ->where('es_serializado', false)
+            ->orderBy('nombre')
+            ->get();
+
+
+    $monedas =
+        Moneda::query()
+            ->where('activo', true)
+            ->orderBy('codigo')
+            ->get();
+
+
+    $reaperturasPreparacion =
+        Auditoria::query()
+            ->with('usuario')
+            ->where('entidad', 'unidad_adquirida')
+            ->where('entidad_id', $unidad->id)
+            ->where('accion', 'REABRIR_PREPARACION')
+            ->orderBy('fecha_evento')
+            ->get();
+
+
     return view(
         'unidades_adquiridas.show',
         compact(
             'unidad',
-            'condicionesFisicas'
+            'condicionesFisicas',
+            'productosComponentes',
+            'monedas',
+            'reaperturasPreparacion'
         )
     );
 }
@@ -489,6 +521,11 @@ public function revision(
 
     $datos = $request->validate([
 
+        'accion' => [
+            'nullable',
+            'in:BORRADOR,FINALIZAR',
+        ],
+
         'serial_fabricante' => [
             'nullable',
             'string',
@@ -549,6 +586,33 @@ public function revision(
             'max:100',
         ],
 
+        'grado_final' => [
+            'nullable',
+            'in:A,B,C',
+        ],
+
+        'bateria_porcentaje' => [
+            'nullable',
+            'integer',
+            'min:0',
+            'max:100',
+        ],
+
+        'checklist_tecnico' => [
+            'nullable',
+            'array',
+        ],
+
+        'checklist_tecnico.*' => [
+            'nullable',
+            'in:'
+                . RevisionTecnicaUnidadAdquirida::CHECK_OK
+                . ','
+                . RevisionTecnicaUnidadAdquirida::CHECK_FALLA
+                . ','
+                . RevisionTecnicaUnidadAdquirida::CHECK_NO_APLICA,
+        ],
+
         'enciende' => [
             'nullable',
             'boolean',
@@ -584,17 +648,39 @@ public function revision(
     ]);
 
 
-    $unidadActualizada =
-        $this->unidadAdquiridaService
-            ->registrarRevisionPreliminar(
-                $request->user()->id,
-                $unidad->id,
-                $datos
-            );
+    try {
+        $unidadActualizada =
+            $this->unidadAdquiridaService
+                ->registrarRevisionPreliminar(
+                    $request->user()->id,
+                    $unidad->id,
+                    $datos,
+                    ($datos['accion'] ?? 'FINALIZAR') === 'FINALIZAR'
+                );
+    } catch (ReglaNegocioException $exception) {
+        if ($request->expectsJson()) {
+            return response()->json([
+                'message' => $exception->getMessage(),
+                'errors' => [
+                    'revision' => [
+                        $exception->getMessage(),
+                    ],
+                ],
+            ], 422);
+        }
+
+        return back()
+            ->withErrors([
+                'revision' => $exception->getMessage(),
+            ])
+            ->withInput();
+    }
 
 
     $mensaje =
-        'La revisión preliminar fue registrada correctamente.';
+        ($datos['accion'] ?? 'FINALIZAR') === 'BORRADOR'
+            ? 'El borrador de revisión fue guardado correctamente.'
+            : 'La revisión técnica fue finalizada correctamente.';
 
 
     if ($request->expectsJson()) {
@@ -621,4 +707,62 @@ public function revision(
         )
         ->with('success', $mensaje);
 }
+
+public function reabrirPreparacion(
+    Request $request,
+    UnidadAdquirida $unidad
+): JsonResponse|RedirectResponse {
+    $datos = $request->validate([
+        'motivo' => [
+            'required',
+            'string',
+            'max:2000',
+        ],
+    ]);
+
+    try {
+        $unidadActualizada =
+            $this->unidadAdquiridaService
+                ->reabrirPreparacion(
+                    $request->user()->id,
+                    $unidad->id,
+                    $datos['motivo']
+                );
+    } catch (ReglaNegocioException $exception) {
+        if ($request->expectsJson()) {
+            return response()->json([
+                'message' => $exception->getMessage(),
+                'errors' => [
+                    'reapertura' => [
+                        $exception->getMessage(),
+                    ],
+                ],
+            ], 422);
+        }
+
+        return back()
+            ->withErrors([
+                'reapertura' => $exception->getMessage(),
+            ])
+            ->withInput();
+    }
+
+    $mensaje = 'La preparación de la unidad fue reabierta correctamente.';
+
+    if ($request->expectsJson()) {
+        return response()->json([
+            'ok' => true,
+            'message' => $mensaje,
+            'unidad' => [
+                'id' => $unidadActualizada->id,
+                'estado' => $unidadActualizada->estado,
+            ],
+        ]);
+    }
+
+    return redirect()
+        ->route('unidades-adquiridas.show', $unidadActualizada)
+        ->with('success', $mensaje);
+}
+
 }

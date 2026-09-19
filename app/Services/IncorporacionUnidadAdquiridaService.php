@@ -359,11 +359,23 @@ class IncorporacionUnidadAdquiridaService
 
 
                 'bateria_porcentaje' =>
-                    null,
+                    $unidad->bateria_porcentaje,
 
 
                 'datos_adicionales' =>
-                    null,
+                    [
+                        'grado_recibido' =>
+                            $unidad->grado_recibido,
+
+                        'grado_final' =>
+                            $unidad->grado_final,
+
+                        'resultado_revision' =>
+                            $unidad->resultado_revision,
+
+                        'checklist_preparacion' =>
+                            $unidad->checklist_tecnico,
+                    ],
 
             ];
 

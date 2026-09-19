@@ -10,6 +10,7 @@ use App\Models\Marca;
 use App\Models\Moneda;
 use App\Models\MovimientoInventario;
 use App\Models\Producto;
+use App\Models\RevisionTecnicaUnidadAdquirida;
 use App\Models\Proveedor;
 use App\Models\Rol;
 use App\Models\TipoCambio;
@@ -578,6 +579,15 @@ class IntervencionUnidadAdquiridaServiceTest extends TestCase
 
                     'tiene_cargador' =>
                         true,
+
+                    'grado_final' =>
+                        'A',
+
+                    'checklist_tecnico' =>
+                        array_fill_keys(
+                            array_keys(RevisionTecnicaUnidadAdquirida::CHECKLIST),
+                            RevisionTecnicaUnidadAdquirida::CHECK_OK
+                        ),
 
                     'requiere_servicio' =>
                         false,

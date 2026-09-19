@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Exceptions\ReglaNegocioException;
 use App\Models\UnidadAdquirida;
 use App\Services\IntervencionUnidadAdquiridaService;
 use Illuminate\Http\JsonResponse;
@@ -25,15 +26,22 @@ class IntervencionUnidadAdquiridaController extends Controller
         UnidadAdquirida $unidad
     ): JsonResponse|RedirectResponse {
 
-        $intervencion =
-            $this->intervencionService
-                ->registrarComponenteExterno(
-                    $request->user()->id,
-                    $unidad->id,
-                    $request->except([
-                        '_token',
-                    ])
-                );
+        try {
+            $intervencion =
+                $this->intervencionService
+                    ->registrarComponenteExterno(
+                        $request->user()->id,
+                        $unidad->id,
+                        $request->except([
+                            '_token',
+                        ])
+                    );
+        } catch (ReglaNegocioException $exception) {
+            return $this->respuestaReglaNegocio(
+                $request,
+                $exception
+            );
+        }
 
 
         $mensaje =
@@ -96,15 +104,22 @@ class IntervencionUnidadAdquiridaController extends Controller
         UnidadAdquirida $unidad
     ): JsonResponse|RedirectResponse {
 
-        $intervencion =
-            $this->intervencionService
-                ->asignarComponenteDesdeStock(
-                    $request->user()->id,
-                    $unidad->id,
-                    $request->except([
-                        '_token',
-                    ])
-                );
+        try {
+            $intervencion =
+                $this->intervencionService
+                    ->asignarComponenteDesdeStock(
+                        $request->user()->id,
+                        $unidad->id,
+                        $request->except([
+                            '_token',
+                        ])
+                    );
+        } catch (ReglaNegocioException $exception) {
+            return $this->respuestaReglaNegocio(
+                $request,
+                $exception
+            );
+        }
 
 
         $mensaje =
@@ -168,15 +183,22 @@ class IntervencionUnidadAdquiridaController extends Controller
         UnidadAdquirida $unidad
     ): JsonResponse|RedirectResponse {
 
-        $intervencion =
-            $this->intervencionService
-                ->registrarServicio(
-                    $request->user()->id,
-                    $unidad->id,
-                    $request->except([
-                        '_token',
-                    ])
-                );
+        try {
+            $intervencion =
+                $this->intervencionService
+                    ->registrarServicio(
+                        $request->user()->id,
+                        $unidad->id,
+                        $request->except([
+                            '_token',
+                        ])
+                    );
+        } catch (ReglaNegocioException $exception) {
+            return $this->respuestaReglaNegocio(
+                $request,
+                $exception
+            );
+        }
 
 
         $mensaje =
@@ -231,4 +253,27 @@ class IntervencionUnidadAdquiridaController extends Controller
                 $mensaje
             );
     }
+
+    private function respuestaReglaNegocio(
+        Request $request,
+        ReglaNegocioException $exception
+    ): JsonResponse|RedirectResponse {
+        if ($request->expectsJson()) {
+            return response()->json([
+                'message' => $exception->getMessage(),
+                'errors' => [
+                    'intervencion' => [
+                        $exception->getMessage(),
+                    ],
+                ],
+            ], 422);
+        }
+
+        return back()
+            ->withErrors([
+                'intervencion' => $exception->getMessage(),
+            ])
+            ->withInput();
+    }
+
 }

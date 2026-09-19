@@ -381,12 +381,12 @@
 </div>
 
 
-@script
 <script>
 
-Alpine.data(
-    'intervencionesUnidad',
-    () => ({
+document.addEventListener('alpine:init', () => {
+    Alpine.data(
+        'intervencionesUnidad',
+        () => ({
 
         modalIntervencion: false,
 
@@ -644,8 +644,8 @@ Alpine.data(
             }
         },
 
-    })
-);
+        })
+    );
+});
 
 </script>
-@endscript

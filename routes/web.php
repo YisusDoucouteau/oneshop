@@ -286,6 +286,13 @@ Route::patch(
 ->middleware('permiso:importacion.gestionar')
 ->name('unidades-adquiridas.revision');
 
+Route::patch(
+    '/unidades-adquiridas/{unidad}/reabrir-preparacion',
+    [UnidadAdquiridaController::class, 'reabrirPreparacion']
+)
+->middleware('permiso:importacion.gestionar')
+->name('unidades-adquiridas.reabrir-preparacion');
+
    Route::post(
     '/unidades-adquiridas/{unidad}/intervenciones/componente-externo',
     [

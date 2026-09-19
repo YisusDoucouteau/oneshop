@@ -51,12 +51,44 @@
 
     /*
     |--------------------------------------------------------------------------
-    | Revisión preliminar
+    | Revisiones técnicas
     |--------------------------------------------------------------------------
     */
 
-    if ($unidad->fecha_revision) {
+    if ($unidad->revisionesTecnicas->count()) {
 
+        foreach ($unidad->revisionesTecnicas as $revisionTecnica) {
+
+            $descripcionRevision = match ($revisionTecnica->resultado) {
+                \App\Models\RevisionTecnicaUnidadAdquirida::RESULTADO_APROBADA =>
+                    'La unidad completó satisfactoriamente el checklist técnico.',
+
+                \App\Models\RevisionTecnicaUnidadAdquirida::RESULTADO_REQUIERE_PREPARACION =>
+                    $revisionTecnica->servicio_requerido
+                        ? 'La revisión detectó trabajo pendiente: ' . $revisionTecnica->servicio_requerido
+                        : 'La revisión detectó fallas que requieren preparación adicional.',
+
+                default =>
+                    'La revisión quedó incompleta y requiere continuar con el checklist técnico.',
+            };
+
+            $eventos->push([
+                'fecha' => $revisionTecnica->fecha_revision,
+                'titulo' => 'Revisión técnica',
+                'descripcion' => $descripcionRevision,
+                'ubicacion' => 'Cochabamba',
+                'icono' => 'search',
+                'color' => match ($revisionTecnica->resultado) {
+                    \App\Models\RevisionTecnicaUnidadAdquirida::RESULTADO_APROBADA => 'green',
+                    \App\Models\RevisionTecnicaUnidadAdquirida::RESULTADO_REQUIERE_PREPARACION => 'yellow',
+                    default => 'blue',
+                },
+            ]);
+        }
+
+    } elseif ($unidad->fecha_revision) {
+
+        /* Compatibilidad con revisiones registradas antes del historial técnico. */
         $eventos->push([
             'fecha' => $unidad->fecha_revision,
             'titulo' => 'Revisión técnica preliminar',
@@ -70,6 +102,36 @@
                 $unidad->requiere_servicio
                     ? 'yellow'
                     : 'blue',
+        ]);
+    }
+
+
+    /*
+    |--------------------------------------------------------------------------
+    | Reaperturas de preparación
+    |--------------------------------------------------------------------------
+    */
+
+    foreach (($reaperturasPreparacion ?? collect()) as $reapertura) {
+        $motivoReapertura =
+            $reapertura->datos_nuevos['motivo']
+            ?? 'La preparación fue reabierta para una nueva verificación.';
+
+        $descripcionReapertura =
+            'Motivo: ' . $motivoReapertura;
+
+        if ($reapertura->usuario) {
+            $descripcionReapertura .=
+                ' · Responsable: ' . $reapertura->usuario->name . '.';
+        }
+
+        $eventos->push([
+            'fecha' => $reapertura->fecha_evento,
+            'titulo' => 'Preparación reabierta',
+            'descripcion' => $descripcionReapertura,
+            'ubicacion' => 'Cochabamba',
+            'icono' => 'wrench',
+            'color' => 'yellow',
         ]);
     }
 

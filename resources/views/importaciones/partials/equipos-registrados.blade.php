@@ -161,11 +161,13 @@
                     <td class="px-6 py-5">
 
 
-                        <p class="font-semibold text-slate-900">
-
+                        <a
+                            href="{{ route('unidades-adquiridas.show', $unidad) }}"
+                            class="font-semibold text-slate-900 transition hover:text-blue-700 hover:underline"
+                            title="Ver detalle y preparación de la unidad"
+                        >
                             {{ $unidad->codigo_trazabilidad ?? 'Pendiente' }}
-
-                        </p>
+                        </a>
 
 
                         <p class="text-xs text-slate-500">
@@ -529,10 +531,29 @@
                                 ],
                                 true
                             );
+
+                            $etiquetaPreparacion = match ($unidad->estado) {
+                                \App\Models\UnidadAdquirida::ESTADO_RECIBIDA_ORIGEN,
+                                \App\Models\UnidadAdquirida::ESTADO_EN_REVISION,
+                                \App\Models\UnidadAdquirida::ESTADO_EN_PREPARACION
+                                    => 'Preparar / Revisar',
+                                \App\Models\UnidadAdquirida::ESTADO_LISTA_ENVIO
+                                    => 'Ver preparación',
+                                default
+                                    => 'Ver detalle',
+                            };
                         @endphp
 
-                        @if($puedeModificarRecepcion)
-                            <div class="flex items-center gap-2">
+                        <div class="flex flex-wrap items-center gap-2">
+                            <a
+                                href="{{ route('unidades-adquiridas.show', $unidad) }}"
+                                class="inline-flex items-center gap-2 rounded-lg bg-slate-900 px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-slate-700"
+                            >
+                                <i data-lucide="clipboard-check" class="h-3.5 w-3.5"></i>
+                                {{ $etiquetaPreparacion }}
+                            </a>
+
+                            @if($puedeModificarRecepcion)
                                 <a
                                     href="{{ route('importaciones.unidades.editar', $unidad) }}"
                                     class="inline-flex items-center gap-2 rounded-lg bg-blue-50 px-3 py-1.5 text-xs font-semibold text-blue-700 transition hover:bg-blue-100"
@@ -550,16 +571,12 @@
                                     <i data-lucide="ban" class="h-3.5 w-3.5"></i>
                                     Anular
                                 </button>
-                            </div>
-                        @elseif($unidad->estado === \App\Models\UnidadAdquirida::ESTADO_ANULADA)
-                            <span class="text-xs text-slate-400">Sin acciones</span>
-                        @else
-                            <span class="text-xs font-medium text-slate-400">Recepción cerrada</span>
-                        @endif
+                            @elseif($unidad->estado !== \App\Models\UnidadAdquirida::ESTADO_ANULADA)
+                                <span class="text-xs font-medium text-slate-400">Recepción cerrada</span>
+                            @endif
+                        </div>
 
                     </td>
-
-
 
 
 

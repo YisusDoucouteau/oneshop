@@ -98,6 +98,9 @@ class UnidadAdquirida extends Model
         'resolucion',
 
         'sistema_operativo',
+        'bateria_porcentaje',
+        'checklist_tecnico',
+        'resultado_revision',
 
         'enciende',
         'tiene_sistema_operativo',
@@ -148,6 +151,12 @@ class UnidadAdquirida extends Model
 
         'pantalla_pulgadas' =>
             'decimal:1',
+
+        'bateria_porcentaje' =>
+            'integer',
+
+        'checklist_tecnico' =>
+            'array',
 
         'enciende' =>
             'boolean',
@@ -275,7 +284,16 @@ class UnidadAdquirida extends Model
     }
 
 
-   
+    public function revisionesTecnicas(): HasMany
+    {
+        return $this->hasMany(
+            RevisionTecnicaUnidadAdquirida::class,
+            'unidad_adquirida_id'
+        )
+            ->orderBy('fecha_revision');
+    }
+
+
 
     /*
     |--------------------------------------------------------------------------

@@ -98,7 +98,7 @@
 
 
         <form
-            @submit.prevent="guardarRevision"
+            @submit.prevent="guardarRevision('FINALIZAR')"
             class="p-6"
         >
 
@@ -256,7 +256,7 @@
                     ['enciende', 'La unidad enciende'],
                     ['tiene_sistema_operativo', 'Tiene sistema operativo'],
                     ['tiene_cargador', 'Tiene cargador'],
-                    ['requiere_servicio', 'Requiere preparación'],
+                    ['requiere_servicio', 'Requiere preparación adicional'],
                 ] as [$campo, $etiqueta])
 
                     <label
@@ -276,6 +276,9 @@
                         <input
                             type="checkbox"
                             x-model="revision.{{ $campo }}"
+                            @if($campo === 'requiere_servicio')
+                                @change="if (!revision.requiere_servicio) revision.servicio_requerido = ''"
+                            @endif
                             class="
                                 rounded
                                 border-slate-300
@@ -374,6 +377,16 @@
 
 
                 <button
+                    type="button"
+                    @click="guardarRevision('BORRADOR')"
+                    :disabled="guardandoRevision"
+                    class="inline-flex items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-5 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                    <x-ui.icon name="file" size="17"/>
+                    Guardar borrador
+                </button>
+
+                <button
                     type="submit"
                     :disabled="guardandoRevision"
                     class="
@@ -400,7 +413,7 @@
                         x-text="
                             guardandoRevision
                                 ? 'Guardando...'
-                                : 'Guardar revisión'
+                                : 'Finalizar revisión'
                         "
                     ></span>
                 </button>

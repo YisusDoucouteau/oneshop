@@ -11,6 +11,7 @@ use App\Models\Equipo;
 use App\Models\Marca;
 use App\Models\Producto;
 use App\Models\Proveedor;
+use App\Models\RevisionTecnicaUnidadAdquirida;
 use App\Models\Rol;
 use App\Models\UnidadAdquirida;
 use App\Models\User;
@@ -487,6 +488,41 @@ class IncorporacionUnidadAdquiridaServiceTest extends TestCase
                 ->equipo
                 ->estadoActual
                 ->codigo
+        );
+    }
+
+
+    public function test_transfiere_bateria_y_checklist_tecnico_al_equipo_formal(): void
+    {
+        $unidad = $this->prepararUnidadRecibidaEnOruro();
+
+        $checklist = array_fill_keys(
+            array_keys(RevisionTecnicaUnidadAdquirida::CHECKLIST),
+            RevisionTecnicaUnidadAdquirida::CHECK_OK
+        );
+
+        $unidad->update([
+            'bateria_porcentaje' => 84,
+            'grado_final' => 'A',
+            'resultado_revision' => RevisionTecnicaUnidadAdquirida::RESULTADO_APROBADA,
+            'checklist_tecnico' => $checklist,
+        ]);
+
+        $unidad = app(IncorporacionUnidadAdquiridaService::class)
+            ->incorporar(
+                $this->usuarioOperativo->id,
+                $unidad->id,
+                $this->obtenerCondicionFisicaId()
+            );
+
+        $especificacion = $unidad->equipo->especificacion;
+
+        $this->assertNotNull($especificacion);
+        $this->assertSame(84, $especificacion->bateria_porcentaje);
+        $this->assertSame('A', $especificacion->datos_adicionales['grado_final']);
+        $this->assertSame(
+            RevisionTecnicaUnidadAdquirida::CHECK_OK,
+            $especificacion->datos_adicionales['checklist_preparacion']['wifi']
         );
     }
 
