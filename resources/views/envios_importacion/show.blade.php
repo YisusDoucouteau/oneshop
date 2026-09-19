@@ -40,6 +40,11 @@
 
         modalDespacho: false,
 
+        modalGestion: false,
+        tipoGestion: '',
+        urlGestion: '',
+        motivoGestion: '',
+
         despacho: {
             transportista: @js($envio->transportista ?? ''),
             numero_guia: @js($envio->numero_guia ?? '')
@@ -167,6 +172,31 @@
                 {
                     observacion:
                         this.observacionRecepcion
+                }
+            );
+        },
+
+
+        abrirGestion(tipo, url) {
+            this.tipoGestion = tipo;
+            this.urlGestion = url;
+            this.motivoGestion = '';
+            this.errorGeneral = '';
+            this.modalGestion = true;
+        },
+
+        async guardarGestion() {
+            if (!this.motivoGestion.trim()) {
+                this.errorGeneral =
+                    'Debe indicar el motivo de la operación.';
+                return;
+            }
+
+            await this.ejecutar(
+                this.urlGestion,
+                'post',
+                {
+                    motivo: this.motivoGestion
                 }
             );
         },
@@ -374,7 +404,7 @@
             grid-cols-1
             gap-4
             md:grid-cols-2
-            xl:grid-cols-4
+            xl:grid-cols-3
         "
     >
 
@@ -407,7 +437,7 @@
         <x-ui.card>
 
             <p class="text-xs font-semibold uppercase text-slate-500">
-                Bultos
+                Cajas
             </p>
 
             <p class="mt-2 text-xl font-bold text-slate-900">
@@ -427,6 +457,50 @@
                 {{ $envio->unidadesEnvio->count() }}
             </p>
 
+        </x-ui.card>
+
+        <x-ui.card>
+            <p class="text-xs font-semibold uppercase text-slate-500">
+                Cargadores con equipos
+            </p>
+            <p class="mt-2 text-xl font-bold text-slate-900">
+                {{ $envio->cantidadCargadoresAsociados() }}
+            </p>
+        </x-ui.card>
+
+        <x-ui.card>
+            <p class="text-xs font-semibold uppercase text-slate-500">
+                Cargadores adicionales
+            </p>
+            <p class="mt-2 text-xl font-bold text-slate-900">
+                {{ $envio->cantidad_cargadores ?? 0 }}
+            </p>
+            <p class="mt-1 text-xs text-slate-500">
+                Sueltos para stock o venta
+            </p>
+        </x-ui.card>
+
+        <x-ui.card>
+            <p class="text-xs font-semibold uppercase text-slate-500">
+                Total cargadores
+            </p>
+            <p class="mt-2 text-xl font-bold text-slate-900">
+                {{ $envio->cantidadCargadoresTotales() }}
+            </p>
+        </x-ui.card>
+
+        <x-ui.card>
+            <p class="text-xs font-semibold uppercase text-slate-500">
+                Otros accesorios
+            </p>
+            <p class="mt-2 text-xl font-bold text-slate-900">
+                {{ $envio->cantidad_accesorios ?? 0 }}
+            </p>
+            @if($envio->detalle_accesorios)
+                <p class="mt-1 text-xs text-slate-500">
+                    {{ $envio->detalle_accesorios }}
+                </p>
+            @endif
         </x-ui.card>
 
     </div>
@@ -485,6 +559,13 @@
 
                             La recepción del envío fue completada.
 
+                        @elseif(
+                            $envio->estado ===
+                            \App\Models\EnvioImportacion::ESTADO_CANCELADO
+                        )
+
+                            El envío fue cancelado antes del despacho. Sus unidades pueden utilizarse en otro envío.
+
                         @endif
 
                     </p>
@@ -537,6 +618,26 @@
                     @endif
 
 
+                    {{-- REABRIR PREPARADO --}}
+                    @if($envio->estaPreparado())
+
+                        <button
+                            type="button"
+                            @click="
+                                abrirGestion(
+                                    'reabrir',
+                                    @js(route('envios-importacion.reabrir', $envio))
+                                )
+                            "
+                            :disabled="procesando"
+                            class="btn-secondary"
+                        >
+                            Corregir envío
+                        </button>
+
+                    @endif
+
+
                     {{-- DESPACHAR --}}
                     @if($envio->estaPreparado())
 
@@ -566,6 +667,50 @@
                             />
 
                             Despachar a Oruro
+                        </button>
+
+                    @endif
+
+
+                    {{-- CANCELAR ANTES DEL DESPACHO --}}
+                    @if(
+                        in_array(
+                            $envio->estado,
+                            [
+                                \App\Models\EnvioImportacion::ESTADO_BORRADOR,
+                                \App\Models\EnvioImportacion::ESTADO_PREPARADO,
+                            ],
+                            true
+                        )
+                    )
+
+                        <button
+                            type="button"
+                            @click="
+                                abrirGestion(
+                                    'cancelar',
+                                    @js(route('envios-importacion.cancelar', $envio))
+                                )
+                            "
+                            :disabled="procesando"
+                            class="
+                                inline-flex
+                                items-center
+                                gap-2
+                                rounded-xl
+                                border
+                                border-red-300
+                                px-4
+                                py-2.5
+                                text-sm
+                                font-semibold
+                                text-red-700
+                                hover:bg-red-50
+                                disabled:opacity-50
+                            "
+                        >
+                            <x-ui.icon name="x" size="17" />
+                            Cancelar envío
                         </button>
 
                     @endif
@@ -733,6 +878,13 @@
                                 @endif
                             </p>
 
+                            <p class="mt-1 text-xs text-slate-500">
+                                Cargador disponible en la unidad:
+                                <span class="font-semibold {{ $unidad->tiene_cargador ? 'text-emerald-600' : 'text-slate-600' }}">
+                                    {{ $unidad->tiene_cargador ? 'Sí' : 'No' }}
+                                </span>
+                            </p>
+
                         </div>
 
                     </div>
@@ -869,6 +1021,10 @@
                         </th>
 
                         <th class="px-5 py-4 text-left">
+                            Cargador con equipo
+                        </th>
+
+                        <th class="px-5 py-4 text-left">
                             Recepción
                         </th>
 
@@ -966,14 +1122,68 @@
                                     "
                                 >
                                     {{
-                                        str_replace(
-                                            '_',
-                                            ' ',
-                                            $unidad?->estado
-                                            ?? '-'
-                                        )
+                                        match ($unidad?->estado) {
+                                            'LISTA_ENVIO' => 'Lista para envío',
+                                            'ENVIADA' => 'Enviada',
+                                            'RECIBIDA_ORURO' => 'Recibida en Oruro',
+                                            'EN_PREPARACION' => 'En preparación',
+                                            'EN_REVISION' => 'En revisión',
+                                            'RECIBIDA_ORIGEN' => 'Recibida en Cochabamba',
+                                            default => ucfirst(strtolower(str_replace('_', ' ', $unidad?->estado ?? '-'))),
+                                        }
                                     }}
                                 </span>
+
+                            </td>
+
+
+                            {{-- Cargador que viaja con esta unidad --}}
+                            <td class="px-5 py-4">
+
+                                <div class="flex flex-col items-start gap-2">
+                                    <x-ui.badge :color="$detalle->incluye_cargador ? 'green' : 'gray'">
+                                        {{ $detalle->incluye_cargador ? 'Sí' : 'No' }}
+                                    </x-ui.badge>
+
+                                    @if(
+                                        $envio->estaEnBorrador()
+                                        && auth()->user()?->tienePermiso('importacion.gestionar')
+                                    )
+                                        <div class="flex gap-1">
+                                            <button
+                                                type="button"
+                                                @click="ejecutar(
+                                                    @js(route('envios-importacion.unidades.cargador', [
+                                                        'envio' => $envio,
+                                                        'unidad' => $unidad,
+                                                    ])),
+                                                    'post',
+                                                    { incluye_cargador: true }
+                                                )"
+                                                :disabled="procesando"
+                                                class="rounded-lg border border-emerald-200 px-2 py-1 text-[11px] font-semibold text-emerald-700 hover:bg-emerald-50 disabled:opacity-50"
+                                            >
+                                                Con cargador
+                                            </button>
+
+                                            <button
+                                                type="button"
+                                                @click="ejecutar(
+                                                    @js(route('envios-importacion.unidades.cargador', [
+                                                        'envio' => $envio,
+                                                        'unidad' => $unidad,
+                                                    ])),
+                                                    'post',
+                                                    { incluye_cargador: false }
+                                                )"
+                                                :disabled="procesando"
+                                                class="rounded-lg border border-slate-200 px-2 py-1 text-[11px] font-semibold text-slate-600 hover:bg-slate-50 disabled:opacity-50"
+                                            >
+                                                Sin cargador
+                                            </button>
+                                        </div>
+                                    @endif
+                                </div>
 
                             </td>
 
@@ -1513,6 +1723,119 @@
 
     </x-ui.card>
 
+
+
+
+
+    @php
+        $eventosGestion = $envio->auditorias
+            ->whereIn('accion', [
+                'REABRIR_ENVIO_IMPORTACION',
+                'CANCELAR_ENVIO_IMPORTACION',
+            ]);
+    @endphp
+
+    @if($eventosGestion->isNotEmpty())
+        <x-ui.card>
+            <h2 class="text-lg font-bold text-slate-900">
+                Correcciones del envío
+            </h2>
+
+            <div class="mt-5 space-y-4">
+                @foreach($eventosGestion as $evento)
+                    <div class="rounded-xl border border-slate-200 p-4">
+                        <div class="flex flex-wrap items-start justify-between gap-3">
+                            <div>
+                                <p class="font-semibold text-slate-900">
+                                    {{
+                                        $evento->accion === 'CANCELAR_ENVIO_IMPORTACION'
+                                            ? 'Envío cancelado'
+                                            : 'Envío reabierto para corrección'
+                                    }}
+                                </p>
+                                <p class="mt-1 text-sm text-slate-600">
+                                    {{ $evento->datos_nuevos['motivo'] ?? 'Sin motivo registrado.' }}
+                                </p>
+                            </div>
+
+                            <p class="text-xs text-slate-500">
+                                {{ $evento->fecha_evento?->format('d/m/Y H:i') }}
+                                @if($evento->usuario)
+                                    · {{ $evento->usuario->name }}
+                                @endif
+                            </p>
+                        </div>
+                    </div>
+                @endforeach
+            </div>
+        </x-ui.card>
+    @endif
+
+
+    {{-- ============================================================
+        MODAL CORREGIR / CANCELAR ENVÍO
+    ============================================================ --}}
+    <div
+        x-cloak
+        x-show="modalGestion"
+        class="fixed inset-0 z-[110] flex items-center justify-center p-4"
+    >
+        <div
+            class="absolute inset-0 bg-slate-950/70 backdrop-blur-sm"
+            @click="!procesando && (modalGestion = false)"
+        ></div>
+
+        <div class="relative z-10 w-full max-w-xl rounded-2xl bg-white p-6 shadow-2xl">
+            <h3
+                class="text-lg font-bold text-slate-900"
+                x-text="
+                    tipoGestion === 'cancelar'
+                        ? 'Cancelar envío'
+                        : 'Corregir envío preparado'
+                "
+            ></h3>
+
+            <p
+                class="mt-1 text-sm text-slate-500"
+                x-text="
+                    tipoGestion === 'cancelar'
+                        ? 'El envío no será despachado. Las unidades seguirán en Lista para envío y podrán agregarse a otro traslado.'
+                        : 'El envío volverá a Borrador para poder modificar sus unidades o datos antes del despacho.'
+                "
+            ></p>
+
+            <div class="mt-6">
+                <label class="mb-2 block text-sm font-semibold text-slate-700">
+                    Motivo
+                </label>
+                <textarea
+                    x-model="motivoGestion"
+                    rows="4"
+                    class="input-oneshop w-full"
+                    placeholder="Explique brevemente por qué se realiza esta operación"
+                ></textarea>
+            </div>
+
+            <div class="mt-6 flex justify-end gap-3 border-t border-slate-200 pt-5">
+                <button
+                    type="button"
+                    @click="modalGestion = false"
+                    class="btn-secondary"
+                >
+                    Volver
+                </button>
+
+                <button
+                    type="button"
+                    @click="guardarGestion()"
+                    :disabled="procesando"
+                    class="rounded-xl bg-oneshop-primary px-5 py-2.5 text-sm font-semibold text-white hover:bg-oneshop-dark disabled:opacity-50"
+                >
+                    Confirmar
+                </button>
+            </div>
+        </div>
+    </div>
 
 
     {{-- ============================================================

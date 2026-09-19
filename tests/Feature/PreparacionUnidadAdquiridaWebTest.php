@@ -153,6 +153,10 @@ class PreparacionUnidadAdquiridaWebTest extends TestCase
             ->assertSee('Checklist funcional')
             ->assertSee('Registrar intervención')
             ->assertSee('Batería')
+            ->assertSee('Completar checklist')
+            ->assertSee('Marcar pendientes como OK')
+            ->assertSee('Carga y batería')
+            ->assertSee('Sin revisar')
             ->assertSee('Guardar borrador')
             ->assertSee('Finalizar revisión');
     }

@@ -26,6 +26,16 @@
         \App\Models\RevisionTecnicaUnidadAdquirida::RESULTADO_REQUIERE_PREPARACION => 'Requiere preparación',
         \App\Models\RevisionTecnicaUnidadAdquirida::RESULTADO_APROBADA => 'Aprobada',
     ];
+
+    $etiquetasEstadoPreparacion = [
+        \App\Models\UnidadAdquirida::ESTADO_RECIBIDA_ORIGEN => 'Recibida en Cochabamba',
+        \App\Models\UnidadAdquirida::ESTADO_EN_REVISION => 'En revisión',
+        \App\Models\UnidadAdquirida::ESTADO_EN_PREPARACION => 'En preparación',
+        \App\Models\UnidadAdquirida::ESTADO_LISTA_ENVIO => 'Lista para envío',
+        \App\Models\UnidadAdquirida::ESTADO_ENVIADA => 'Enviada',
+        \App\Models\UnidadAdquirida::ESTADO_RECIBIDA_ORURO => 'Recibida en Oruro',
+        \App\Models\UnidadAdquirida::ESTADO_INCORPORADA => 'Incorporada al inventario',
+    ];
 @endphp
 
 <div
@@ -234,10 +244,10 @@
                     <button
                         type="button"
                         @click="modalRevision = true"
-                        class="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition hover:border-oneshop-primary hover:bg-oneshop-soft hover:text-oneshop-primary"
+                        class="inline-flex items-center gap-2 rounded-xl bg-oneshop-primary px-4 py-2 text-sm font-semibold text-white transition hover:bg-oneshop-dark"
                     >
                         <x-ui.icon name="edit" size="17"/>
-                        Revisar unidad
+                        {{ $evaluadosChecklist > 0 ? 'Continuar checklist' : 'Completar checklist' }}
                     </button>
                 @endif
             </div>
@@ -247,7 +257,7 @@
     <div class="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4">
         <div class="rounded-xl border border-slate-200 bg-slate-50 p-4">
             <p class="text-xs font-semibold uppercase tracking-wide text-slate-500">Estado</p>
-            <p class="mt-1 font-bold text-slate-900">{{ $unidad->estado ?? 'Sin estado' }}</p>
+            <p class="mt-1 font-bold text-slate-900">{{ $etiquetasEstadoPreparacion[$unidad->estado] ?? str_replace('_', ' ', ucfirst(strtolower($unidad->estado ?? 'Sin estado'))) }}</p>
         </div>
 
         <div class="rounded-xl border border-slate-200 bg-slate-50 p-4">
@@ -274,7 +284,7 @@
         @foreach([
             ['enciende', 'Encendido'],
             ['tiene_sistema_operativo', 'Sistema operativo'],
-            ['tiene_cargador', 'Cargador'],
+            ['tiene_cargador', 'Cargador disponible'],
         ] as [$campo, $etiqueta])
             @php
                 $valor = $unidad->{$campo};

@@ -5,7 +5,6 @@ namespace App\Services;
 use App\Exceptions\ReglaNegocioException;
 use App\Models\Almacen;
 use App\Models\DetalleLote;
-use App\Models\EnvioImportacion;
 use App\Models\EventoLogisticoLote;
 use App\Models\Lote;
 use App\Models\RevisionTecnicaUnidadAdquirida;
@@ -20,11 +19,6 @@ use Illuminate\Validation\ValidationException;
 
 class UnidadAdquiridaService
 {
-    public function __construct(
-        private readonly AuditoriaService $auditoriaService
-    ) {
-    }
-
     /**
      * Registra una llegada parcial de unidades físicas
      * correspondientes a una línea de compra.
@@ -748,15 +742,13 @@ class UnidadAdquiridaService
     public function registrarRevisionPreliminar(
         int $usuarioId,
         int $unidadId,
-        array $datos,
-        bool $finalizar = true
+        array $datos
     ): UnidadAdquirida {
         return DB::transaction(
             function () use (
                 $usuarioId,
                 $unidadId,
-                $datos,
-                $finalizar
+                $datos
             ) {
                 $usuario =
                     $this->obtenerUsuarioAutorizado(
@@ -792,15 +784,6 @@ class UnidadAdquiridaService
                 ) {
                     throw new ReglaNegocioException(
                         'La unidad ya salió de la etapa de revisión y preparación en Cochabamba.'
-                    );
-                }
-
-                if (
-                    $unidad->estado ===
-                    UnidadAdquirida::ESTADO_LISTA_ENVIO
-                ) {
-                    throw new ReglaNegocioException(
-                        'La unidad ya está lista para envío. Debe reabrir la preparación antes de modificar el checklist.'
                     );
                 }
 
@@ -848,31 +831,106 @@ class UnidadAdquiridaService
                 $validator = Validator::make(
                     $datos,
                     [
-                        'serial_fabricante' => ['nullable', 'string', 'max:150'],
-                        'procesador' => ['nullable', 'string', 'max:150'],
-                        'generacion_procesador' => ['nullable', 'string', 'max:80'],
-                        'ram_gb' => ['nullable', 'integer', 'min:0', 'max:65535'],
-                        'almacenamiento_gb' => ['nullable', 'integer', 'min:0'],
-                        'tipo_almacenamiento' => ['nullable', 'string', 'max:50'],
-                        'tarjeta_grafica' => ['nullable', 'string', 'max:150'],
-                        'pantalla_pulgadas' => ['nullable', 'numeric', 'min:0', 'max:999.9'],
-                        'resolucion' => ['nullable', 'string', 'max:50'],
-                        'sistema_operativo' => ['nullable', 'string', 'max:100'],
-                        'grado_final' => ['nullable', 'in:A,B,C'],
-                        'bateria_porcentaje' => ['nullable', 'integer', 'min:0', 'max:100'],
-                        'enciende' => ['nullable', 'boolean'],
-                        'tiene_sistema_operativo' => ['nullable', 'boolean'],
-                        'tiene_cargador' => ['nullable', 'boolean'],
-                        'requiere_servicio' => ['nullable', 'boolean'],
-                        'servicio_requerido' => ['nullable', 'string', 'max:2000'],
-                        'observacion_revision' => ['nullable', 'string', 'max:2000'],
-                        'checklist_tecnico' => ['nullable', 'array'],
+                        'serial_fabricante' => [
+                            'nullable',
+                            'string',
+                            'max:150',
+                        ],
+                        'procesador' => [
+                            'nullable',
+                            'string',
+                            'max:150',
+                        ],
+                        'generacion_procesador' => [
+                            'nullable',
+                            'string',
+                            'max:80',
+                        ],
+                        'ram_gb' => [
+                            'nullable',
+                            'integer',
+                            'min:0',
+                            'max:65535',
+                        ],
+                        'almacenamiento_gb' => [
+                            'nullable',
+                            'integer',
+                            'min:0',
+                        ],
+                        'tipo_almacenamiento' => [
+                            'nullable',
+                            'string',
+                            'max:50',
+                        ],
+                        'tarjeta_grafica' => [
+                            'nullable',
+                            'string',
+                            'max:150',
+                        ],
+                        'pantalla_pulgadas' => [
+                            'nullable',
+                            'numeric',
+                            'min:0',
+                            'max:999.9',
+                        ],
+                        'resolucion' => [
+                            'nullable',
+                            'string',
+                            'max:50',
+                        ],
+                        'sistema_operativo' => [
+                            'nullable',
+                            'string',
+                            'max:100',
+                        ],
+                        'grado_final' => [
+                            'nullable',
+                            'in:A,B,C',
+                        ],
+                        'bateria_porcentaje' => [
+                            'nullable',
+                            'integer',
+                            'min:0',
+                            'max:100',
+                        ],
+                        'enciende' => [
+                            'nullable',
+                            'boolean',
+                        ],
+                        'tiene_sistema_operativo' => [
+                            'nullable',
+                            'boolean',
+                        ],
+                        'tiene_cargador' => [
+                            'nullable',
+                            'boolean',
+                        ],
+                        'requiere_servicio' => [
+                            'nullable',
+                            'boolean',
+                        ],
+                        'servicio_requerido' => [
+                            'nullable',
+                            'string',
+                            'max:2000',
+                        ],
+                        'observacion_revision' => [
+                            'nullable',
+                            'string',
+                            'max:2000',
+                        ],
+                        'checklist_tecnico' => [
+                            'nullable',
+                            'array',
+                        ],
                         ...$reglasChecklist,
                     ]
                 );
 
                 if ($validator->fails()) {
-                    throw new ValidationException($validator);
+                    throw new ValidationException(
+                        $validator
+                    );
                 }
 
                 $validados = $validator->validated();
@@ -883,7 +941,10 @@ class UnidadAdquiridaService
                         array $validados,
                         mixed $actual
                     ): mixed {
-                        return array_key_exists($campo, $validados)
+                        return array_key_exists(
+                            $campo,
+                            $validados
+                        )
                             ? $validados[$campo]
                             : $actual;
                     };
@@ -912,21 +973,33 @@ class UnidadAdquiridaService
                     $unidad->requiere_servicio
                 );
 
-                $gradoFinal = array_key_exists('grado_final', $validados)
-                    ? $validados['grado_final']
-                    : $unidad->grado_final;
+                $gradoFinal =
+                    array_key_exists(
+                        'grado_final',
+                        $validados
+                    )
+                        ? $validados['grado_final']
+                        : $unidad->grado_final;
 
-                $bateriaPorcentaje = array_key_exists('bateria_porcentaje', $validados)
-                    ? $validados['bateria_porcentaje']
-                    : $unidad->bateria_porcentaje;
+                $bateriaPorcentaje =
+                    array_key_exists(
+                        'bateria_porcentaje',
+                        $validados
+                    )
+                        ? $validados['bateria_porcentaje']
+                        : $unidad->bateria_porcentaje;
 
                 /*
                 |--------------------------------------------------------------------------
                 | Checklist técnico acumulado
                 |--------------------------------------------------------------------------
-                | El registro actual de la unidad funciona como borrador de trabajo.
-                | Solo al finalizar se crea un snapshot histórico inmutable.
+                |
+                | Cada nueva revisión parte del último snapshot y actualiza únicamente
+                | los ítems enviados. Esto permite repetir la revisión después de una
+                | reparación sin perder la evidencia histórica de revisiones anteriores.
+                |
                 */
+
                 $checklist = [];
 
                 foreach (
@@ -939,7 +1012,8 @@ class UnidadAdquiridaService
                 }
 
                 foreach (
-                    $validados['checklist_tecnico'] ?? []
+                    $validados['checklist_tecnico']
+                        ?? []
                     as $campo => $valor
                 ) {
                     if (
@@ -973,9 +1047,12 @@ class UnidadAdquiridaService
                     $problemasBasicos[] = 'Sistema operativo';
                 }
 
-                if ($tieneCargador === false) {
-                    $problemasBasicos[] = 'Cargador';
-                }
+                /*
+                 * La presencia física de cargador no bloquea el despacho.
+                 * La prueba funcional de carga/batería vive en el checklist
+                 * técnico y el cargador que efectivamente VIAJA se declara
+                 * después en el detalle del envío.
+                 */
 
                 $requiereServicio =
                     $requiereServicioManual === true
@@ -997,7 +1074,9 @@ class UnidadAdquiridaService
 
                     foreach ($fallasChecklist as $campo) {
                         $motivos[] =
-                            RevisionTecnicaUnidadAdquirida::CHECKLIST[$campo];
+                            RevisionTecnicaUnidadAdquirida::CHECKLIST[
+                                $campo
+                            ];
                     }
 
                     if ($motivos !== []) {
@@ -1005,7 +1084,7 @@ class UnidadAdquiridaService
                             'Revisar/corregir: '
                             . implode(', ', $motivos)
                             . '.';
-                    } elseif ($finalizar) {
+                    } else {
                         throw ValidationException::withMessages([
                             'servicio_requerido' =>
                                 'Debe indicar qué servicio o preparación necesita la unidad.',
@@ -1015,58 +1094,6 @@ class UnidadAdquiridaService
 
                 if (!$requiereServicio) {
                     $servicioRequerido = null;
-                }
-
-                $datosUnidad = [
-                    'serial_fabricante' => $validados['serial_fabricante'] ?? $unidad->serial_fabricante,
-                    'procesador' => $validados['procesador'] ?? $unidad->procesador,
-                    'generacion_procesador' => $validados['generacion_procesador'] ?? $unidad->generacion_procesador,
-                    'ram_gb' => $validados['ram_gb'] ?? $unidad->ram_gb,
-                    'almacenamiento_gb' => $validados['almacenamiento_gb'] ?? $unidad->almacenamiento_gb,
-                    'tipo_almacenamiento' => $validados['tipo_almacenamiento'] ?? $unidad->tipo_almacenamiento,
-                    'tarjeta_grafica' => $validados['tarjeta_grafica'] ?? $unidad->tarjeta_grafica,
-                    'pantalla_pulgadas' => $validados['pantalla_pulgadas'] ?? $unidad->pantalla_pulgadas,
-                    'resolucion' => $validados['resolucion'] ?? $unidad->resolucion,
-                    'sistema_operativo' => $validados['sistema_operativo'] ?? $unidad->sistema_operativo,
-                    'grado_final' => $gradoFinal,
-                    'bateria_porcentaje' => $bateriaPorcentaje,
-                    'checklist_tecnico' => $checklist,
-                    'enciende' => $enciende,
-                    'tiene_sistema_operativo' => $tieneSistema,
-                    'tiene_cargador' => $tieneCargador,
-                    'requiere_servicio' => $requiereServicio,
-                    'servicio_requerido' => $servicioRequerido,
-                    'observacion_revision' => $validados['observacion_revision'] ?? $unidad->observacion_revision,
-                ];
-
-                /*
-                |--------------------------------------------------------------------------
-                | Guardar borrador
-                |--------------------------------------------------------------------------
-                | No genera historial ni declara un resultado definitivo. Si la unidad ya
-                | estaba en preparación se mantiene en ese estado; si recién comienza la
-                | revisión pasa a EN_REVISION.
-                */
-                if (!$finalizar) {
-                    $estadoBorrador =
-                        $unidad->estado === UnidadAdquirida::ESTADO_EN_PREPARACION
-                            ? UnidadAdquirida::ESTADO_EN_PREPARACION
-                            : UnidadAdquirida::ESTADO_EN_REVISION;
-
-                    $unidad->fill([
-                        ...$datosUnidad,
-                        'estado' => $estadoBorrador,
-                    ]);
-
-                    $unidad->save();
-
-                    return $unidad->fresh([
-                        'producto.marca',
-                        'almacenActual',
-                        'detalleLote.lote',
-                        'revisadoPor',
-                        'revisionesTecnicas.usuario',
-                    ]);
                 }
 
                 $basicosCompletos =
@@ -1097,46 +1124,127 @@ class UnidadAdquiridaService
                     $revisionCompleta
                     && !$tieneProblemaConocido
                 ) {
-                    $estado = UnidadAdquirida::ESTADO_LISTA_ENVIO;
-                    $resultadoRevision = RevisionTecnicaUnidadAdquirida::RESULTADO_APROBADA;
-                    $fechaListaEnvio = now();
+                    $estado =
+                        UnidadAdquirida::ESTADO_LISTA_ENVIO;
+
+                    $resultadoRevision =
+                        RevisionTecnicaUnidadAdquirida::RESULTADO_APROBADA;
+
+                    $fechaListaEnvio =
+                        $unidad->fecha_lista_envio
+                        ?? now();
                 } elseif ($tieneProblemaConocido) {
-                    $estado = UnidadAdquirida::ESTADO_EN_PREPARACION;
-                    $resultadoRevision = RevisionTecnicaUnidadAdquirida::RESULTADO_REQUIERE_PREPARACION;
+                    $estado =
+                        UnidadAdquirida::ESTADO_EN_PREPARACION;
+
+                    $resultadoRevision =
+                        RevisionTecnicaUnidadAdquirida::RESULTADO_REQUIERE_PREPARACION;
+
                     $fechaListaEnvio = null;
                 } else {
-                    $estado = UnidadAdquirida::ESTADO_EN_REVISION;
-                    $resultadoRevision = RevisionTecnicaUnidadAdquirida::RESULTADO_INCOMPLETA;
+                    $estado =
+                        UnidadAdquirida::ESTADO_EN_REVISION;
+
+                    $resultadoRevision =
+                        RevisionTecnicaUnidadAdquirida::RESULTADO_INCOMPLETA;
+
                     $fechaListaEnvio = null;
                 }
 
                 $fechaRevision = now();
 
                 $unidad->fill([
-                    ...$datosUnidad,
-                    'resultado_revision' => $resultadoRevision,
-                    'estado' => $estado,
-                    'fecha_revision' => $fechaRevision,
-                    'fecha_lista_envio' => $fechaListaEnvio,
-                    'revisado_por_id' => $usuario->id,
+                    'serial_fabricante' =>
+                        $validados['serial_fabricante']
+                        ?? $unidad->serial_fabricante,
+                    'procesador' =>
+                        $validados['procesador']
+                        ?? $unidad->procesador,
+                    'generacion_procesador' =>
+                        $validados['generacion_procesador']
+                        ?? $unidad->generacion_procesador,
+                    'ram_gb' =>
+                        $validados['ram_gb']
+                        ?? $unidad->ram_gb,
+                    'almacenamiento_gb' =>
+                        $validados['almacenamiento_gb']
+                        ?? $unidad->almacenamiento_gb,
+                    'tipo_almacenamiento' =>
+                        $validados['tipo_almacenamiento']
+                        ?? $unidad->tipo_almacenamiento,
+                    'tarjeta_grafica' =>
+                        $validados['tarjeta_grafica']
+                        ?? $unidad->tarjeta_grafica,
+                    'pantalla_pulgadas' =>
+                        $validados['pantalla_pulgadas']
+                        ?? $unidad->pantalla_pulgadas,
+                    'resolucion' =>
+                        $validados['resolucion']
+                        ?? $unidad->resolucion,
+                    'sistema_operativo' =>
+                        $validados['sistema_operativo']
+                        ?? $unidad->sistema_operativo,
+                    'grado_final' =>
+                        $gradoFinal,
+                    'bateria_porcentaje' =>
+                        $bateriaPorcentaje,
+                    'checklist_tecnico' =>
+                        $checklist,
+                    'resultado_revision' =>
+                        $resultadoRevision,
+                    'enciende' =>
+                        $enciende,
+                    'tiene_sistema_operativo' =>
+                        $tieneSistema,
+                    'tiene_cargador' =>
+                        $tieneCargador,
+                    'requiere_servicio' =>
+                        $requiereServicio,
+                    'servicio_requerido' =>
+                        $servicioRequerido,
+                    'observacion_revision' =>
+                        $validados['observacion_revision']
+                        ?? $unidad->observacion_revision,
+                    'estado' =>
+                        $estado,
+                    'fecha_revision' =>
+                        $fechaRevision,
+                    'fecha_lista_envio' =>
+                        $fechaListaEnvio,
+                    'revisado_por_id' =>
+                        $usuario->id,
                 ]);
 
                 $unidad->save();
 
                 RevisionTecnicaUnidadAdquirida::create([
-                    'unidad_adquirida_id' => $unidad->id,
-                    'usuario_id' => $usuario->id,
-                    'fecha_revision' => $fechaRevision,
-                    'grado_final' => $gradoFinal,
-                    'bateria_porcentaje' => $bateriaPorcentaje,
-                    'enciende' => $enciende,
-                    'tiene_sistema_operativo' => $tieneSistema,
-                    'tiene_cargador' => $tieneCargador,
-                    'requiere_servicio' => $requiereServicio,
-                    'servicio_requerido' => $servicioRequerido,
-                    'checklist_tecnico' => $checklist,
-                    'resultado' => $resultadoRevision,
-                    'observacion' => $validados['observacion_revision'] ?? $unidad->observacion_revision,
+                    'unidad_adquirida_id' =>
+                        $unidad->id,
+                    'usuario_id' =>
+                        $usuario->id,
+                    'fecha_revision' =>
+                        $fechaRevision,
+                    'grado_final' =>
+                        $gradoFinal,
+                    'bateria_porcentaje' =>
+                        $bateriaPorcentaje,
+                    'enciende' =>
+                        $enciende,
+                    'tiene_sistema_operativo' =>
+                        $tieneSistema,
+                    'tiene_cargador' =>
+                        $tieneCargador,
+                    'requiere_servicio' =>
+                        $requiereServicio,
+                    'servicio_requerido' =>
+                        $servicioRequerido,
+                    'checklist_tecnico' =>
+                        $checklist,
+                    'resultado' =>
+                        $resultadoRevision,
+                    'observacion' =>
+                        $validados['observacion_revision']
+                        ?? $unidad->observacion_revision,
                 ]);
 
                 return $unidad->fresh([
@@ -1145,112 +1253,6 @@ class UnidadAdquiridaService
                     'detalleLote.lote',
                     'revisadoPor',
                     'revisionesTecnicas.usuario',
-                ]);
-            },
-            3
-        );
-    }
-
-    public function reabrirPreparacion(
-        int $usuarioId,
-        int $unidadId,
-        string $motivo
-    ): UnidadAdquirida {
-        return DB::transaction(
-            function () use ($usuarioId, $unidadId, $motivo) {
-                $usuario = $this->obtenerUsuarioAutorizado($usuarioId);
-
-                $motivo = trim($motivo);
-
-                if ($motivo === '') {
-                    throw ValidationException::withMessages([
-                        'motivo' => 'Debe indicar el motivo de reapertura de la preparación.',
-                    ]);
-                }
-
-                if (mb_strlen($motivo) > 2000) {
-                    throw ValidationException::withMessages([
-                        'motivo' => 'El motivo no puede superar los 2000 caracteres.',
-                    ]);
-                }
-
-                $unidad = UnidadAdquirida::query()
-                    ->with('envioImportacionUnidad.envioImportacion')
-                    ->lockForUpdate()
-                    ->find($unidadId);
-
-                if (!$unidad) {
-                    throw new ReglaNegocioException('La unidad adquirida no existe.');
-                }
-
-                if ($unidad->estado !== UnidadAdquirida::ESTADO_LISTA_ENVIO) {
-                    throw new ReglaNegocioException(
-                        'Solo puede reabrirse una unidad que se encuentre lista para envío.'
-                    );
-                }
-
-                $almacenCochabamba = Almacen::query()
-                    ->where('codigo', 'COCHABAMBA')
-                    ->where('activo', true)
-                    ->first();
-
-                if (
-                    !$almacenCochabamba
-                    || $unidad->almacen_actual_id !== $almacenCochabamba->id
-                ) {
-                    throw new ReglaNegocioException(
-                        'La preparación solo puede reabrirse mientras la unidad permanece en Cochabamba.'
-                    );
-                }
-
-                $detalleEnvio = $unidad->envioImportacionUnidad;
-                $envio = $detalleEnvio?->envioImportacion;
-
-                if ($envio) {
-                    if ($envio->estado === EnvioImportacion::ESTADO_BORRADOR) {
-                        /*
-                         * Si apenas estaba agregada a un envío en borrador, se retira
-                         * automáticamente para evitar que una unidad no lista siga viajando.
-                         */
-                        $detalleEnvio->delete();
-                    } else {
-                        throw new ReglaNegocioException(
-                            'La unidad ya pertenece a un envío que fue marcado como preparado o despachado. Debe resolver ese envío antes de reabrir la preparación.'
-                        );
-                    }
-                }
-
-                $anterior = [
-                    'estado' => $unidad->estado,
-                    'resultado_revision' => $unidad->resultado_revision,
-                    'fecha_lista_envio' => $unidad->fecha_lista_envio?->toDateTimeString(),
-                ];
-
-                $unidad->update([
-                    'estado' => UnidadAdquirida::ESTADO_EN_PREPARACION,
-                    'resultado_revision' => RevisionTecnicaUnidadAdquirida::RESULTADO_REQUIERE_PREPARACION,
-                    'requiere_servicio' => true,
-                    'servicio_requerido' => $motivo,
-                    'fecha_lista_envio' => null,
-                ]);
-
-                $this->auditoriaService->registrar(
-                    $usuario->id,
-                    'REABRIR_PREPARACION',
-                    'unidad_adquirida',
-                    $unidad->id,
-                    $anterior,
-                    [
-                        'estado' => UnidadAdquirida::ESTADO_EN_PREPARACION,
-                        'motivo' => $motivo,
-                    ]
-                );
-
-                return $unidad->fresh([
-                    'producto.marca',
-                    'almacenActual',
-                    'revisionesTecnicas.usuario',
-                    'envioImportacionUnidad.envioImportacion',
                 ]);
             },
             3

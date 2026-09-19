@@ -84,10 +84,12 @@ class EnvioImportacionController extends Controller
                 ->crearBorrador(
                     $request->user()->id,
                     $request->only([
-                        'codigo',
                         'transportista',
                         'numero_guia',
                         'cantidad_bultos',
+                        'cantidad_cargadores',
+                        'cantidad_accesorios',
+                        'detalle_accesorios',
                         'observacion',
                     ])
                 );
@@ -160,6 +162,7 @@ class EnvioImportacionController extends Controller
 
             'unidadesEnvio.recibidoPor',
             'unidadesEnvio.incidencias',
+            'auditorias.usuario',
         ]);
 
 
@@ -302,6 +305,50 @@ class EnvioImportacionController extends Controller
 
     /*
     |--------------------------------------------------------------------------
+    | Cargador asociado a una unidad del envío
+    |--------------------------------------------------------------------------
+    */
+
+    public function actualizarCargadorUnidad(
+        Request $request,
+        EnvioImportacion $envio,
+        UnidadAdquirida $unidad
+    ): JsonResponse|RedirectResponse {
+        $datos = $request->validate([
+            'incluye_cargador' => [
+                'required',
+                'boolean',
+            ],
+        ]);
+
+        $detalle = $this->envioService
+            ->actualizarCargadorUnidad(
+                $request->user()->id,
+                $envio->id,
+                $unidad->id,
+                (bool) $datos['incluye_cargador']
+            );
+
+        $mensaje = $detalle->incluye_cargador
+            ? 'La unidad viajará con cargador.'
+            : 'La unidad viajará sin cargador.';
+
+        if ($request->expectsJson()) {
+            return response()->json([
+                'ok' => true,
+                'message' => $mensaje,
+                'incluye_cargador' => $detalle->incluye_cargador,
+            ]);
+        }
+
+        return redirect()
+            ->route('envios-importacion.show', $envio)
+            ->with('success', $mensaje);
+    }
+
+
+    /*
+    |--------------------------------------------------------------------------
     | Preparar envío
     |--------------------------------------------------------------------------
     */
@@ -346,6 +393,94 @@ class EnvioImportacionController extends Controller
                 'success',
                 $mensaje
             );
+    }
+
+
+    /*
+    |--------------------------------------------------------------------------
+    | Reabrir envío preparado
+    |--------------------------------------------------------------------------
+    */
+
+    public function reabrir(
+        Request $request,
+        EnvioImportacion $envio
+    ): JsonResponse|RedirectResponse {
+
+        $datos = $request->validate([
+            'motivo' => [
+                'required',
+                'string',
+                'max:1000',
+            ],
+        ]);
+
+        $envioActualizado =
+            $this->envioService
+                ->reabrirPreparado(
+                    $request->user()->id,
+                    $envio->id,
+                    $datos['motivo']
+                );
+
+        $mensaje =
+            'El envío volvió a borrador para realizar correcciones.';
+
+        if ($request->expectsJson()) {
+            return response()->json([
+                'ok' => true,
+                'message' => $mensaje,
+                'estado' => $envioActualizado->estado,
+            ]);
+        }
+
+        return redirect()
+            ->route('envios-importacion.show', $envio)
+            ->with('success', $mensaje);
+    }
+
+
+    /*
+    |--------------------------------------------------------------------------
+    | Cancelar envío antes del despacho
+    |--------------------------------------------------------------------------
+    */
+
+    public function cancelar(
+        Request $request,
+        EnvioImportacion $envio
+    ): JsonResponse|RedirectResponse {
+
+        $datos = $request->validate([
+            'motivo' => [
+                'required',
+                'string',
+                'max:1000',
+            ],
+        ]);
+
+        $envioActualizado =
+            $this->envioService
+                ->cancelarEnvio(
+                    $request->user()->id,
+                    $envio->id,
+                    $datos['motivo']
+                );
+
+        $mensaje =
+            'El envío fue cancelado y sus unidades quedaron disponibles nuevamente.';
+
+        if ($request->expectsJson()) {
+            return response()->json([
+                'ok' => true,
+                'message' => $mensaje,
+                'estado' => $envioActualizado->estado,
+            ]);
+        }
+
+        return redirect()
+            ->route('envios-importacion.show', $envio)
+            ->with('success', $mensaje);
     }
 
 

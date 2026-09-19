@@ -429,6 +429,17 @@ Route::delete(
 
 
 Route::post(
+    '/envios-importacion/{envio}/unidades/{unidad}/cargador',
+    [
+        EnvioImportacionController::class,
+        'actualizarCargadorUnidad',
+    ]
+)
+->middleware('permiso:importacion.gestionar')
+->name('envios-importacion.unidades.cargador');
+
+
+Route::post(
     '/envios-importacion/{envio}/preparar',
     [
         EnvioImportacionController::class,
@@ -437,6 +448,28 @@ Route::post(
 )
 ->middleware('permiso:importacion.gestionar')
 ->name('envios-importacion.preparar');
+
+
+Route::post(
+    '/envios-importacion/{envio}/reabrir',
+    [
+        EnvioImportacionController::class,
+        'reabrir',
+    ]
+)
+->middleware('permiso:importacion.gestionar')
+->name('envios-importacion.reabrir');
+
+
+Route::post(
+    '/envios-importacion/{envio}/cancelar',
+    [
+        EnvioImportacionController::class,
+        'cancelar',
+    ]
+)
+->middleware('permiso:importacion.gestionar')
+->name('envios-importacion.cancelar');
 
 
 Route::post(

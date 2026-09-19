@@ -301,12 +301,38 @@ class UnidadAdquirida extends Model
     |--------------------------------------------------------------------------
     */
 
+    /**
+     * Asignación ACTIVA de la unidad a un envío.
+     *
+     * Un envío cancelado permanece en el historial, pero no debe impedir
+     * que la unidad vuelva a formar parte de un nuevo traslado.
+     */
     public function envioImportacionUnidad(): HasOne
     {
         return $this->hasOne(
             EnvioImportacionUnidad::class,
             'unidad_adquirida_id'
-        );
+        )
+            ->whereHas(
+                'envioImportacion',
+                fn ($query) => $query->where(
+                    'estado',
+                    '!=',
+                    EnvioImportacion::ESTADO_CANCELADO
+                )
+            );
+    }
+
+    /**
+     * Historial completo de participaciones de la unidad en envíos,
+     * incluidos los envíos cancelados.
+     */
+    public function enviosImportacionUnidades(): HasMany
+    {
+        return $this->hasMany(
+            EnvioImportacionUnidad::class,
+            'unidad_adquirida_id'
+        )->orderBy('created_at');
     }
 
 

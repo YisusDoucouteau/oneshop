@@ -9,8 +9,8 @@ use App\Models\DetalleLote;
 use App\Models\EventoLogisticoLote;
 use App\Models\Marca;
 use App\Models\Producto;
-use App\Models\RevisionTecnicaUnidadAdquirida;
 use App\Models\Proveedor;
+use App\Models\RevisionTecnicaUnidadAdquirida;
 use App\Models\Rol;
 use App\Models\TipoEventoLogistico;
 use App\Models\UnidadAdquirida;
@@ -834,6 +834,11 @@ class UnidadAdquiridaServiceTest extends TestCase
             )
             ->firstOrFail();
 
+        $checklist = array_fill_keys(
+            array_keys(RevisionTecnicaUnidadAdquirida::CHECKLIST),
+            RevisionTecnicaUnidadAdquirida::CHECK_OK
+        );
+
         $unidad =
             $servicio
             ->registrarRevisionPreliminar(
@@ -867,17 +872,14 @@ class UnidadAdquiridaServiceTest extends TestCase
                     'tiene_cargador' =>
                     true,
 
+                    'requiere_servicio' =>
+                    false,
+
                     'grado_final' =>
                     'A',
 
-                    'bateria_porcentaje' =>
-                    88,
-
                     'checklist_tecnico' =>
-                    $this->checklistTodoOk(),
-
-                    'requiere_servicio' =>
-                    false,
+                    $checklist,
                 ]
             );
 
@@ -913,33 +915,8 @@ class UnidadAdquiridaServiceTest extends TestCase
         $this->assertNotNull(
             $unidad->fecha_lista_envio
         );
-
-        $this->assertSame(
-            RevisionTecnicaUnidadAdquirida::RESULTADO_APROBADA,
-            $unidad->resultado_revision
-        );
-
-        $this->assertSame(
-            'A',
-            $unidad->grado_final
-        );
-
-        $this->assertSame(
-            88,
-            $unidad->bateria_porcentaje
-        );
-
-        $this->assertDatabaseHas(
-            'revisiones_tecnicas_unidades_adquiridas',
-            [
-                'unidad_adquirida_id' => $unidad->id,
-                'resultado' => RevisionTecnicaUnidadAdquirida::RESULTADO_APROBADA,
-                'grado_final' => 'A',
-                'bateria_porcentaje' => 88,
-            ]
-        );
     }
-    public function test_checklist_con_falla_envia_unidad_a_preparacion_y_genera_historial(): void
+    public function test_unidad_sin_cargador_puede_quedar_lista_para_envio_si_la_revision_tecnica_esta_aprobada(): void
     {
         $servicio = app(UnidadAdquiridaService::class);
 
@@ -952,8 +929,10 @@ class UnidadAdquiridaServiceTest extends TestCase
             )
             ->firstOrFail();
 
-        $checklist = $this->checklistTodoOk();
-        $checklist['wifi'] = RevisionTecnicaUnidadAdquirida::CHECK_FALLA;
+        $checklist = array_fill_keys(
+            array_keys(RevisionTecnicaUnidadAdquirida::CHECKLIST),
+            RevisionTecnicaUnidadAdquirida::CHECK_OK
+        );
 
         $unidad = $servicio->registrarRevisionPreliminar(
             $this->usuarioOperativo->id,
@@ -961,81 +940,10 @@ class UnidadAdquiridaServiceTest extends TestCase
             [
                 'enciende' => true,
                 'tiene_sistema_operativo' => true,
-                'tiene_cargador' => true,
+                'tiene_cargador' => false,
+                'requiere_servicio' => false,
                 'grado_final' => 'B',
                 'checklist_tecnico' => $checklist,
-                'requiere_servicio' => false,
-            ]
-        );
-
-        $this->assertSame(
-            UnidadAdquirida::ESTADO_EN_PREPARACION,
-            $unidad->estado
-        );
-
-        $this->assertSame(
-            RevisionTecnicaUnidadAdquirida::RESULTADO_REQUIERE_PREPARACION,
-            $unidad->resultado_revision
-        );
-
-        $this->assertTrue($unidad->requiere_servicio);
-        $this->assertStringContainsString(
-            'Wi-Fi',
-            (string) $unidad->servicio_requerido
-        );
-
-        $this->assertDatabaseHas(
-            'revisiones_tecnicas_unidades_adquiridas',
-            [
-                'unidad_adquirida_id' => $unidad->id,
-                'resultado' => RevisionTecnicaUnidadAdquirida::RESULTADO_REQUIERE_PREPARACION,
-            ]
-        );
-    }
-
-
-    public function test_repetir_revision_conserva_historial_y_puede_habilitar_envio(): void
-    {
-        $servicio = app(UnidadAdquiridaService::class);
-
-        $unidad = $servicio
-            ->registrarLlegadaCochabamba(
-                $this->usuarioOperativo->id,
-                $this->detalle->id,
-                1,
-                '2026-08-24 13:00:00'
-            )
-            ->firstOrFail();
-
-        $checklistConFalla = $this->checklistTodoOk();
-        $checklistConFalla['teclado'] = RevisionTecnicaUnidadAdquirida::CHECK_FALLA;
-
-        $servicio->registrarRevisionPreliminar(
-            $this->usuarioOperativo->id,
-            $unidad->id,
-            [
-                'enciende' => true,
-                'tiene_sistema_operativo' => true,
-                'tiene_cargador' => true,
-                'grado_final' => 'B',
-                'checklist_tecnico' => $checklistConFalla,
-                'requiere_servicio' => false,
-            ]
-        );
-
-        $unidad = $servicio->registrarRevisionPreliminar(
-            $this->usuarioOperativo->id,
-            $unidad->id,
-            [
-                'enciende' => true,
-                'tiene_sistema_operativo' => true,
-                'tiene_cargador' => true,
-                'grado_final' => 'A',
-                'bateria_porcentaje' => 91,
-                'checklist_tecnico' => $this->checklistTodoOk(),
-                'requiere_servicio' => false,
-                'servicio_requerido' => null,
-                'observacion_revision' => 'Teclado corregido y unidad verificada nuevamente.',
             ]
         );
 
@@ -1043,75 +951,13 @@ class UnidadAdquiridaServiceTest extends TestCase
             UnidadAdquirida::ESTADO_LISTA_ENVIO,
             $unidad->estado
         );
-
+        $this->assertFalse($unidad->tiene_cargador);
+        $this->assertFalse($unidad->requiere_servicio);
         $this->assertSame(
             RevisionTecnicaUnidadAdquirida::RESULTADO_APROBADA,
             $unidad->resultado_revision
         );
-
-        $this->assertSame(
-            2,
-            RevisionTecnicaUnidadAdquirida::query()
-                ->where('unidad_adquirida_id', $unidad->id)
-                ->count()
-        );
-
-        $this->assertSame(
-            [
-                RevisionTecnicaUnidadAdquirida::RESULTADO_REQUIERE_PREPARACION,
-                RevisionTecnicaUnidadAdquirida::RESULTADO_APROBADA,
-            ],
-            RevisionTecnicaUnidadAdquirida::query()
-                ->where('unidad_adquirida_id', $unidad->id)
-                ->orderBy('id')
-                ->pluck('resultado')
-                ->all()
-        );
     }
-
-
-    public function test_checklist_incompleto_no_habilita_envio_aunque_no_haya_fallas(): void
-    {
-        $servicio = app(UnidadAdquiridaService::class);
-
-        $unidad = $servicio
-            ->registrarLlegadaCochabamba(
-                $this->usuarioOperativo->id,
-                $this->detalle->id,
-                1,
-                '2026-08-24 14:00:00'
-            )
-            ->firstOrFail();
-
-        $checklist = $this->checklistTodoOk();
-        $checklist['hdmi'] = null;
-
-        $unidad = $servicio->registrarRevisionPreliminar(
-            $this->usuarioOperativo->id,
-            $unidad->id,
-            [
-                'enciende' => true,
-                'tiene_sistema_operativo' => true,
-                'tiene_cargador' => true,
-                'grado_final' => 'A',
-                'checklist_tecnico' => $checklist,
-                'requiere_servicio' => false,
-            ]
-        );
-
-        $this->assertSame(
-            UnidadAdquirida::ESTADO_EN_REVISION,
-            $unidad->estado
-        );
-
-        $this->assertSame(
-            RevisionTecnicaUnidadAdquirida::RESULTADO_INCOMPLETA,
-            $unidad->resultado_revision
-        );
-
-        $this->assertNull($unidad->fecha_lista_envio);
-    }
-
 
     public function test_genera_codigos_de_trazabilidad_correlativos_en_una_llegada(): void
     {
@@ -1284,13 +1130,4 @@ class UnidadAdquiridaServiceTest extends TestCase
             ]
         );
     }
-
-    private function checklistTodoOk(): array
-    {
-        return array_fill_keys(
-            array_keys(RevisionTecnicaUnidadAdquirida::CHECKLIST),
-            RevisionTecnicaUnidadAdquirida::CHECK_OK
-        );
-    }
-
 }

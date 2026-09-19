@@ -16,6 +16,11 @@ use Illuminate\Validation\ValidationException;
 
 class EnvioImportacionService
 {
+    public function __construct(
+        private readonly AuditoriaService $auditoriaService
+    ) {
+    }
+
     /**
      * Crea un envío de preinventario
      * Cochabamba -> Oruro.
@@ -37,13 +42,6 @@ class EnvioImportacionService
                     Validator::make(
                         $datos,
                         [
-                            'codigo' => [
-                                'required',
-                                'string',
-                                'max:60',
-                                'unique:envios_importacion,codigo',
-                            ],
-
                             'transportista' => [
                                 'nullable',
                                 'string',
@@ -60,6 +58,24 @@ class EnvioImportacionService
                                 'nullable',
                                 'integer',
                                 'min:1',
+                            ],
+
+                            'cantidad_cargadores' => [
+                                'nullable',
+                                'integer',
+                                'min:0',
+                            ],
+
+                            'cantidad_accesorios' => [
+                                'nullable',
+                                'integer',
+                                'min:0',
+                            ],
+
+                            'detalle_accesorios' => [
+                                'nullable',
+                                'string',
+                                'max:1000',
                             ],
 
                             'observacion' => [
@@ -123,11 +139,10 @@ class EnvioImportacionService
                     );
                 }
 
+                $codigo = $this->generarCodigoEnvio();
+
                 return EnvioImportacion::create([
-                    'codigo' =>
-                        trim(
-                            $validados['codigo']
-                        ),
+                    'codigo' => $codigo,
 
                     'almacen_origen_id' =>
                         $origen->id,
@@ -182,6 +197,18 @@ class EnvioImportacionService
                         $validados['cantidad_bultos']
                         ?? 1,
 
+                    'cantidad_cargadores' =>
+                        $validados['cantidad_cargadores']
+                        ?? 0,
+
+                    'cantidad_accesorios' =>
+                        $validados['cantidad_accesorios']
+                        ?? 0,
+
+                    'detalle_accesorios' =>
+                        $validados['detalle_accesorios']
+                        ?? null,
+
                     'observacion' =>
                         $validados['observacion']
                         ?? null,
@@ -189,6 +216,27 @@ class EnvioImportacionService
             },
             3
         );
+    }
+
+
+    private function generarCodigoEnvio(): string
+    {
+        $anio = now()->format('Y');
+        $prefijo = "ENV-{$anio}-";
+
+        $ultimoCodigo = EnvioImportacion::query()
+            ->where('codigo', 'like', $prefijo . '%')
+            ->lockForUpdate()
+            ->orderByDesc('codigo')
+            ->value('codigo');
+
+        $correlativo = 1;
+
+        if ($ultimoCodigo) {
+            $correlativo = ((int) substr($ultimoCodigo, -3)) + 1;
+        }
+
+        return $prefijo . str_pad((string) $correlativo, 3, '0', STR_PAD_LEFT);
     }
 
 
@@ -284,6 +332,15 @@ class EnvioImportacionService
                             'unidad_adquirida_id',
                             $unidad->id
                         )
+                        ->whereHas(
+                            'envioImportacion',
+                            fn ($query) =>
+                                $query->where(
+                                    'estado',
+                                    '!=',
+                                    EnvioImportacion::ESTADO_CANCELADO
+                                )
+                        )
                         ->lockForUpdate()
                         ->first();
 
@@ -311,6 +368,15 @@ class EnvioImportacionService
 
                     'unidad_adquirida_id' =>
                         $unidad->id,
+
+                    /*
+                     * Por defecto heredamos si la unidad tiene cargador
+                     * disponible, pero el usuario puede decidir que ese
+                     * cargador no viaje (o agregar uno después) mientras
+                     * el envío siga en BORRADOR.
+                     */
+                    'incluye_cargador' =>
+                        (bool) ($unidad->tiene_cargador ?? false),
 
                     'estado_recepcion' =>
                         EnvioImportacionUnidad::ESTADO_PENDIENTE,
@@ -413,6 +479,67 @@ class EnvioImportacionService
 
 
     /**
+     * Define si una unidad concreta viajará con cargador.
+     *
+     * Esto es independiente de que la unidad haya sido probada con un
+     * cargador durante la preparación. Una máquina puede viajar sin su
+     * cargador y seguir estando técnicamente lista para envío.
+     */
+    public function actualizarCargadorUnidad(
+        int $usuarioId,
+        int $envioId,
+        int $unidadId,
+        bool $incluyeCargador
+    ): EnvioImportacionUnidad {
+        return DB::transaction(
+            function () use (
+                $usuarioId,
+                $envioId,
+                $unidadId,
+                $incluyeCargador
+            ) {
+                $this->obtenerUsuarioAutorizado($usuarioId);
+
+                $envio = EnvioImportacion::query()
+                    ->lockForUpdate()
+                    ->find($envioId);
+
+                if (!$envio) {
+                    throw new ReglaNegocioException(
+                        'El envío de importación no existe.'
+                    );
+                }
+
+                if (!$envio->estaEnBorrador()) {
+                    throw new ReglaNegocioException(
+                        'El cargador asociado a una unidad solo puede modificarse mientras el envío está en BORRADOR.'
+                    );
+                }
+
+                $detalle = EnvioImportacionUnidad::query()
+                    ->where('envio_importacion_id', $envio->id)
+                    ->where('unidad_adquirida_id', $unidadId)
+                    ->lockForUpdate()
+                    ->first();
+
+                if (!$detalle) {
+                    throw ValidationException::withMessages([
+                        'unidad_id' => 'La unidad no pertenece a este envío.',
+                    ]);
+                }
+
+                $detalle->update([
+                    'incluye_cargador' => $incluyeCargador,
+                ]);
+
+                return $detalle->fresh('unidadAdquirida');
+            },
+            3
+        );
+    }
+
+
+    /**
      * Confirma que el envío se encuentra
      * preparado para su despacho.
      */
@@ -504,6 +631,154 @@ class EnvioImportacionService
                     'fecha_preparacion' =>
                         now(),
                 ]);
+
+                return $envio->fresh();
+            },
+            3
+        );
+    }
+
+
+    /**
+     * Devuelve un envío PREPARADO a BORRADOR antes del despacho.
+     *
+     * Las unidades continúan en LISTA_ENVIO y permanecen asociadas
+     * al envío para que Hugo pueda corregir cajas, accesorios o
+     * composición antes de prepararlo nuevamente.
+     */
+    public function reabrirPreparado(
+        int $usuarioId,
+        int $envioId,
+        string $motivo
+    ): EnvioImportacion {
+        return DB::transaction(
+            function () use ($usuarioId, $envioId, $motivo) {
+                $usuario = $this->obtenerUsuarioAutorizado($usuarioId);
+
+                $motivo = trim($motivo);
+
+                if ($motivo === '') {
+                    throw ValidationException::withMessages([
+                        'motivo' => 'Debe indicar el motivo de la reapertura.',
+                    ]);
+                }
+
+                $envio = EnvioImportacion::query()
+                    ->lockForUpdate()
+                    ->find($envioId);
+
+                if (!$envio) {
+                    throw new ReglaNegocioException('El envío no existe.');
+                }
+
+                if (!$envio->estaPreparado()) {
+                    throw new ReglaNegocioException(
+                        'Solo pueden reabrirse envíos que se encuentran PREPARADOS y todavía no fueron despachados.'
+                    );
+                }
+
+                $anterior = [
+                    'estado' => $envio->estado,
+                    'preparado_por_id' => $envio->preparado_por_id,
+                    'fecha_preparacion' => optional($envio->fecha_preparacion)?->toISOString(),
+                ];
+
+                $envio->update([
+                    'estado' => EnvioImportacion::ESTADO_BORRADOR,
+                    'preparado_por_id' => null,
+                    'fecha_preparacion' => null,
+                ]);
+
+                $this->auditoriaService->registrar(
+                    $usuario->id,
+                    'REABRIR_ENVIO_IMPORTACION',
+                    'EnvioImportacion',
+                    $envio->id,
+                    $anterior,
+                    [
+                        'estado' => EnvioImportacion::ESTADO_BORRADOR,
+                        'motivo' => $motivo,
+                    ]
+                );
+
+                return $envio->fresh();
+            },
+            3
+        );
+    }
+
+
+    /**
+     * Cancela un envío que aún no fue despachado.
+     *
+     * Las relaciones con sus unidades se conservan como historial,
+     * pero dejan de bloquear a esas unidades para futuros envíos.
+     */
+    public function cancelarEnvio(
+        int $usuarioId,
+        int $envioId,
+        string $motivo
+    ): EnvioImportacion {
+        return DB::transaction(
+            function () use ($usuarioId, $envioId, $motivo) {
+                $usuario = $this->obtenerUsuarioAutorizado($usuarioId);
+
+                $motivo = trim($motivo);
+
+                if ($motivo === '') {
+                    throw ValidationException::withMessages([
+                        'motivo' => 'Debe indicar el motivo de la cancelación.',
+                    ]);
+                }
+
+                $envio = EnvioImportacion::query()
+                    ->lockForUpdate()
+                    ->with('unidadesEnvio.unidadAdquirida')
+                    ->find($envioId);
+
+                if (!$envio) {
+                    throw new ReglaNegocioException('El envío no existe.');
+                }
+
+                if (!in_array(
+                    $envio->estado,
+                    [
+                        EnvioImportacion::ESTADO_BORRADOR,
+                        EnvioImportacion::ESTADO_PREPARADO,
+                    ],
+                    true
+                )) {
+                    throw new ReglaNegocioException(
+                        'Solo pueden cancelarse envíos que todavía no fueron despachados.'
+                    );
+                }
+
+                $unidades = $envio->unidadesEnvio
+                    ->map(fn ($detalle) => [
+                        'id' => $detalle->unidad_adquirida_id,
+                        'codigo' => $detalle->unidadAdquirida?->codigo_trazabilidad,
+                    ])
+                    ->values()
+                    ->all();
+
+                $estadoAnterior = $envio->estado;
+
+                $envio->update([
+                    'estado' => EnvioImportacion::ESTADO_CANCELADO,
+                ]);
+
+                $this->auditoriaService->registrar(
+                    $usuario->id,
+                    'CANCELAR_ENVIO_IMPORTACION',
+                    'EnvioImportacion',
+                    $envio->id,
+                    ['estado' => $estadoAnterior],
+                    [
+                        'estado' => EnvioImportacion::ESTADO_CANCELADO,
+                        'motivo' => $motivo,
+                        'unidades_liberadas' => $unidades,
+                    ]
+                );
 
                 return $envio->fresh();
             },

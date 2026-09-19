@@ -38,10 +38,12 @@
         errorGeneral: '',
 
         formulario: {
-            codigo: '',
             transportista: '',
             numero_guia: '',
             cantidad_bultos: 1,
+            cantidad_cargadores: 0,
+            cantidad_accesorios: 0,
+            detalle_accesorios: '',
             observacion: ''
         },
 
@@ -786,35 +788,14 @@
                 <div class="space-y-5">
 
 
-                    {{-- Código --}}
-                    <div>
-
-                        <label
-                            class="
-                                mb-2
-                                block
-                                text-sm
-                                font-semibold
-                                text-slate-700
-                            "
-                        >
+                    {{-- Código automático --}}
+                    <div class="rounded-xl border border-slate-200 bg-slate-50 p-4">
+                        <p class="text-sm font-semibold text-slate-700">
                             Código del envío
-                        </label>
-
-                        <input
-                            type="text"
-                            x-model="formulario.codigo"
-                            class="input-oneshop w-full"
-                            placeholder="Ej.: ENV-CBB-ORU-2026-001"
-                            required
-                        >
-
-                        <p
-                            x-show="errores.codigo"
-                            x-text="errores.codigo?.[0]"
-                            class="mt-1 text-xs font-medium text-red-600"
-                        ></p>
-
+                        </p>
+                        <p class="mt-1 text-sm text-slate-500">
+                            Se generará automáticamente al crear el envío (por ejemplo, ENV-{{ now()->format('Y') }}-001).
+                        </p>
                     </div>
 
 
@@ -879,7 +860,7 @@
                     </div>
 
 
-                    {{-- Bultos --}}
+                    {{-- Cajas --}}
                     <div>
 
                         <label
@@ -891,7 +872,7 @@
                                 text-slate-700
                             "
                         >
-                            Cantidad de bultos
+                            Cantidad de cajas
                         </label>
 
                         <input
@@ -901,6 +882,48 @@
                             class="input-oneshop w-full"
                         >
 
+                    </div>
+
+                    <div class="grid grid-cols-1 gap-5 sm:grid-cols-2">
+                        <div>
+                            <label class="mb-2 block text-sm font-semibold text-slate-700">
+                                Cargadores adicionales
+                            </label>
+                            <input
+                                type="number"
+                                min="0"
+                                x-model.number="formulario.cantidad_cargadores"
+                                class="input-oneshop w-full"
+                                title="Cargadores sueltos que viajan aparte de los asignados a cada equipo"
+                            >
+                            <p class="mt-1 text-xs text-slate-500">
+                                Solo cargadores sueltos para stock o venta. Los cargadores que viajan con cada equipo se controlan individualmente.
+                            </p>
+                        </div>
+
+                        <div>
+                            <label class="mb-2 block text-sm font-semibold text-slate-700">
+                                Otros accesorios
+                            </label>
+                            <input
+                                type="number"
+                                min="0"
+                                x-model.number="formulario.cantidad_accesorios"
+                                class="input-oneshop w-full"
+                            >
+                        </div>
+                    </div>
+
+                    <div>
+                        <label class="mb-2 block text-sm font-semibold text-slate-700">
+                            Detalle de accesorios
+                        </label>
+                        <input
+                            type="text"
+                            x-model="formulario.detalle_accesorios"
+                            class="input-oneshop w-full"
+                            placeholder="Ej.: 1 mouse, 2 cables de poder"
+                        >
                     </div>
 
 

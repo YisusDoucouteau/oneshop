@@ -57,6 +57,9 @@ public function estaPreparado(): bool
         'transportista',
         'numero_guia',
         'cantidad_bultos',
+        'cantidad_cargadores',
+        'cantidad_accesorios',
+        'detalle_accesorios',
 
         'observacion',
     ];
@@ -72,6 +75,12 @@ public function estaPreparado(): bool
             'datetime',
 
         'cantidad_bultos' =>
+            'integer',
+
+        'cantidad_cargadores' =>
+            'integer',
+
+        'cantidad_accesorios' =>
             'integer',
     ];
 
@@ -142,6 +151,45 @@ public function estaPreparado(): bool
             EnvioImportacionUnidad::class,
             'envio_importacion_id'
         );
+    }
+
+
+
+    /**
+     * Cantidad de cargadores que viajan asociados directamente
+     * a las unidades incluidas en este envío.
+     */
+    public function cantidadCargadoresAsociados(): int
+    {
+        if ($this->relationLoaded('unidadesEnvio')) {
+            return $this->unidadesEnvio
+                ->where('incluye_cargador', true)
+                ->count();
+        }
+
+        return $this->unidadesEnvio()
+            ->where('incluye_cargador', true)
+            ->count();
+    }
+
+    /**
+     * Total físico de cargadores declarados en el traslado:
+     * cargadores asociados a equipos + cargadores adicionales/sueltos.
+     */
+    public function cantidadCargadoresTotales(): int
+    {
+        return $this->cantidadCargadoresAsociados()
+            + (int) ($this->cantidad_cargadores ?? 0);
+    }
+
+    public function auditorias(): HasMany
+    {
+        return $this->hasMany(
+            Auditoria::class,
+            'entidad_id'
+        )
+            ->where('entidad', 'EnvioImportacion')
+            ->orderBy('fecha_evento');
     }
 
 

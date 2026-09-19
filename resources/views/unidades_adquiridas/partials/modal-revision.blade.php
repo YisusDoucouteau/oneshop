@@ -255,7 +255,7 @@
                 @foreach([
                     ['enciende', 'La unidad enciende'],
                     ['tiene_sistema_operativo', 'Tiene sistema operativo'],
-                    ['tiene_cargador', 'Tiene cargador'],
+                    ['tiene_cargador', 'Cargador disponible con la unidad'],
                     ['requiere_servicio', 'Requiere preparación adicional'],
                 ] as [$campo, $etiqueta])
 
@@ -297,6 +297,114 @@
 
             </div>
 
+            <p class="mt-2 text-xs text-slate-500">
+                El cargador disponible con la unidad se registra como dato físico. Una unidad puede quedar lista para envío sin cargador si la prueba de carga y batería del checklist fue aprobada.
+            </p>
+
+
+            <div class="my-6 border-t border-slate-200"></div>
+
+            <div class="grid grid-cols-1 gap-5 md:grid-cols-2">
+                <div>
+                    <label class="mb-2 block text-sm font-semibold text-slate-700">
+                        Grado final
+                    </label>
+                    <select
+                        x-model="revision.grado_final"
+                        class="input-oneshop w-full"
+                    >
+                        <option value="">Pendiente</option>
+                        <option value="A">Grado A</option>
+                        <option value="B">Grado B</option>
+                        <option value="C">Grado C</option>
+                    </select>
+                    <p
+                        x-show="erroresRevision.grado_final"
+                        x-text="erroresRevision.grado_final?.[0]"
+                        class="mt-1 text-xs font-medium text-red-600"
+                    ></p>
+                </div>
+
+                <div>
+                    <label class="mb-2 block text-sm font-semibold text-slate-700">
+                        Batería (%)
+                    </label>
+                    <input
+                        type="number"
+                        min="0"
+                        max="100"
+                        x-model="revision.bateria_porcentaje"
+                        class="input-oneshop w-full"
+                        placeholder="Ej.: 84"
+                    >
+                    <p class="mt-1 text-xs text-slate-500">
+                        Puede quedar vacío si no fue posible medirla.
+                    </p>
+                    <p
+                        x-show="erroresRevision.bateria_porcentaje"
+                        x-text="erroresRevision.bateria_porcentaje?.[0]"
+                        class="mt-1 text-xs font-medium text-red-600"
+                    ></p>
+                </div>
+            </div>
+
+            <div class="my-6 border-t border-slate-200"></div>
+
+            <section>
+                <div class="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                    <div>
+                        <h4 class="text-base font-bold text-slate-900">
+                            Checklist funcional
+                        </h4>
+                        <p class="mt-1 text-sm text-slate-500">
+                            Evalúe cada prueba como OK, Falla o No aplica. Puede guardar parcialmente como borrador.
+                        </p>
+                    </div>
+
+                    <button
+                        type="button"
+                        @click="completarPendientesOk()"
+                        class="inline-flex items-center justify-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-2 text-sm font-semibold text-emerald-700 transition hover:bg-emerald-100"
+                    >
+                        <x-ui.icon name="check" size="16"/>
+                        Marcar pendientes como OK
+                    </button>
+                </div>
+
+                <div class="mb-4 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-600">
+                    <span class="font-semibold text-slate-800">Pendientes:</span>
+                    <span
+                        x-text="Object.values(revision.checklist_tecnico).filter((valor) => !valor).length"
+                    ></span>
+                    / {{ count(\App\Models\RevisionTecnicaUnidadAdquirida::CHECKLIST) }}
+                </div>
+
+                <div class="grid grid-cols-1 gap-3 md:grid-cols-2 lg:grid-cols-3">
+                    @foreach(\App\Models\RevisionTecnicaUnidadAdquirida::CHECKLIST as $campoChecklist => $etiquetaChecklist)
+                        <div class="rounded-xl border border-slate-200 bg-slate-50 p-4">
+                            <label class="mb-2 block text-sm font-semibold text-slate-800">
+                                {{ $etiquetaChecklist }}
+                            </label>
+
+                            <select
+                                x-model="revision.checklist_tecnico.{{ $campoChecklist }}"
+                                class="input-oneshop w-full"
+                            >
+                                <option value="">Sin revisar</option>
+                                <option value="{{ \App\Models\RevisionTecnicaUnidadAdquirida::CHECK_OK }}">OK</option>
+                                <option value="{{ \App\Models\RevisionTecnicaUnidadAdquirida::CHECK_FALLA }}">Falla</option>
+                                <option value="{{ \App\Models\RevisionTecnicaUnidadAdquirida::CHECK_NO_APLICA }}">No aplica</option>
+                            </select>
+                        </div>
+                    @endforeach
+                </div>
+
+                <p
+                    x-show="erroresRevision.checklist_tecnico"
+                    x-text="erroresRevision.checklist_tecnico?.[0]"
+                    class="mt-2 text-xs font-medium text-red-600"
+                ></p>
+            </section>
 
             <div
                 x-show="revision.requiere_servicio"

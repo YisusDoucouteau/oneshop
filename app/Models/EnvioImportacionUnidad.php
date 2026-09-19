@@ -31,6 +31,7 @@ class EnvioImportacionUnidad extends Model
     protected $fillable = [
         'envio_importacion_id',
         'unidad_adquirida_id',
+        'incluye_cargador',
 
         'estado_recepcion',
 
@@ -43,6 +44,9 @@ class EnvioImportacionUnidad extends Model
     protected $casts = [
         'fecha_recepcion' =>
             'datetime',
+
+        'incluye_cargador' =>
+            'boolean',
     ];
 
 
