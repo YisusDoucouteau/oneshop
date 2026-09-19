@@ -7,6 +7,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Laravel\Sanctum\HasApiTokens;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
 class User extends Authenticatable
@@ -24,6 +25,7 @@ class User extends Authenticatable
     'password',
     'activo',
     'ultimo_acceso',
+    'almacen_operativo_id',
 ];
 
     /**
@@ -47,6 +49,38 @@ class User extends Authenticatable
         'activo' => 'boolean',
         'ultimo_acceso' => 'datetime',
     ];
+
+
+    public function almacenOperativo(): BelongsTo
+    {
+        return $this->belongsTo(
+            Almacen::class,
+            'almacen_operativo_id'
+        );
+    }
+
+    public function esAdministradorGlobal(): bool
+    {
+        return $this->tieneRol('ADMINISTRADOR');
+    }
+
+    /**
+     * Los administradores globales pueden operar cualquier sede.
+     * Los usuarios operativos solo pueden actuar sobre su almacén asignado.
+     */
+    public function puedeOperarEnAlmacen(?int $almacenId): bool
+    {
+        if ($almacenId === null) {
+            return false;
+        }
+
+        if ($this->esAdministradorGlobal()) {
+            return true;
+        }
+
+        return $this->almacen_operativo_id !== null
+            && (int) $this->almacen_operativo_id === (int) $almacenId;
+    }
 
     public function roles(): BelongsToMany
     {

@@ -2,8 +2,10 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Almacen;
 use App\Models\EnvioImportacion;
 use App\Models\UnidadAdquirida;
+use App\Models\User;
 use App\Services\EnvioImportacionService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
@@ -24,7 +26,7 @@ class EnvioImportacionController extends Controller
     |--------------------------------------------------------------------------
     */
 
-    public function index(): View
+    public function index(Request $request): View
     {
         $envios =
             EnvioImportacion::query()
@@ -42,8 +44,21 @@ class EnvioImportacionController extends Controller
                 ->paginate(15);
 
 
-        $unidadesDisponibles =
-            UnidadAdquirida::query()
+        $origenCochabamba = Almacen::query()
+            ->where('codigo', 'COCHABAMBA')
+            ->where('activo', true)
+            ->first();
+
+        $usuarioAutenticado = $request->user();
+        $usuario = $usuarioAutenticado
+            ? User::query()->find($usuarioAutenticado->getAuthIdentifier())
+            : null;
+
+        $puedeCrearEnvio = $origenCochabamba
+            && ($usuario?->puedeOperarEnAlmacen($origenCochabamba->id) ?? false);
+
+        $unidadesDisponibles = $puedeCrearEnvio
+            ? UnidadAdquirida::query()
                 ->with([
                     'producto.marca',
                     'almacenActual',
@@ -52,18 +67,24 @@ class EnvioImportacionController extends Controller
                     'estado',
                     UnidadAdquirida::ESTADO_LISTA_ENVIO
                 )
+                ->where(
+                    'almacen_actual_id',
+                    $origenCochabamba->id
+                )
                 ->whereDoesntHave(
                     'envioImportacionUnidad'
                 )
                 ->latest()
-                ->get();
+                ->get()
+            : collect();
 
 
         return view(
             'envios_importacion.index',
             compact(
                 'envios',
-                'unidadesDisponibles'
+                'unidadesDisponibles',
+                'puedeCrearEnvio'
             )
         );
     }
@@ -146,6 +167,7 @@ class EnvioImportacionController extends Controller
     */
 
     public function show(
+        Request $request,
         EnvioImportacion $envio
     ): View {
 
@@ -166,8 +188,28 @@ class EnvioImportacionController extends Controller
         ]);
 
 
-        $unidadesDisponibles =
-            UnidadAdquirida::query()
+        /*
+         * Recargamos el usuario desde BD para que las decisiones de sede
+         * siempre usen el valor persistido de almacen_operativo_id. Esto
+         * también evita inconsistencias en tests con actingAs() y en sesiones
+         * abiertas antes de asignar/cambiar la sede operativa.
+         */
+        $usuarioAutenticado = $request->user();
+
+        $usuario = $usuarioAutenticado
+            ? User::query()->find($usuarioAutenticado->getAuthIdentifier())
+            : null;
+
+        $puedeOperarOrigen = $usuario?->puedeOperarEnAlmacen(
+            (int) $envio->almacen_origen_id
+        ) ?? false;
+
+        $puedeOperarDestino = $usuario?->puedeOperarEnAlmacen(
+            (int) $envio->almacen_destino_id
+        ) ?? false;
+
+        $unidadesDisponibles = $puedeOperarOrigen
+            ? UnidadAdquirida::query()
                 ->with([
                     'producto.marca',
                     'almacenActual',
@@ -186,14 +228,17 @@ class EnvioImportacionController extends Controller
                 ->orderBy(
                     'codigo_trazabilidad'
                 )
-                ->get();
+                ->get()
+            : collect();
 
 
         return view(
             'envios_importacion.show',
             compact(
                 'envio',
-                'unidadesDisponibles'
+                'unidadesDisponibles',
+                'puedeOperarOrigen',
+                'puedeOperarDestino'
             )
         );
     }

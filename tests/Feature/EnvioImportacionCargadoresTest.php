@@ -30,7 +30,7 @@ class EnvioImportacionCargadoresTest extends TestCase
         ]);
 
         $rol = Rol::query()
-            ->where('codigo', 'ADMIN_OPERATIVO')
+            ->where('codigo', 'ADMINISTRADOR')
             ->firstOrFail();
 
         $this->usuario->roles()->attach($rol->id);

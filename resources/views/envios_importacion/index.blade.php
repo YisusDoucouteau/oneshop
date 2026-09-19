@@ -170,7 +170,7 @@
         </div>
 
 
-        @if(auth()->user()?->tienePermiso('importacion.gestionar'))
+        @if(auth()->user()?->tienePermiso('importacion.gestionar') && ($puedeCrearEnvio ?? false))
 
             <button
                 type="button"

@@ -533,7 +533,7 @@
 
                     <p class="mt-1 text-sm text-slate-500">
 
-                        @if($envio->estaEnBorrador())
+                        @if(($puedeOperarOrigen ?? false) && $envio->estaEnBorrador())
 
                             Agregue las unidades y luego confirme que el envío está preparado.
 
@@ -619,10 +619,11 @@
 
 
                     {{-- REABRIR PREPARADO --}}
-                    @if($envio->estaPreparado())
+                    @if(($puedeOperarOrigen ?? false) && $envio->estaPreparado())
 
                         <button
                             type="button"
+                            data-testid="accion-corregir-envio"
                             @click="
                                 abrirGestion(
                                     'reabrir',
@@ -639,10 +640,11 @@
 
 
                     {{-- DESPACHAR --}}
-                    @if($envio->estaPreparado())
+                    @if(($puedeOperarOrigen ?? false) && $envio->estaPreparado())
 
                         <button
                             type="button"
+                            data-testid="accion-despachar-envio"
                             @click="
                                 errorGeneral = '';
                                 modalDespacho = true
@@ -674,6 +676,8 @@
 
                     {{-- CANCELAR ANTES DEL DESPACHO --}}
                     @if(
+                        ($puedeOperarOrigen ?? false)
+                        &&
                         in_array(
                             $envio->estado,
                             [
@@ -718,6 +722,8 @@
 
                     {{-- CERRAR RECEPCIÓN --}}
                     @if(
+                        ($puedeOperarDestino ?? false)
+                        &&
                         in_array(
                             $envio->estado,
                             [
@@ -784,6 +790,8 @@
         AGREGAR UNIDADES AL BORRADOR
     ============================================================ --}}
     @if(
+        ($puedeOperarOrigen ?? false)
+        &&
         $envio->estaEnBorrador()
         &&
         auth()->user()?->tienePermiso('importacion.gestionar')
@@ -1146,7 +1154,8 @@
                                     </x-ui.badge>
 
                                     @if(
-                                        $envio->estaEnBorrador()
+                                        ($puedeOperarOrigen ?? false)
+                                        && $envio->estaEnBorrador()
                                         && auth()->user()?->tienePermiso('importacion.gestionar')
                                     )
                                         <div class="flex gap-1">
@@ -1254,6 +1263,8 @@
 
                                     {{-- Quitar de borrador --}}
                                     @if(
+                                        ($puedeOperarOrigen ?? false)
+                                        &&
                                         $envio->estaEnBorrador()
                                         &&
                                         auth()->user()?->tienePermiso('importacion.gestionar')
@@ -1316,11 +1327,14 @@
                                         &&
                                         $detalle->estaPendiente()
                                         &&
+                                        ($puedeOperarDestino ?? false)
+                                        &&
                                         auth()->user()?->tienePermiso('importacion.gestionar')
                                     )
 
                                         <button
                                             type="button"
+                                            data-testid="accion-recibir-unidad"
                                             @click="
                                                 abrirRecepcion(
                                                     'recibir',
@@ -1356,6 +1370,7 @@
 
                                         <button
                                             type="button"
+                                            data-testid="accion-marcar-faltante"
                                             @click="
                                                 abrirRecepcion(
                                                     'faltante',
@@ -1392,6 +1407,7 @@
 
                                         <button
                                             type="button"
+                                            data-testid="accion-registrar-incidencia"
                                             @click="
                                                 abrirRecepcion(
                                                     'incidencia',
@@ -1435,6 +1451,8 @@
                                         &&
                                         $envio->estado ===
                                             \App\Models\EnvioImportacion::ESTADO_RECIBIDO_PARCIAL
+                                        &&
+                                        ($puedeOperarDestino ?? false)
                                         &&
                                         auth()->user()?->tienePermiso('importacion.gestionar')
                                     )

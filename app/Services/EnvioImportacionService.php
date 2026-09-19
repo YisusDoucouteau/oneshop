@@ -34,9 +34,10 @@ class EnvioImportacionService
                 $usuarioId,
                 $datos
             ) {
-                $this->obtenerUsuarioAutorizado(
-                    $usuarioId
-                );
+                $usuario =
+                    $this->obtenerUsuarioAutorizado(
+                        $usuarioId
+                    );
 
                 $validator =
                     Validator::make(
@@ -138,6 +139,13 @@ class EnvioImportacionService
                         'El almacén de origen y destino no pueden ser el mismo.'
                     );
                 }
+
+
+                $this->exigirOperacionEnAlmacen(
+                    $usuario,
+                    $origen->id,
+                    'crear y preparar envíos desde el almacén de origen'
+                );
 
                 $codigo = $this->generarCodigoEnvio();
 
@@ -255,9 +263,10 @@ class EnvioImportacionService
                 $envioId,
                 $unidadId
             ) {
-                $this->obtenerUsuarioAutorizado(
-                    $usuarioId
-                );
+                $usuario =
+                    $this->obtenerUsuarioAutorizado(
+                        $usuarioId
+                    );
 
                 $envio =
                     EnvioImportacion::query()
@@ -271,6 +280,12 @@ class EnvioImportacionService
                         'El envío de importación no existe.'
                     );
                 }
+
+                $this->exigirOperacionEnAlmacen(
+                    $usuario,
+                    $envio->almacen_origen_id,
+                    'operar el despacho desde el almacén de origen'
+                );
 
                 if (
                     !$envio->puedeModificarse()
@@ -413,9 +428,10 @@ class EnvioImportacionService
                 $envioId,
                 $unidadId
             ) {
-                $this->obtenerUsuarioAutorizado(
-                    $usuarioId
-                );
+                $usuario =
+                    $this->obtenerUsuarioAutorizado(
+                        $usuarioId
+                    );
 
                 $envio =
                     EnvioImportacion::query()
@@ -429,6 +445,12 @@ class EnvioImportacionService
                         'El envío de importación no existe.'
                     );
                 }
+
+                $this->exigirOperacionEnAlmacen(
+                    $usuario,
+                    $envio->almacen_origen_id,
+                    'operar el despacho desde el almacén de origen'
+                );
 
                 if (
                     !$envio->puedeModificarse()
@@ -498,7 +520,10 @@ class EnvioImportacionService
                 $unidadId,
                 $incluyeCargador
             ) {
-                $this->obtenerUsuarioAutorizado($usuarioId);
+                $usuario =
+                    $this->obtenerUsuarioAutorizado(
+                        $usuarioId
+                    );
 
                 $envio = EnvioImportacion::query()
                     ->lockForUpdate()
@@ -509,6 +534,12 @@ class EnvioImportacionService
                         'El envío de importación no existe.'
                     );
                 }
+
+                $this->exigirOperacionEnAlmacen(
+                    $usuario,
+                    $envio->almacen_origen_id,
+                    'operar el despacho desde el almacén de origen'
+                );
 
                 if (!$envio->estaEnBorrador()) {
                     throw new ReglaNegocioException(
@@ -572,6 +603,12 @@ class EnvioImportacionService
                         'El envío no existe.'
                     );
                 }
+
+                $this->exigirOperacionEnAlmacen(
+                    $usuario,
+                    $envio->almacen_origen_id,
+                    'operar el despacho desde el almacén de origen'
+                );
 
                 if (
                     !$envio->estaEnBorrador()
@@ -671,6 +708,12 @@ class EnvioImportacionService
                     throw new ReglaNegocioException('El envío no existe.');
                 }
 
+                $this->exigirOperacionEnAlmacen(
+                    $usuario,
+                    $envio->almacen_origen_id,
+                    'operar el despacho desde el almacén de origen'
+                );
+
                 if (!$envio->estaPreparado()) {
                     throw new ReglaNegocioException(
                         'Solo pueden reabrirse envíos que se encuentran PREPARADOS y todavía no fueron despachados.'
@@ -739,6 +782,12 @@ class EnvioImportacionService
                 if (!$envio) {
                     throw new ReglaNegocioException('El envío no existe.');
                 }
+
+                $this->exigirOperacionEnAlmacen(
+                    $usuario,
+                    $envio->almacen_origen_id,
+                    'operar el despacho desde el almacén de origen'
+                );
 
                 if (!in_array(
                     $envio->estado,
@@ -824,6 +873,12 @@ class EnvioImportacionService
                         'El envío no existe.'
                     );
                 }
+
+                $this->exigirOperacionEnAlmacen(
+                    $usuario,
+                    $envio->almacen_origen_id,
+                    'operar el despacho desde el almacén de origen'
+                );
 
                 if (
                     !$envio->estaPreparado()
@@ -968,6 +1023,12 @@ $this->registrarEventoLogisticoLotesDelEnvio(
                         'El envío no existe.'
                     );
                 }
+
+                $this->exigirOperacionEnAlmacen(
+                    $usuario,
+                    $envio->almacen_destino_id,
+                    'registrar la recepción en el almacén de destino'
+                );
 
                 /*
                  * Una recepción normal ocurre cuando
@@ -1142,9 +1203,10 @@ $this->registrarEventoLogisticoLotesDelEnvio(
                 $unidadId,
                 $observacion
             ) {
-                $this->obtenerUsuarioAutorizado(
-                    $usuarioId
-                );
+                $usuario =
+                    $this->obtenerUsuarioAutorizado(
+                        $usuarioId
+                    );
 
                 $validator =
                     Validator::make(
@@ -1182,6 +1244,12 @@ $this->registrarEventoLogisticoLotesDelEnvio(
                         'El envío no existe.'
                     );
                 }
+
+                $this->exigirOperacionEnAlmacen(
+                    $usuario,
+                    $envio->almacen_destino_id,
+                    'registrar la recepción en el almacén de destino'
+                );
 
                 if (
                     !in_array(
@@ -1306,9 +1374,10 @@ public function registrarIncidenciaRecepcion(
             $observacion
         ) {
             $usuario =
-                $this->obtenerUsuarioAutorizado(
-                    $usuarioId
-                );
+                $usuario =
+                    $this->obtenerUsuarioAutorizado(
+                        $usuarioId
+                    );
 
             $validator =
                 Validator::make(
@@ -1346,6 +1415,12 @@ public function registrarIncidenciaRecepcion(
                     'El envío no existe.'
                 );
             }
+
+            $this->exigirOperacionEnAlmacen(
+                $usuario,
+                $envio->almacen_destino_id,
+                'registrar la recepción en el almacén de destino'
+            );
 
             if (
                 !in_array(
@@ -1496,6 +1571,12 @@ public function registrarIncidenciaRecepcion(
                         'El envío no existe.'
                     );
                 }
+
+                $this->exigirOperacionEnAlmacen(
+                    $usuario,
+                    $envio->almacen_destino_id,
+                    'registrar la recepción en el almacén de destino'
+                );
 
                 /*
                  * También puede volver a cerrarse una
@@ -1676,6 +1757,24 @@ if ($existe) {
         ]);
     }
 }
+
+    private function exigirOperacionEnAlmacen(
+        User $usuario,
+        int $almacenId,
+        string $operacion
+    ): void {
+        if ($usuario->puedeOperarEnAlmacen($almacenId)) {
+            return;
+        }
+
+        $almacen = Almacen::query()->find($almacenId);
+        $nombre = $almacen?->nombre ?? 'el almacén indicado';
+
+        throw new ReglaNegocioException(
+            "El usuario no está autorizado para {$operacion}. Sede requerida: {$nombre}."
+        );
+    }
+
 
     /**
      * Obtiene un usuario habilitado para

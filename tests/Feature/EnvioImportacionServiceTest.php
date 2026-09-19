@@ -72,7 +72,7 @@ class EnvioImportacionServiceTest extends TestCase
 
     $rolOperativo = Rol::where(
         'codigo',
-        'ADMIN_OPERATIVO'
+        'ADMINISTRADOR'
     )->firstOrFail();
 
 

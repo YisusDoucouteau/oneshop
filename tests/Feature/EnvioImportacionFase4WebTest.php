@@ -24,7 +24,7 @@ class EnvioImportacionFase4WebTest extends TestCase
         parent::setUp();
 
         $permiso = Permiso::where('codigo', 'importacion.gestionar')->firstOrFail();
-        $rol = Rol::where('codigo', 'ADMIN_OPERATIVO')->firstOrFail();
+        $rol = Rol::where('codigo', 'ADMINISTRADOR')->firstOrFail();
         $rol->permisos()->syncWithoutDetaching([$permiso->id]);
 
         $this->usuario = User::factory()->create(['activo' => true]);

@@ -47,7 +47,7 @@ class IncidenciaLogisticaImportacionServiceTest extends TestCase
             Rol::query()
             ->where(
                 'codigo',
-                'ADMIN_OPERATIVO'
+                'ADMINISTRADOR'
             )
             ->firstOrFail();
 
