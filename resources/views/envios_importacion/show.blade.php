@@ -18,8 +18,8 @@
         'BORRADOR' => 'Borrador',
         'PREPARADO' => 'Preparado',
         'DESPACHADO' => 'Despachado',
-        'RECIBIDO_PARCIAL' => 'Recepción parcial',
-        'RECIBIDO' => 'Recibido',
+        'RECIBIDO_PARCIAL' => 'Recibido con diferencias',
+        'RECIBIDO' => 'Recibido completo',
         'CANCELADO' => 'Cancelado',
         default => str_replace('_', ' ', $envio->estado),
     };
@@ -29,6 +29,27 @@
             ->contains(
                 fn ($detalle) =>
                     !$detalle->estaResueltaEnRecepcion()
+            );
+
+    $recepcionGeneralVerificada =
+        $envio->recepcionGeneralVerificada();
+
+    $hayDiferenciasConteoRecepcion =
+        $envio->tieneDiferenciasConteoRecepcion();
+
+    $hayDiferenciasUnidades =
+        $envio->unidadesEnvio
+            ->contains(
+                fn ($detalle) =>
+                    $detalle->estaResueltaEnRecepcion()
+                    && (
+                        $detalle->estado_recepcion !==
+                            \App\Models\EnvioImportacionUnidad::ESTADO_RECIBIDA
+                        || (
+                            (bool) $detalle->incluye_cargador
+                            && $detalle->cargador_recibido !== true
+                        )
+                    )
             );
 @endphp
 
@@ -55,6 +76,15 @@
         urlRecepcion: '',
         unidadRecepcion: '',
         observacionRecepcion: '',
+        cargadorEsperadoRecepcion: false,
+        cargadorRecibidoRecepcion: null,
+
+        recepcionGeneral: {
+            cantidad_bultos_recibidos: @js($envio->cantidad_bultos_recibidos),
+            cantidad_cargadores_adicionales_recibidos: @js($envio->cantidad_cargadores_adicionales_recibidos),
+            cantidad_accesorios_recibidos: @js($envio->cantidad_accesorios_recibidos),
+            observacion_recepcion_general: @js($envio->observacion_recepcion_general ?? '')
+        },
 
 
         async ejecutar(
@@ -130,7 +160,8 @@
         abrirRecepcion(
             tipo,
             url,
-            unidad
+            unidad,
+            incluyeCargador = false
         ) {
 
             this.tipoRecepcion = tipo;
@@ -140,6 +171,9 @@
             this.unidadRecepcion = unidad;
 
             this.observacionRecepcion = '';
+
+            this.cargadorEsperadoRecepcion = Boolean(incluyeCargador);
+            this.cargadorRecibidoRecepcion = null;
 
             this.errorGeneral = '';
 
@@ -166,13 +200,63 @@
             }
 
 
+            if (
+                this.tipoRecepcion !== 'faltante'
+                && this.cargadorEsperadoRecepcion
+                && this.cargadorRecibidoRecepcion === null
+            ) {
+                this.errorGeneral =
+                    'Debe confirmar si el cargador declarado llegó con el equipo.';
+                return;
+            }
+
+            if (
+                this.tipoRecepcion === 'recibir'
+                && this.cargadorEsperadoRecepcion
+                && this.cargadorRecibidoRecepcion === false
+                && !this.observacionRecepcion.trim()
+            ) {
+                this.errorGeneral =
+                    'Indique en la observación que el cargador declarado no llegó.';
+                return;
+            }
+
+            const datosRecepcion = {
+                observacion: this.observacionRecepcion
+            };
+
+            if (
+                this.tipoRecepcion !== 'faltante'
+                && this.cargadorEsperadoRecepcion
+                && this.cargadorRecibidoRecepcion !== null
+            ) {
+                datosRecepcion.cargador_recibido =
+                    this.cargadorRecibidoRecepcion;
+            }
+
             await this.ejecutar(
                 this.urlRecepcion,
                 'post',
-                {
-                    observacion:
-                        this.observacionRecepcion
-                }
+                datosRecepcion
+            );
+        },
+
+
+        async guardarVerificacionRecepcion() {
+            if (
+                this.recepcionGeneral.cantidad_bultos_recibidos === null
+                || this.recepcionGeneral.cantidad_cargadores_adicionales_recibidos === null
+                || this.recepcionGeneral.cantidad_accesorios_recibidos === null
+            ) {
+                this.errorGeneral =
+                    'Complete el conteo físico de cajas, cargadores adicionales y accesorios.';
+                return;
+            }
+
+            await this.ejecutar(
+                @js(route('envios-importacion.verificar-recepcion', $envio)),
+                'post',
+                this.recepcionGeneral
             );
         },
 
@@ -550,7 +634,7 @@
                             \App\Models\EnvioImportacion::ESTADO_RECIBIDO_PARCIAL
                         )
 
-                            Existen unidades faltantes o con incidencias.
+                            La recepción fue cerrada con diferencias registradas. Puede actualizarse si llegan faltantes o se corrige el conteo físico.
 
                         @elseif(
                             $envio->estado ===
@@ -733,6 +817,8 @@
                             true
                         )
                         &&
+                        $recepcionGeneralVerificada
+                        &&
                         !$hayPendientes
                         &&
                         $envio->unidadesEnvio->isNotEmpty()
@@ -740,6 +826,7 @@
 
                         <button
                             type="button"
+                            data-testid="accion-cerrar-recepcion"
                             @click="
                                 ejecutar(
                                     @js(
@@ -974,6 +1061,135 @@
 
 
     {{-- ============================================================
+        VERIFICACIÓN FÍSICA EN DESTINO
+    ============================================================ --}}
+    @if(
+        ($puedeOperarDestino ?? false)
+        && in_array(
+            $envio->estado,
+            [
+                \App\Models\EnvioImportacion::ESTADO_DESPACHADO,
+                \App\Models\EnvioImportacion::ESTADO_RECIBIDO_PARCIAL,
+            ],
+            true
+        )
+    )
+        <x-ui.card>
+            <div class="flex flex-col gap-2 lg:flex-row lg:items-start lg:justify-between">
+                <div>
+                    <h2 class="text-lg font-bold text-slate-900">
+                        Verificación física en destino
+                    </h2>
+                    <p class="mt-1 text-sm text-slate-500">
+                        Registra lo que realmente llegó antes de cerrar la recepción.
+                    </p>
+                </div>
+
+                @if($envio->fecha_verificacion_recepcion)
+                    <div class="text-right text-xs text-slate-500">
+                        <p class="font-semibold text-slate-700">Última verificación</p>
+                        <p>{{ $envio->fecha_verificacion_recepcion->format('d/m/Y H:i') }}</p>
+                        @if($envio->verificadoRecepcionPor)
+                            <p>{{ $envio->verificadoRecepcionPor->name }}</p>
+                        @endif
+                    </div>
+                @endif
+            </div>
+
+            <div class="mt-5 grid grid-cols-1 gap-4 md:grid-cols-3">
+                <div class="rounded-xl border border-slate-200 p-4">
+                    <p class="text-xs font-semibold uppercase text-slate-500">Cajas</p>
+                    <p class="mt-1 text-xs text-slate-500">Enviadas: {{ (int) $envio->cantidad_bultos }}</p>
+                    <label class="mt-3 block text-sm font-semibold text-slate-700">Recibidas</label>
+                    <input
+                        data-testid="recepcion-cajas"
+                        type="number"
+                        min="0"
+                        x-model.number="recepcionGeneral.cantidad_bultos_recibidos"
+                        class="input-oneshop mt-2 w-full"
+                    >
+                </div>
+
+                <div class="rounded-xl border border-slate-200 p-4">
+                    <p class="text-xs font-semibold uppercase text-slate-500">Cargadores adicionales</p>
+                    <p class="mt-1 text-xs text-slate-500">Enviados: {{ (int) ($envio->cantidad_cargadores ?? 0) }}</p>
+                    <label class="mt-3 block text-sm font-semibold text-slate-700">Recibidos</label>
+                    <input
+                        data-testid="recepcion-cargadores-adicionales"
+                        type="number"
+                        min="0"
+                        x-model.number="recepcionGeneral.cantidad_cargadores_adicionales_recibidos"
+                        class="input-oneshop mt-2 w-full"
+                    >
+                </div>
+
+                <div class="rounded-xl border border-slate-200 p-4">
+                    <p class="text-xs font-semibold uppercase text-slate-500">Otros accesorios</p>
+                    <p class="mt-1 text-xs text-slate-500">Enviados: {{ (int) ($envio->cantidad_accesorios ?? 0) }}</p>
+                    <label class="mt-3 block text-sm font-semibold text-slate-700">Recibidos</label>
+                    <input
+                        data-testid="recepcion-accesorios"
+                        type="number"
+                        min="0"
+                        x-model.number="recepcionGeneral.cantidad_accesorios_recibidos"
+                        class="input-oneshop mt-2 w-full"
+                    >
+                </div>
+            </div>
+
+            <div class="mt-4">
+                <label class="mb-2 block text-sm font-semibold text-slate-700">
+                    Observación general de recepción
+                </label>
+                <textarea
+                    x-model="recepcionGeneral.observacion_recepcion_general"
+                    rows="3"
+                    class="input-oneshop w-full"
+                    placeholder="Obligatoria si existe alguna diferencia entre lo enviado y lo recibido"
+                ></textarea>
+            </div>
+
+            <div
+                data-testid="estado-cierre-recepcion"
+                class="mt-4 rounded-xl border p-4 text-sm
+                    @if(!$recepcionGeneralVerificada)
+                        border-amber-200 bg-amber-50 text-amber-800
+                    @elseif($hayPendientes)
+                        border-amber-200 bg-amber-50 text-amber-800
+                    @elseif($hayDiferenciasConteoRecepcion || $hayDiferenciasUnidades)
+                        border-amber-200 bg-amber-50 text-amber-800
+                    @else
+                        border-green-200 bg-green-50 text-green-800
+                    @endif
+                "
+            >
+                @if(!$recepcionGeneralVerificada)
+                    Registra primero el conteo físico general para habilitar el cierre de recepción.
+                @elseif($hayPendientes)
+                    Aún existen unidades pendientes. Registra cada una como recibida, faltante o con incidencia.
+                @elseif($hayDiferenciasConteoRecepcion || $hayDiferenciasUnidades)
+                    Todo está verificado. El envío puede cerrarse como <strong>Recibido con diferencias</strong>.
+                @else
+                    Todo coincide con el manifiesto. El envío puede cerrarse como <strong>Recibido completo</strong>.
+                @endif
+            </div>
+
+            <div class="mt-4 flex justify-end">
+                <button
+                    type="button"
+                    data-testid="accion-verificar-recepcion"
+                    @click="guardarVerificacionRecepcion()"
+                    :disabled="procesando"
+                    class="rounded-xl bg-oneshop-primary px-5 py-2.5 text-sm font-semibold text-white hover:bg-oneshop-dark disabled:opacity-50"
+                >
+                    {{ $envio->fecha_verificacion_recepcion ? 'Actualizar verificación' : 'Registrar verificación' }}
+                </button>
+            </div>
+        </x-ui.card>
+    @endif
+
+
+    {{-- ============================================================
         UNIDADES INCLUIDAS
     ============================================================ --}}
     <x-ui.card padding="false">
@@ -1153,6 +1369,17 @@
                                         {{ $detalle->incluye_cargador ? 'Sí' : 'No' }}
                                     </x-ui.badge>
 
+                                    @if($detalle->incluye_cargador && !$detalle->estaPendiente())
+                                        <p class="text-[11px] font-semibold {{ $detalle->cargador_recibido === false ? 'text-red-600' : 'text-slate-500' }}">
+                                            Cargador recibido:
+                                            {{
+                                                $detalle->cargador_recibido === true
+                                                    ? 'Sí'
+                                                    : ($detalle->cargador_recibido === false ? 'No' : 'Sin verificar')
+                                            }}
+                                        </p>
+                                    @endif
+
                                     @if(
                                         ($puedeOperarOrigen ?? false)
                                         && $envio->estaEnBorrador()
@@ -1204,11 +1431,13 @@
                                     :color="$colorRecepcion"
                                 >
                                     {{
-                                        str_replace(
-                                            '_',
-                                            ' ',
-                                            $detalle->estado_recepcion
-                                        )
+                                        match ($detalle->estado_recepcion) {
+                                            \App\Models\EnvioImportacionUnidad::ESTADO_PENDIENTE => 'Pendiente de recepción',
+                                            \App\Models\EnvioImportacionUnidad::ESTADO_RECIBIDA => 'Recibida',
+                                            \App\Models\EnvioImportacionUnidad::ESTADO_FALTANTE => 'Faltante',
+                                            \App\Models\EnvioImportacionUnidad::ESTADO_INCIDENCIA => 'Con incidencia',
+                                            default => ucfirst(strtolower(str_replace('_', ' ', $detalle->estado_recepcion))),
+                                        }
                                     }}
                                 </x-ui.badge>
 
@@ -1350,7 +1579,8 @@
                                                     @js(
                                                         $unidad->codigo_trazabilidad
                                                         ?? 'Unidad'
-                                                    )
+                                                    ),
+                                                    @js((bool) $detalle->incluye_cargador)
                                                 )
                                             "
                                             class="
@@ -1386,7 +1616,8 @@
                                                     @js(
                                                         $unidad->codigo_trazabilidad
                                                         ?? 'Unidad'
-                                                    )
+                                                    ),
+                                                    @js((bool) $detalle->incluye_cargador)
                                                 )
                                             "
                                             class="
@@ -1423,7 +1654,8 @@
                                                     @js(
                                                         $unidad->codigo_trazabilidad
                                                         ?? 'Unidad'
-                                                    )
+                                                    ),
+                                                    @js((bool) $detalle->incluye_cargador)
                                                 )
                                             "
                                             class="
@@ -1474,7 +1706,8 @@
                                                     @js(
                                                         $unidad->codigo_trazabilidad
                                                         ?? 'Unidad'
-                                                    )
+                                                    ),
+                                                    @js((bool) $detalle->incluye_cargador)
                                                 )
                                             "
                                             class="
@@ -2058,6 +2291,41 @@
                     x-text="unidadRecepcion"
                 ></strong>
             </p>
+
+
+            <div
+                x-show="tipoRecepcion !== 'faltante' && cargadorEsperadoRecepcion"
+                class="mt-6 rounded-xl border border-slate-200 bg-slate-50 p-4"
+            >
+                <p class="text-sm font-semibold text-slate-800">
+                    Cargador declarado con el equipo
+                </p>
+                <p class="mt-1 text-xs text-slate-500">
+                    Confirma si el cargador que salió con esta unidad también llegó a destino.
+                </p>
+
+                <div class="mt-3 flex gap-2">
+                    <button
+                        type="button"
+                        data-testid="recepcion-cargador-si"
+                        @click="cargadorRecibidoRecepcion = true"
+                        :class="cargadorRecibidoRecepcion === true ? 'border-green-500 bg-green-50 text-green-700' : 'border-slate-200 text-slate-600'"
+                        class="rounded-lg border px-4 py-2 text-sm font-semibold"
+                    >
+                        Sí llegó
+                    </button>
+
+                    <button
+                        type="button"
+                        data-testid="recepcion-cargador-no"
+                        @click="cargadorRecibidoRecepcion = false"
+                        :class="cargadorRecibidoRecepcion === false ? 'border-red-400 bg-red-50 text-red-700' : 'border-slate-200 text-slate-600'"
+                        class="rounded-lg border px-4 py-2 text-sm font-semibold"
+                    >
+                        No llegó
+                    </button>
+                </div>
+            </div>
 
 
             <div class="mt-6">

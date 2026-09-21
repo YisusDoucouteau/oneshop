@@ -49,17 +49,23 @@ public function estaPreparado(): bool
         'preparado_por_id',
         'despachado_por_id',
         'recibido_por_id',
+        'verificado_recepcion_por_id',
 
         'fecha_preparacion',
         'fecha_despacho',
         'fecha_recepcion',
+        'fecha_verificacion_recepcion',
 
         'transportista',
         'numero_guia',
         'cantidad_bultos',
+        'cantidad_bultos_recibidos',
         'cantidad_cargadores',
+        'cantidad_cargadores_adicionales_recibidos',
         'cantidad_accesorios',
+        'cantidad_accesorios_recibidos',
         'detalle_accesorios',
+        'observacion_recepcion_general',
 
         'observacion',
     ];
@@ -74,13 +80,25 @@ public function estaPreparado(): bool
         'fecha_recepcion' =>
             'datetime',
 
+        'fecha_verificacion_recepcion' =>
+            'datetime',
+
         'cantidad_bultos' =>
+            'integer',
+
+        'cantidad_bultos_recibidos' =>
             'integer',
 
         'cantidad_cargadores' =>
             'integer',
 
+        'cantidad_cargadores_adicionales_recibidos' =>
+            'integer',
+
         'cantidad_accesorios' =>
+            'integer',
+
+        'cantidad_accesorios_recibidos' =>
             'integer',
     ];
 
@@ -138,6 +156,14 @@ public function estaPreparado(): bool
         );
     }
 
+    public function verificadoRecepcionPor(): BelongsTo
+    {
+        return $this->belongsTo(
+            User::class,
+            'verificado_recepcion_por_id'
+        );
+    }
+
 
     /*
     |--------------------------------------------------------------------------
@@ -180,6 +206,35 @@ public function estaPreparado(): bool
     {
         return $this->cantidadCargadoresAsociados()
             + (int) ($this->cantidad_cargadores ?? 0);
+    }
+
+    /**
+     * Indica si el destino ya registró el conteo físico general
+     * necesario para poder cerrar la recepción.
+     */
+    public function recepcionGeneralVerificada(): bool
+    {
+        return $this->fecha_verificacion_recepcion !== null
+            && $this->cantidad_bultos_recibidos !== null
+            && $this->cantidad_cargadores_adicionales_recibidos !== null
+            && $this->cantidad_accesorios_recibidos !== null;
+    }
+
+    /**
+     * Compara el manifiesto de salida con el conteo físico en destino.
+     *
+     * Los cargadores asociados a equipos se controlan por unidad; aquí
+     * se comparan únicamente cajas, cargadores adicionales y accesorios.
+     */
+    public function tieneDiferenciasConteoRecepcion(): bool
+    {
+        if (!$this->recepcionGeneralVerificada()) {
+            return false;
+        }
+
+        return (int) $this->cantidad_bultos_recibidos !== (int) $this->cantidad_bultos
+            || (int) $this->cantidad_cargadores_adicionales_recibidos !== (int) ($this->cantidad_cargadores ?? 0)
+            || (int) $this->cantidad_accesorios_recibidos !== (int) ($this->cantidad_accesorios ?? 0);
     }
 
     public function auditorias(): HasMany

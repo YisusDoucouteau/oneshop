@@ -702,7 +702,8 @@ public function test_recibe_unidad_enviada_y_actualiza_estado(): void
             $usuario->id,
             $envio->id,
             $unidad->id,
-            'Recibido sin novedades'
+            'Recibido sin novedades',
+            true
         );
 
 
@@ -874,16 +875,45 @@ public function test_cierra_envio_como_recibido_cuando_todas_las_unidades_llegan
         $envio->id
     );
 
+    /*
+     * Fase 5.2: antes de cerrar la recepción debe existir
+     * una verificación física general del manifiesto.
+     */
+    $envio->refresh();
+
+    $servicio->registrarVerificacionRecepcion(
+        $usuario->id,
+        $envio->id,
+        [
+            'cantidad_bultos_recibidos' =>
+                (int) ($envio->cantidad_bultos ?? 0),
+
+            'cantidad_cargadores_adicionales_recibidos' =>
+                (int) ($envio->cantidad_cargadores ?? 0),
+
+            'cantidad_accesorios_recibidos' =>
+                (int) ($envio->cantidad_accesorios ?? 0),
+
+            'observacion_recepcion_general' =>
+                null,
+        ]
+    );
+
+
     $servicio->recibirUnidad(
         $usuario->id,
         $envio->id,
-        $unidadUno->id
+        $unidadUno->id,
+        null,
+        true
     );
 
     $servicio->recibirUnidad(
         $usuario->id,
         $envio->id,
-        $unidadDos->id
+        $unidadDos->id,
+        null,
+        true
     );
 
     $envioCerrado =
@@ -1009,6 +1039,31 @@ public function test_no_permite_cerrar_recepcion_con_unidades_pendientes(): void
         $usuario->id,
         $envio->id
     );
+
+    /*
+     * Fase 5.2: antes de cerrar la recepción debe existir
+     * una verificación física general del manifiesto.
+     */
+    $envio->refresh();
+
+    $servicio->registrarVerificacionRecepcion(
+        $usuario->id,
+        $envio->id,
+        [
+            'cantidad_bultos_recibidos' =>
+                (int) ($envio->cantidad_bultos ?? 0),
+
+            'cantidad_cargadores_adicionales_recibidos' =>
+                (int) ($envio->cantidad_cargadores ?? 0),
+
+            'cantidad_accesorios_recibidos' =>
+                (int) ($envio->cantidad_accesorios ?? 0),
+
+            'observacion_recepcion_general' =>
+                null,
+        ]
+    );
+
 
     try {
         $servicio->cerrarRecepcion(
@@ -1176,6 +1231,31 @@ public function test_cierra_envio_como_recibido_parcial_cuando_existe_unidad_fal
         $envio->id
     );
 
+    /*
+     * Fase 5.2: antes de cerrar la recepción debe existir
+     * una verificación física general del manifiesto.
+     */
+    $envio->refresh();
+
+    $servicio->registrarVerificacionRecepcion(
+        $usuario->id,
+        $envio->id,
+        [
+            'cantidad_bultos_recibidos' =>
+                (int) ($envio->cantidad_bultos ?? 0),
+
+            'cantidad_cargadores_adicionales_recibidos' =>
+                (int) ($envio->cantidad_cargadores ?? 0),
+
+            'cantidad_accesorios_recibidos' =>
+                (int) ($envio->cantidad_accesorios ?? 0),
+
+            'observacion_recepcion_general' =>
+                null,
+        ]
+    );
+
+
 
     /*
      * La primera unidad llega físicamente a Oruro.
@@ -1184,7 +1264,8 @@ public function test_cierra_envio_como_recibido_parcial_cuando_existe_unidad_fal
         $usuario->id,
         $envio->id,
         $unidadRecibida->id,
-        'Unidad recibida correctamente.'
+        'Unidad recibida correctamente.',
+        true
     );
 
 
@@ -1447,6 +1528,31 @@ public function test_recibe_unidad_faltante_tardiamente_y_completa_el_envio(): v
         $envio->id
     );
 
+    /*
+     * Fase 5.2: antes de cerrar la recepción debe existir
+     * una verificación física general del manifiesto.
+     */
+    $envio->refresh();
+
+    $servicio->registrarVerificacionRecepcion(
+        $usuario->id,
+        $envio->id,
+        [
+            'cantidad_bultos_recibidos' =>
+                (int) ($envio->cantidad_bultos ?? 0),
+
+            'cantidad_cargadores_adicionales_recibidos' =>
+                (int) ($envio->cantidad_cargadores ?? 0),
+
+            'cantidad_accesorios_recibidos' =>
+                (int) ($envio->cantidad_accesorios ?? 0),
+
+            'observacion_recepcion_general' =>
+                null,
+        ]
+    );
+
+
 
     /*
      * ---------------------------------------------------------
@@ -1457,7 +1563,8 @@ public function test_recibe_unidad_faltante_tardiamente_y_completa_el_envio(): v
         $usuario->id,
         $envio->id,
         $unidadRecibida->id,
-        'Unidad recibida correctamente.'
+        'Unidad recibida correctamente.',
+        true
     );
 
 
@@ -1502,7 +1609,8 @@ public function test_recibe_unidad_faltante_tardiamente_y_completa_el_envio(): v
             $usuario->id,
             $envio->id,
             $unidadTardia->id,
-            'La transportadora entregó la unidad posteriormente.'
+            'La transportadora entregó la unidad posteriormente.',
+            true
         );
 
 
@@ -1795,6 +1903,31 @@ public function test_registra_incidencia_de_recepcion_y_cierra_envio_como_parcia
         $envio->id
     );
 
+    /*
+     * Fase 5.2: antes de cerrar la recepción debe existir
+     * una verificación física general del manifiesto.
+     */
+    $envio->refresh();
+
+    $servicio->registrarVerificacionRecepcion(
+        $usuario->id,
+        $envio->id,
+        [
+            'cantidad_bultos_recibidos' =>
+                (int) ($envio->cantidad_bultos ?? 0),
+
+            'cantidad_cargadores_adicionales_recibidos' =>
+                (int) ($envio->cantidad_cargadores ?? 0),
+
+            'cantidad_accesorios_recibidos' =>
+                (int) ($envio->cantidad_accesorios ?? 0),
+
+            'observacion_recepcion_general' =>
+                null,
+        ]
+    );
+
+
 
     /*
      * ---------------------------------------------------------
@@ -1805,7 +1938,8 @@ public function test_registra_incidencia_de_recepcion_y_cierra_envio_como_parcia
         $usuario->id,
         $envio->id,
         $unidadNormal->id,
-        'Unidad recibida correctamente.'
+        'Unidad recibida correctamente.',
+        true
     );
 
 

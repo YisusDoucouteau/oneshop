@@ -484,6 +484,17 @@ Route::post(
 
 
 Route::post(
+    '/envios-importacion/{envio}/verificar-recepcion',
+    [
+        EnvioImportacionController::class,
+        'verificarRecepcion',
+    ]
+)
+->middleware('permiso:importacion.gestionar')
+->name('envios-importacion.verificar-recepcion');
+
+
+Route::post(
     '/envios-importacion/{envio}/unidades/{unidad}/recibir',
     [
         EnvioImportacionController::class,

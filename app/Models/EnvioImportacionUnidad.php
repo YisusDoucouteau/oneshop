@@ -32,6 +32,7 @@ class EnvioImportacionUnidad extends Model
         'envio_importacion_id',
         'unidad_adquirida_id',
         'incluye_cargador',
+        'cargador_recibido',
 
         'estado_recepcion',
 
@@ -46,6 +47,9 @@ class EnvioImportacionUnidad extends Model
             'datetime',
 
         'incluye_cargador' =>
+            'boolean',
+
+        'cargador_recibido' =>
             'boolean',
     ];
 

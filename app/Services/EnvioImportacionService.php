@@ -981,6 +981,147 @@ $this->registrarEventoLogisticoLotesDelEnvio(
 
 
     /**
+     * Registra el conteo físico general realizado en el almacén destino.
+     *
+     * Los valores enviados en Cochabamba se conservan como referencia y
+     * estos campos representan lo que realmente se encontró al abrir el envío.
+     */
+    public function registrarVerificacionRecepcion(
+        int $usuarioId,
+        int $envioId,
+        array $datos
+    ): EnvioImportacion {
+        return DB::transaction(
+            function () use ($usuarioId, $envioId, $datos) {
+                $usuario = $this->obtenerUsuarioAutorizado($usuarioId);
+
+                $validator = Validator::make(
+                    $datos,
+                    [
+                        'cantidad_bultos_recibidos' => [
+                            'required',
+                            'integer',
+                            'min:0',
+                        ],
+                        'cantidad_cargadores_adicionales_recibidos' => [
+                            'required',
+                            'integer',
+                            'min:0',
+                        ],
+                        'cantidad_accesorios_recibidos' => [
+                            'required',
+                            'integer',
+                            'min:0',
+                        ],
+                        'observacion_recepcion_general' => [
+                            'nullable',
+                            'string',
+                            'max:2000',
+                        ],
+                    ]
+                );
+
+                if ($validator->fails()) {
+                    throw new ValidationException($validator);
+                }
+
+                $validados = $validator->validated();
+
+                $envio = EnvioImportacion::query()
+                    ->lockForUpdate()
+                    ->find($envioId);
+
+                if (!$envio) {
+                    throw new ReglaNegocioException('El envío no existe.');
+                }
+
+                $this->exigirOperacionEnAlmacen(
+                    $usuario,
+                    $envio->almacen_destino_id,
+                    'verificar físicamente el envío en el almacén de destino'
+                );
+
+                if (!in_array(
+                    $envio->estado,
+                    [
+                        EnvioImportacion::ESTADO_DESPACHADO,
+                        EnvioImportacion::ESTADO_RECIBIDO_PARCIAL,
+                    ],
+                    true
+                )) {
+                    throw new ReglaNegocioException(
+                        'El conteo de recepción solo puede registrarse para envíos despachados o con recepción parcial.'
+                    );
+                }
+
+                $hayDiferencia =
+                    (int) $validados['cantidad_bultos_recibidos'] !==
+                        (int) $envio->cantidad_bultos
+                    ||
+                    (int) $validados['cantidad_cargadores_adicionales_recibidos'] !==
+                        (int) ($envio->cantidad_cargadores ?? 0)
+                    ||
+                    (int) $validados['cantidad_accesorios_recibidos'] !==
+                        (int) ($envio->cantidad_accesorios ?? 0);
+
+                $observacion = isset($validados['observacion_recepcion_general'])
+                    ? trim((string) $validados['observacion_recepcion_general'])
+                    : '';
+
+                if ($hayDiferencia && $observacion === '') {
+                    throw ValidationException::withMessages([
+                        'observacion_recepcion_general' =>
+                            'Debe registrar una observación cuando el conteo recibido no coincide con lo enviado.',
+                    ]);
+                }
+
+                $anterior = [
+                    'cantidad_bultos_recibidos' => $envio->cantidad_bultos_recibidos,
+                    'cantidad_cargadores_adicionales_recibidos' =>
+                        $envio->cantidad_cargadores_adicionales_recibidos,
+                    'cantidad_accesorios_recibidos' => $envio->cantidad_accesorios_recibidos,
+                    'observacion_recepcion_general' => $envio->observacion_recepcion_general,
+                ];
+
+                $envio->update([
+                    'cantidad_bultos_recibidos' =>
+                        (int) $validados['cantidad_bultos_recibidos'],
+                    'cantidad_cargadores_adicionales_recibidos' =>
+                        (int) $validados['cantidad_cargadores_adicionales_recibidos'],
+                    'cantidad_accesorios_recibidos' =>
+                        (int) $validados['cantidad_accesorios_recibidos'],
+                    'observacion_recepcion_general' =>
+                        $observacion !== '' ? $observacion : null,
+                    'verificado_recepcion_por_id' => $usuario->id,
+                    'fecha_verificacion_recepcion' => now(),
+                ]);
+
+                $this->auditoriaService->registrar(
+                    $usuario->id,
+                    'VERIFICAR_RECEPCION_ENVIO_IMPORTACION',
+                    'EnvioImportacion',
+                    $envio->id,
+                    $anterior,
+                    [
+                        'cantidad_bultos_recibidos' =>
+                            (int) $validados['cantidad_bultos_recibidos'],
+                        'cantidad_cargadores_adicionales_recibidos' =>
+                            (int) $validados['cantidad_cargadores_adicionales_recibidos'],
+                        'cantidad_accesorios_recibidos' =>
+                            (int) $validados['cantidad_accesorios_recibidos'],
+                        'observacion_recepcion_general' =>
+                            $observacion !== '' ? $observacion : null,
+                    ]
+                );
+
+                return $envio->fresh();
+            },
+            3
+        );
+    }
+
+
+    /**
      * Registra la recepción física de una unidad.
      *
      * Soporta:
@@ -997,14 +1138,16 @@ $this->registrarEventoLogisticoLotesDelEnvio(
         int $usuarioId,
         int $envioId,
         int $unidadId,
-        ?string $observacion = null
+        ?string $observacion = null,
+        ?bool $cargadorRecibido = null
     ): EnvioImportacionUnidad {
         return DB::transaction(
             function () use (
                 $usuarioId,
                 $envioId,
                 $unidadId,
-                $observacion
+                $observacion,
+                $cargadorRecibido
             ) {
                 $usuario =
                     $this->obtenerUsuarioAutorizado(
@@ -1148,9 +1291,31 @@ $this->registrarEventoLogisticoLotesDelEnvio(
                         $notaTardia;
                 }
 
+                $estadoRecepcion =
+                    EnvioImportacionUnidad::ESTADO_RECIBIDA;
+
+                if (
+                    $detalle->incluye_cargador
+                    && $cargadorRecibido === false
+                ) {
+                    if ($observacionFinal === null || $observacionFinal === '') {
+                        throw ValidationException::withMessages([
+                            'observacion' =>
+                                'Debe describir la incidencia cuando falta el cargador declarado con el equipo.',
+                        ]);
+                    }
+
+                    $estadoRecepcion =
+                        EnvioImportacionUnidad::ESTADO_INCIDENCIA;
+                }
+
                 $detalle->update([
-                    'estado_recepcion' =>
-                        EnvioImportacionUnidad::ESTADO_RECIBIDA,
+                    'estado_recepcion' => $estadoRecepcion,
+
+                    'cargador_recibido' =>
+                        $detalle->incluye_cargador
+                            ? $cargadorRecibido
+                            : null,
 
                     'fecha_recepcion' =>
                         now(),
@@ -1323,6 +1488,9 @@ $this->registrarEventoLogisticoLotesDelEnvio(
                     'estado_recepcion' =>
                         EnvioImportacionUnidad::ESTADO_FALTANTE,
 
+                    'cargador_recibido' =>
+                        null,
+
                     /*
                      * No existe recepción física.
                      */
@@ -1364,18 +1532,19 @@ public function registrarIncidenciaRecepcion(
     int $usuarioId,
     int $envioId,
     int $unidadId,
-    string $observacion
+    string $observacion,
+    ?bool $cargadorRecibido = null
 ): EnvioImportacionUnidad {
     return DB::transaction(
         function () use (
             $usuarioId,
             $envioId,
             $unidadId,
-            $observacion
+            $observacion,
+            $cargadorRecibido
         ) {
             $usuario =
-                $usuario =
-                    $this->obtenerUsuarioAutorizado(
+                $this->obtenerUsuarioAutorizado(
                         $usuarioId
                     );
 
@@ -1499,6 +1668,11 @@ public function registrarIncidenciaRecepcion(
                 'estado_recepcion' =>
                     EnvioImportacionUnidad::ESTADO_INCIDENCIA,
 
+                'cargador_recibido' =>
+                    $detalle->incluye_cargador
+                        ? $cargadorRecibido
+                        : null,
+
                 'fecha_recepcion' =>
                     now(),
 
@@ -1533,38 +1707,28 @@ public function registrarIncidenciaRecepcion(
     /**
      * Cierra la recepción del envío.
      *
-     * Todas RECIBIDAS:
-     *      -> RECIBIDO
+     * Reglas:
+     * - Debe existir una verificación física general del destino.
+     * - No puede quedar ninguna unidad pendiente de recepción.
+     * - RECIBIDO: unidades y conteos físicos coinciden completamente.
+     * - RECIBIDO_PARCIAL: existen faltantes, incidencias o diferencias
+     *   entre lo enviado y lo recibido.
      *
-     * Existe FALTANTE o INCIDENCIA:
-     *      -> RECIBIDO_PARCIAL
-     *
-     * Existe PENDIENTE:
-     *      -> no permite cerrar
+     * Una recepción con diferencias puede volver a cerrarse posteriormente
+     * si los faltantes llegan o el conteo físico se corrige.
      */
     public function cerrarRecepcion(
         int $usuarioId,
         int $envioId
     ): EnvioImportacion {
         return DB::transaction(
-            function () use (
-                $usuarioId,
-                $envioId
-            ) {
-                $usuario =
-                    $this->obtenerUsuarioAutorizado(
-                        $usuarioId
-                    );
+            function () use ($usuarioId, $envioId) {
+                $usuario = $this->obtenerUsuarioAutorizado($usuarioId);
 
-                $envio =
-                    EnvioImportacion::query()
-                        ->lockForUpdate()
-                        ->with(
-                            'unidadesEnvio'
-                        )
-                        ->find(
-                            $envioId
-                        );
+                $envio = EnvioImportacion::query()
+                    ->lockForUpdate()
+                    ->with('unidadesEnvio')
+                    ->find($envioId);
 
                 if (!$envio) {
                     throw new ReglaNegocioException(
@@ -1578,102 +1742,164 @@ public function registrarIncidenciaRecepcion(
                     'registrar la recepción en el almacén de destino'
                 );
 
-                /*
-                 * También puede volver a cerrarse una
-                 * recepción parcial después de que una
-                 * unidad faltante llegue posteriormente.
-                 */
-                if (
-                    !in_array(
-                        $envio->estado,
-                        [
-                            EnvioImportacion::ESTADO_DESPACHADO,
-                            EnvioImportacion::ESTADO_RECIBIDO_PARCIAL,
-                        ],
-                        true
-                    )
-                ) {
+                if (!in_array(
+                    $envio->estado,
+                    [
+                        EnvioImportacion::ESTADO_DESPACHADO,
+                        EnvioImportacion::ESTADO_RECIBIDO_PARCIAL,
+                    ],
+                    true
+                )) {
                     throw new ReglaNegocioException(
-                        'Solo pueden cerrarse envíos despachados o con recepción parcial.'
+                        'Solo pueden cerrarse envíos despachados o con recepción con diferencias.'
                     );
                 }
 
-                if (
-                    $envio->unidadesEnvio->isEmpty()
-                ) {
+                if ($envio->unidadesEnvio->isEmpty()) {
                     throw new ReglaNegocioException(
                         'No se puede cerrar un envío sin unidades.'
                     );
                 }
 
-                /*
-                 * No permitimos cerrar mientras alguna
-                 * unidad todavía siga PENDIENTE.
-                 */
-                foreach (
-                    $envio->unidadesEnvio
-                    as $detalle
-                ) {
-                    if (
-                        !$detalle
-                            ->estaResueltaEnRecepcion()
-                    ) {
+                if (!$envio->recepcionGeneralVerificada()) {
+                    throw new ReglaNegocioException(
+                        'Debe registrar la verificación física general antes de cerrar la recepción.'
+                    );
+                }
+
+                foreach ($envio->unidadesEnvio as $detalle) {
+                    if (!$detalle->estaResueltaEnRecepcion()) {
                         throw new ReglaNegocioException(
                             'Existen unidades pendientes de recepción.'
                         );
                     }
                 }
 
-                /*
-                 * Solo se considera RECIBIDO cuando
-                 * todas las unidades llegaron físicamente.
-                 */
-                $todasRecibidas =
+                $todasUnidadesRecibidas = $envio->unidadesEnvio
+                    ->every(
+                        fn ($detalle) =>
+                            $detalle->estado_recepcion ===
+                            EnvioImportacionUnidad::ESTADO_RECIBIDA
+                    );
+
+                $hayDiferenciasConteo =
+                    $envio->tieneDiferenciasConteoRecepcion();
+
+                $hayDiferenciasCargadoresAsociados =
                     $envio->unidadesEnvio
-                        ->every(
+                        ->contains(
                             fn ($detalle) =>
-                                $detalle
-                                    ->estado_recepcion ===
-                                EnvioImportacionUnidad::ESTADO_RECIBIDA
+                                (bool) $detalle->incluye_cargador
+                                && $detalle->estado_recepcion ===
+                                    EnvioImportacionUnidad::ESTADO_RECIBIDA
+                                && $detalle->cargador_recibido !== true
                         );
 
-                $nuevoEstado =
-                    $todasRecibidas
-                        ? EnvioImportacion::ESTADO_RECIBIDO
-                        : EnvioImportacion::ESTADO_RECIBIDO_PARCIAL;
+                $recepcionCompleta =
+                    $todasUnidadesRecibidas
+                    && !$hayDiferenciasConteo
+                    && !$hayDiferenciasCargadoresAsociados;
+
+                $nuevoEstado = $recepcionCompleta
+                    ? EnvioImportacion::ESTADO_RECIBIDO
+                    : EnvioImportacion::ESTADO_RECIBIDO_PARCIAL;
+
+                $estadoAnterior = $envio->estado;
+
+                $unidadesConDiferencia = $envio->unidadesEnvio
+                    ->filter(
+                        fn ($detalle) =>
+                            $detalle->estado_recepcion !==
+                                EnvioImportacionUnidad::ESTADO_RECIBIDA
+                            || (
+                                (bool) $detalle->incluye_cargador
+                                && $detalle->cargador_recibido !== true
+                            )
+                    )
+                    ->map(
+                        fn ($detalle) => [
+                            'unidad_adquirida_id' =>
+                                $detalle->unidad_adquirida_id,
+                            'estado_recepcion' =>
+                                $detalle->estado_recepcion,
+                            'incluye_cargador' =>
+                                (bool) $detalle->incluye_cargador,
+                            'cargador_recibido' =>
+                                $detalle->cargador_recibido,
+                        ]
+                    )
+                    ->values()
+                    ->all();
 
                 $envio->update([
-                    'estado' =>
-                        $nuevoEstado,
+                    'estado' => $nuevoEstado,
 
                     /*
-                     * Estos campos generales significan
-                     * recepción completa del envío.
-                     *
-                     * En una recepción parcial quedan NULL.
+                     * Estos campos continúan representando la recepción
+                     * completa del traslado. Cuando existen diferencias,
+                     * el cierre queda documentado mediante auditoría y el
+                     * envío permanece en RECIBIDO_PARCIAL.
                      */
                     'recibido_por_id' =>
-                        $todasRecibidas
+                        $recepcionCompleta
                             ? $usuario->id
                             : null,
 
                     'fecha_recepcion' =>
-                        $todasRecibidas
+                        $recepcionCompleta
                             ? now()
                             : null,
                 ]);
+
+                $this->auditoriaService->registrar(
+                    $usuario->id,
+                    'CERRAR_RECEPCION_ENVIO_IMPORTACION',
+                    'EnvioImportacion',
+                    $envio->id,
+                    [
+                        'estado' => $estadoAnterior,
+                    ],
+                    [
+                        'estado' => $nuevoEstado,
+                        'recepcion_completa' => $recepcionCompleta,
+                        'diferencias_conteo' => $hayDiferenciasConteo,
+                        'diferencias_cargadores_asociados' =>
+                            $hayDiferenciasCargadoresAsociados,
+                        'unidades_con_diferencia' => $unidadesConDiferencia,
+                        'conteo_enviado' => [
+                            'cajas' => (int) $envio->cantidad_bultos,
+                            'cargadores_adicionales' =>
+                                (int) ($envio->cantidad_cargadores ?? 0),
+                            'accesorios' =>
+                                (int) ($envio->cantidad_accesorios ?? 0),
+                        ],
+                        'conteo_recibido' => [
+                            'cajas' =>
+                                (int) $envio->cantidad_bultos_recibidos,
+                            'cargadores_adicionales' =>
+                                (int) $envio->cantidad_cargadores_adicionales_recibidos,
+                            'accesorios' =>
+                                (int) $envio->cantidad_accesorios_recibidos,
+                        ],
+                    ]
+                );
+
                 $this->registrarEventoLogisticoLotesDelEnvio(
                     $envio,
                     'RECEPCION_ORURO',
                     $usuario,
-                    'Recepción de unidades en Oruro.'
+                    $recepcionCompleta
+                        ? 'Recepción completa de unidades en Oruro.'
+                        : 'Recepción en Oruro cerrada con diferencias registradas.'
                 );
+
                 return $envio->fresh();
             },
             3
         );
     }
-   private function registrarEventoLogisticoLotesDelEnvio(
+
+    private function registrarEventoLogisticoLotesDelEnvio(
     EnvioImportacion $envio,
     string $codigoEvento,
     User $usuario,

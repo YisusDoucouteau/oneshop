@@ -36,6 +36,7 @@ class EnvioImportacionController extends Controller
                     'preparadoPor',
                     'despachadoPor',
                     'recibidoPor',
+                    'verificadoRecepcionPor',
                 ])
                 ->withCount(
                     'unidadesEnvio'
@@ -178,6 +179,7 @@ class EnvioImportacionController extends Controller
             'preparadoPor',
             'despachadoPor',
             'recibidoPor',
+            'verificadoRecepcionPor',
 
             'unidadesEnvio.unidadAdquirida.producto.marca',
             'unidadesEnvio.unidadAdquirida.almacenActual',
@@ -584,6 +586,72 @@ class EnvioImportacionController extends Controller
 
     /*
     |--------------------------------------------------------------------------
+    | Verificación física general en destino
+    |--------------------------------------------------------------------------
+    */
+
+    public function verificarRecepcion(
+        Request $request,
+        EnvioImportacion $envio
+    ): JsonResponse|RedirectResponse {
+
+        $datos = $request->validate([
+            'cantidad_bultos_recibidos' => [
+                'required',
+                'integer',
+                'min:0',
+            ],
+            'cantidad_cargadores_adicionales_recibidos' => [
+                'required',
+                'integer',
+                'min:0',
+            ],
+            'cantidad_accesorios_recibidos' => [
+                'required',
+                'integer',
+                'min:0',
+            ],
+            'observacion_recepcion_general' => [
+                'nullable',
+                'string',
+                'max:2000',
+            ],
+        ]);
+
+        $envioActualizado =
+            $this->envioService->registrarVerificacionRecepcion(
+                $request->user()->id,
+                $envio->id,
+                $datos
+            );
+
+        $mensaje = 'La verificación física del envío fue registrada.';
+
+        if ($request->expectsJson()) {
+            return response()->json([
+                'ok' => true,
+                'message' => $mensaje,
+                'verificacion' => [
+                    'cantidad_bultos_recibidos' =>
+                        $envioActualizado->cantidad_bultos_recibidos,
+                    'cantidad_cargadores_adicionales_recibidos' =>
+                        $envioActualizado->cantidad_cargadores_adicionales_recibidos,
+                    'cantidad_accesorios_recibidos' =>
+                        $envioActualizado->cantidad_accesorios_recibidos,
+                    'fecha_verificacion_recepcion' =>
+                        optional($envioActualizado->fecha_verificacion_recepcion)?->toISOString(),
+                ],
+            ]);
+        }
+
+        return redirect()
+            ->route('envios-importacion.show', $envio)
+            ->with('success', $mensaje);
+    }
+
+
+    /*
+    |--------------------------------------------------------------------------
     | Recibir unidad en Oruro
     |--------------------------------------------------------------------------
     */
@@ -602,7 +670,10 @@ class EnvioImportacionController extends Controller
                     $unidad->id,
                     $request->input(
                         'observacion'
-                    )
+                    ),
+                    $request->has('cargador_recibido')
+                        ? $request->boolean('cargador_recibido')
+                        : null
                 );
 
 
@@ -736,7 +807,10 @@ class EnvioImportacionController extends Controller
                     $request->user()->id,
                     $envio->id,
                     $unidad->id,
-                    $datos['observacion']
+                    $datos['observacion'],
+                    $request->has('cargador_recibido')
+                        ? $request->boolean('cargador_recibido')
+                        : null
                 );
 
 
@@ -795,7 +869,7 @@ class EnvioImportacionController extends Controller
 
                 ? 'La recepción del envío fue cerrada completamente.'
 
-                : 'La recepción fue cerrada de forma parcial.';
+                : 'La recepción fue cerrada con diferencias registradas.';
 
 
         if ($request->expectsJson()) {
