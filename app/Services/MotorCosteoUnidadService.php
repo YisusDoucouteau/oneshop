@@ -34,10 +34,26 @@ class MotorCosteoUnidadService
             );
 
         /*
-        | Los gastos generales de importación pertenecen al lote y se reportan
-        | por separado. No forman parte del costo individual del equipo.
+        |--------------------------------------------------------------------------
+        | Costos generales del lote asignados a la unidad
+        |--------------------------------------------------------------------------
+        |
+        | Incluye únicamente asignaciones pertenecientes a costos de lote
+        | ACTIVO. El accessor de UnidadAdquirida también incorpora el ajuste
+        | de redondeo de cada prorrateo.
+        |
+        | Ejemplos:
+        | - flete internacional
+        | - aduana
+        | - logística común
+        | - transporte registrado como costo del lote
+        |
         */
-        $costosLote = 0.0;
+
+        $costosLote =
+            (float)
+            $unidad
+                ->costo_importacion_bob;
 
         /*
         |--------------------------------------------------------------------------
@@ -52,14 +68,14 @@ class MotorCosteoUnidadService
         */
 
         $intervenciones =
-    $unidad
-         ->intervenciones
-         ->whereNotNull(
-             'monto_bob'
-         )
-         ->sum(
-             'monto_bob'
-         );
+            $unidad
+                ->intervenciones
+                ->whereNotNull(
+                    'monto_bob'
+                )
+                ->sum(
+                    'monto_bob'
+                );
 
         $intervencionesSinCosto =
             $unidad
@@ -92,7 +108,8 @@ class MotorCosteoUnidadService
 
             'unidad_id' => $unidad->id,
 
-            'codigo_trazabilidad' => $unidad->codigo_trazabilidad,
+            'codigo_trazabilidad' =>
+                $unidad->codigo_trazabilidad,
 
             'costo_compra' => round(
                 $costoCompra,
@@ -115,6 +132,7 @@ class MotorCosteoUnidadService
             ),
 
             'completo' => $completo,
+
             'advertencias' => $advertencias,
         ];
     }

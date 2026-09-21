@@ -80,7 +80,7 @@ class RegistroCostoUnidadServiceTest extends TestCase
 
         /*
         |--------------------------------------------------------------------------
-        | Categoría
+        | CategorÃ­a
         |--------------------------------------------------------------------------
         */
 
@@ -199,7 +199,7 @@ class RegistroCostoUnidadServiceTest extends TestCase
     | Test 1
     |--------------------------------------------------------------------------
     |
-    | Debe guardar correctamente el primer cálculo
+    | Debe guardar correctamente el primer cÃ¡lculo
     | realizado sobre una unidad.
     |
     */
@@ -261,7 +261,7 @@ class RegistroCostoUnidadServiceTest extends TestCase
 
         /*
         |--------------------------------------------------------------------------
-        | Verificar relación
+        | Verificar relaciÃ³n
         |--------------------------------------------------------------------------
         */
 
@@ -279,8 +279,8 @@ class RegistroCostoUnidadServiceTest extends TestCase
     | Test 2
     |--------------------------------------------------------------------------
     |
-    | Un nuevo cálculo debe generar una nueva fotografía
-    | sin modificar el cálculo anterior.
+    | Un nuevo cÃ¡lculo debe generar una nueva fotografÃ­a
+    | sin modificar el cÃ¡lculo anterior.
     |
     */
 
@@ -305,7 +305,7 @@ class RegistroCostoUnidadServiceTest extends TestCase
 
         /*
         |--------------------------------------------------------------------------
-        | Primer cálculo
+        | Primer cÃ¡lculo
         |--------------------------------------------------------------------------
         */
 
@@ -318,7 +318,7 @@ class RegistroCostoUnidadServiceTest extends TestCase
 
         /*
         |--------------------------------------------------------------------------
-        | Crear costo logístico
+        | Crear costo logÃ­stico
         |--------------------------------------------------------------------------
         */
 
@@ -353,6 +353,8 @@ class RegistroCostoUnidadServiceTest extends TestCase
 
                 'fecha_costo' => '2026-08-30',
 
+                'estado' => 'ACTIVO',
+
             ]);
 
         /*
@@ -362,10 +364,10 @@ class RegistroCostoUnidadServiceTest extends TestCase
         |
         | Importante:
         |
-        | En esta etapa la unidad todavía puede no tener equipo_id,
-        | porque todavía se encuentra en el flujo de importación.
+        | En esta etapa la unidad todavÃ­a puede no tener equipo_id,
+        | porque todavÃ­a se encuentra en el flujo de importaciÃ³n.
         |
-        | Por eso la asignación se realiza mediante:
+        | Por eso la asignaciÃ³n se realiza mediante:
         |
         | unidad_adquirida_id
         |
@@ -393,7 +395,7 @@ class RegistroCostoUnidadServiceTest extends TestCase
 
         /*
         |--------------------------------------------------------------------------
-        | Segundo cálculo
+        | Segundo cÃ¡lculo
         |--------------------------------------------------------------------------
         */
 
@@ -417,7 +419,7 @@ class RegistroCostoUnidadServiceTest extends TestCase
 
         /*
         |--------------------------------------------------------------------------
-        | El primer cálculo permanece intacto
+        | El primer cÃ¡lculo permanece intacto
         |--------------------------------------------------------------------------
         */
 
@@ -430,19 +432,20 @@ class RegistroCostoUnidadServiceTest extends TestCase
 
         /*
         |--------------------------------------------------------------------------
-        | El segundo cálculo conserva separado el costo logístico del lote
+        | El segundo cÃ¡lculo incluye el costo logÃ­stico asignado,
+        | manteniÃ©ndolo separado dentro del desglose.
         |--------------------------------------------------------------------------
         */
 
         $this->assertEquals(
-            3500,
+            3700,
             $segundoHistorial
                 ->fresh()
                 ->costo_total
         );
 
         $this->assertEquals(
-            0,
+            200,
             $segundoHistorial
                 ->fresh()
                 ->costos_lote
@@ -450,7 +453,7 @@ class RegistroCostoUnidadServiceTest extends TestCase
 
         /*
         |--------------------------------------------------------------------------
-        | Deben existir dos fotografías
+        | Deben existir dos fotografÃ­as
         |--------------------------------------------------------------------------
         */
 
@@ -468,7 +471,7 @@ class RegistroCostoUnidadServiceTest extends TestCase
     |
     | Verifica que el servicio pueda obtener:
     |
-    | - último cálculo
+    | - Ãºltimo cÃ¡lculo
     | - historial completo
     |
     */
@@ -494,7 +497,7 @@ class RegistroCostoUnidadServiceTest extends TestCase
 
         /*
         |--------------------------------------------------------------------------
-        | Primer cálculo
+        | Primer cÃ¡lculo
         |--------------------------------------------------------------------------
         */
 
@@ -507,7 +510,7 @@ class RegistroCostoUnidadServiceTest extends TestCase
 
         /*
         |--------------------------------------------------------------------------
-        | Segundo cálculo
+        | Segundo cÃ¡lculo
         |--------------------------------------------------------------------------
         */
 
@@ -520,7 +523,7 @@ class RegistroCostoUnidadServiceTest extends TestCase
 
         /*
         |--------------------------------------------------------------------------
-        | Último cálculo
+        | Ãšltimo cÃ¡lculo
         |--------------------------------------------------------------------------
         */
 
