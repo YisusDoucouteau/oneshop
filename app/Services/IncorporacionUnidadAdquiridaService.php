@@ -4,6 +4,9 @@ namespace App\Services;
 
 use App\Exceptions\ReglaNegocioException;
 use App\Models\Almacen;
+use App\Models\CondicionFisica;
+use App\Models\EnvioImportacion;
+use App\Models\EnvioImportacionUnidad;
 use App\Models\UnidadAdquirida;
 use App\Models\User;
 use App\Models\IncorporacionUnidadAdquirida;
@@ -69,6 +72,7 @@ class IncorporacionUnidadAdquiridaService
                     'producto',
                     'detalleLote',
                     'almacenActual',
+                    'envioImportacionUnidad.envioImportacion',
                 ])
                 ->lockForUpdate()
                 ->find($unidadAdquiridaId);
@@ -115,6 +119,68 @@ class IncorporacionUnidadAdquiridaService
                 throw new ReglaNegocioException(
                     'La unidad adquirida ya se encuentra incorporada al inventario.'
                 );
+            }
+
+
+            /*
+            |--------------------------------------------------------------------------
+            | Cierre logístico previo
+            |--------------------------------------------------------------------------
+            |
+            | Una unidad proveniente de lote solamente puede formalizarse como Equipo
+            | después de que su traslado haya sido cerrado en destino.
+            |
+            | RECIBIDO_PARCIAL también es válido: una unidad que sí llegó físicamente
+            | puede incorporarse aunque otra unidad del mismo envío haya quedado
+            | faltante o exista otra diferencia logística.
+            |
+            */
+
+            if ($unidad->provieneDeLote()) {
+                $asignacionEnvio =
+                    $unidad->envioImportacionUnidad;
+
+                if (
+                    !$asignacionEnvio
+                    || !$asignacionEnvio->envioImportacion
+                ) {
+                    throw new ReglaNegocioException(
+                        'La unidad importada no tiene un envío logístico cerrado asociado.'
+                    );
+                }
+
+                $envio =
+                    $asignacionEnvio->envioImportacion;
+
+                if (
+                    !in_array(
+                        $envio->estado,
+                        [
+                            EnvioImportacion::ESTADO_RECIBIDO,
+                            EnvioImportacion::ESTADO_RECIBIDO_PARCIAL,
+                        ],
+                        true
+                    )
+                ) {
+                    throw new ReglaNegocioException(
+                        'La recepción del envío debe estar cerrada antes de incorporar la unidad al inventario.'
+                    );
+                }
+
+                if (
+                    !in_array(
+                        $asignacionEnvio->estado_recepcion,
+                        [
+                            EnvioImportacionUnidad::ESTADO_RECIBIDA,
+                            EnvioImportacionUnidad::ESTADO_INCIDENCIA,
+                        ],
+                        true
+                    )
+                ) {
+                    throw new ReglaNegocioException(
+                        'La unidad no figura como recibida físicamente en el cierre logístico.'
+                    );
+                }
             }
 
 
@@ -184,6 +250,41 @@ class IncorporacionUnidadAdquiridaService
 
                 throw new ReglaNegocioException(
                     'La unidad adquirida debe encontrarse en el almacén principal de Oruro para incorporarse al inventario.'
+                );
+            }
+
+
+            if (!$usuario->puedeOperarEnAlmacen($almacen->id)) {
+
+                throw new ReglaNegocioException(
+                    'El usuario no puede incorporar equipos en el almacén de destino de esta unidad.'
+                );
+            }
+
+
+            /*
+            |--------------------------------------------------------------------------
+            | Condición física
+            |--------------------------------------------------------------------------
+            */
+
+            if ($condicionFisicaId === null) {
+
+                throw new ReglaNegocioException(
+                    'Debe seleccionar la condición física con la que el equipo ingresará al inventario.'
+                );
+            }
+
+
+            $condicionFisica = CondicionFisica::query()
+                ->where('activo', true)
+                ->find($condicionFisicaId);
+
+
+            if (!$condicionFisica) {
+
+                throw new ReglaNegocioException(
+                    'La condición física seleccionada no existe o se encuentra inactiva.'
                 );
             }
 
@@ -258,7 +359,7 @@ class IncorporacionUnidadAdquiridaService
 
                     'condicion_fisica_id' => [
 
-                        'nullable',
+                        'required',
                         'integer',
 
                     ],

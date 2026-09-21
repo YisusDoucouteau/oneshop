@@ -8,6 +8,8 @@ use App\Models\CategoriaProducto;
 use App\Models\CondicionFisica;
 use App\Models\DetalleLote;
 use App\Models\Equipo;
+use App\Models\EnvioImportacion;
+use App\Models\EnvioImportacionUnidad;
 use App\Models\Marca;
 use App\Models\Producto;
 use App\Models\Proveedor;
@@ -49,9 +51,17 @@ class IncorporacionUnidadAdquiridaServiceTest extends TestCase
         |--------------------------------------------------------------------------
         */
 
+        $almacenOruro =
+            Almacen::query()
+                ->where('codigo', 'ORURO_PRINCIPAL')
+                ->where('activo', true)
+                ->firstOrFail();
+
         $this->usuarioOperativo =
             User::factory()->create([
                 'activo' => true,
+                'almacen_operativo_id' =>
+                    $almacenOruro->id,
             ]);
 
         $rolOperativo =
@@ -259,7 +269,7 @@ class IncorporacionUnidadAdquiridaServiceTest extends TestCase
     }
 
 
-    private function prepararUnidadRecibidaEnOruro(): UnidadAdquirida
+    private function prepararUnidadRecibidaEnOruro(bool $envioCerrado = true): UnidadAdquirida
     {
         $this->unidad->refresh();
 
@@ -297,9 +307,52 @@ class IncorporacionUnidadAdquiridaServiceTest extends TestCase
 
         $this->unidad->save();
 
+
+        /*
+         * La unidad importada debe conservar su contexto logístico.
+         * En producción esto lo crea el módulo de envíos; aquí se
+         * prepara de forma explícita para aislar la incorporación.
+         */
+
+        $almacenCochabamba =
+            Almacen::query()
+                ->where('codigo', 'COCHABAMBA')
+                ->where('activo', true)
+                ->firstOrFail();
+
+        $envio = EnvioImportacion::create([
+            'codigo' => 'ENV-INCORPORACION-TEST-001',
+            'almacen_origen_id' => $almacenCochabamba->id,
+            'almacen_destino_id' => $almacenOruro->id,
+            'estado' => $envioCerrado
+                ? EnvioImportacion::ESTADO_RECIBIDO
+                : EnvioImportacion::ESTADO_DESPACHADO,
+            'cantidad_bultos' => 1,
+            'fecha_despacho' => now()->subHour(),
+            'fecha_recepcion' => $envioCerrado
+                ? now()
+                : null,
+        ]);
+
+        EnvioImportacionUnidad::create([
+            'envio_importacion_id' => $envio->id,
+            'unidad_adquirida_id' => $this->unidad->id,
+            'incluye_cargador' => false,
+            'estado_recepcion' => $envioCerrado
+                ? EnvioImportacionUnidad::ESTADO_RECIBIDA
+                : EnvioImportacionUnidad::ESTADO_PENDIENTE,
+            'fecha_recepcion' => $envioCerrado
+                ? now()
+                : null,
+            'recibido_por_id' => $envioCerrado
+                ? $this->usuarioOperativo->id
+                : null,
+        ]);
+
         return $this->unidad->fresh([
             'producto',
             'almacenActual',
+            'envioImportacionUnidad.envioImportacion',
         ]);
     }
 
@@ -581,6 +634,94 @@ class IncorporacionUnidadAdquiridaServiceTest extends TestCase
     }
 
 
+    public function test_no_permite_incorporar_antes_de_cerrar_recepcion_del_envio(): void
+    {
+        $unidad =
+            $this->prepararUnidadRecibidaEnOruro(false);
+
+        $this->expectException(
+            ReglaNegocioException::class
+        );
+
+        $this->expectExceptionMessage(
+            'recepción del envío debe estar cerrada'
+        );
+
+        app(IncorporacionUnidadAdquiridaService::class)
+            ->incorporar(
+                $this->usuarioOperativo->id,
+                $unidad->id,
+                $this->obtenerCondicionFisicaId()
+            );
+    }
+
+
+    public function test_usuario_de_otra_sede_no_puede_incorporar_en_oruro(): void
+    {
+        $unidad =
+            $this->prepararUnidadRecibidaEnOruro();
+
+        $almacenCochabamba =
+            Almacen::query()
+                ->where('codigo', 'COCHABAMBA')
+                ->where('activo', true)
+                ->firstOrFail();
+
+        $usuarioCochabamba =
+            User::factory()->create([
+                'activo' => true,
+                'almacen_operativo_id' =>
+                    $almacenCochabamba->id,
+            ]);
+
+        $rolOperativo =
+            Rol::query()
+                ->where('codigo', 'ADMIN_OPERATIVO')
+                ->firstOrFail();
+
+        $usuarioCochabamba
+            ->roles()
+            ->attach($rolOperativo->id);
+
+        $this->expectException(
+            ReglaNegocioException::class
+        );
+
+        $this->expectExceptionMessage(
+            'no puede incorporar equipos en el almacén de destino'
+        );
+
+        app(IncorporacionUnidadAdquiridaService::class)
+            ->incorporar(
+                $usuarioCochabamba->id,
+                $unidad->id,
+                $this->obtenerCondicionFisicaId()
+            );
+    }
+
+
+    public function test_exige_condicion_fisica_activa_para_incorporar(): void
+    {
+        $unidad =
+            $this->prepararUnidadRecibidaEnOruro();
+
+        $this->expectException(
+            ReglaNegocioException::class
+        );
+
+        $this->expectExceptionMessage(
+            'Debe seleccionar la condición física'
+        );
+
+        app(IncorporacionUnidadAdquiridaService::class)
+            ->incorporar(
+                $this->usuarioOperativo->id,
+                $unidad->id,
+                null
+            );
+    }
+
+
     /*
     |--------------------------------------------------------------------------
     | Pruebas de integración con costeo
@@ -674,4 +815,75 @@ class IncorporacionUnidadAdquiridaServiceTest extends TestCase
                 ->costo_total
         );
     }
+
+    public function test_equipo_incorporado_conserva_acceso_al_costo_historico_de_origen_sin_duplicarlo(): void
+    {
+        $unidad =
+            $this->prepararUnidadRecibidaEnOruro();
+
+        $unidad =
+            app(IncorporacionUnidadAdquiridaService::class)
+                ->incorporar(
+                    $this->usuarioOperativo->id,
+                    $unidad->id,
+                    $this->obtenerCondicionFisicaId()
+                );
+
+        $equipo = Equipo::query()
+            ->with([
+                'incorporacionUnidad.unidadAdquirida.historialCostos',
+            ])
+            ->findOrFail($unidad->equipo_id);
+
+        $incorporacion =
+            $equipo->incorporacionUnidad;
+
+        $this->assertNotNull(
+            $incorporacion
+        );
+
+        $this->assertSame(
+            $unidad->id,
+            $incorporacion
+                ->unidad_adquirida_id
+        );
+
+        $unidadOrigen =
+            $incorporacion
+                ->unidadAdquirida;
+
+        $this->assertNotNull(
+            $unidadOrigen
+        );
+
+        $historial =
+            $unidadOrigen
+                ->historialCostos()
+                ->latest('fecha_calculo')
+                ->first();
+
+        $this->assertNotNull(
+            $historial
+        );
+
+        $this->assertSame(
+            $unidadOrigen->id,
+            $historial->unidad_adquirida_id
+        );
+
+        /*
+         * El costo de origen permanece en el historial de la unidad.
+         * No se duplica como movimiento en costos_equipos durante
+         * la incorporación. Los costos posteriores del equipo
+         * corresponden a una etapa distinta.
+         */
+        $this->assertDatabaseMissing(
+            'costos_equipos',
+            [
+                'equipo_id' =>
+                    $equipo->id,
+            ]
+        );
+    }
+
 }

@@ -252,7 +252,7 @@ class UnidadAdquiridaController extends Controller
             return back()
                 ->withErrors([
                     'almacen'=>
-                    'No existe el almacén COMPRAS_PENDIENTES'
+                    'No existe el almacÃ©n COMPRAS_PENDIENTES'
                 ])
                 ->withInput();
 
@@ -335,7 +335,7 @@ class UnidadAdquiridaController extends Controller
                 'unidades-adquiridas.index'
             )
             ->with(
-                'success', 
+                'success',
                 'Equipo  registrado correctamente.'
             );
 
@@ -357,7 +357,7 @@ public function show(
         'tipoCambioCompra',
 
         'almacenActual',
-    
+
         'envioImportacionUnidad.envioImportacion.almacenOrigen',
 'envioImportacionUnidad.envioImportacion.almacenDestino',
 'envioImportacionUnidad.envioImportacion.preparadoPor',
@@ -459,15 +459,34 @@ public function incorporar(
     ]);
 
 
-    $unidadActualizada =
-        $this->incorporacionService
-            ->incorporar(
-                $request->user()->id,
-                $unidad->id,
-                (int) $datos['condicion_fisica_id'],
-                $datos['serial_fabricante'] ?? null,
-                $datos['observacion'] ?? null
-            );
+    try {
+        $unidadActualizada =
+            $this->incorporacionService
+                ->incorporar(
+                    $request->user()->id,
+                    $unidad->id,
+                    (int) $datos['condicion_fisica_id'],
+                    $datos['serial_fabricante'] ?? null,
+                    $datos['observacion'] ?? null
+                );
+    } catch (ReglaNegocioException $exception) {
+        if ($request->expectsJson()) {
+            return response()->json([
+                'message' => $exception->getMessage(),
+                'errors' => [
+                    'incorporacion' => [
+                        $exception->getMessage(),
+                    ],
+                ],
+            ], 422);
+        }
+
+        return back()
+            ->withErrors([
+                'incorporacion' => $exception->getMessage(),
+            ])
+            ->withInput();
+    }
 
 
     $mensaje =
@@ -679,8 +698,8 @@ public function revision(
 
     $mensaje =
         ($datos['accion'] ?? 'FINALIZAR') === 'BORRADOR'
-            ? 'El borrador de revisión fue guardado correctamente.'
-            : 'La revisión técnica fue finalizada correctamente.';
+            ? 'El borrador de revisiÃ³n fue guardado correctamente.'
+            : 'La revisiÃ³n tÃ©cnica fue finalizada correctamente.';
 
 
     if ($request->expectsJson()) {
@@ -747,7 +766,7 @@ public function reabrirPreparacion(
             ->withInput();
     }
 
-    $mensaje = 'La preparación de la unidad fue reabierta correctamente.';
+    $mensaje = 'La preparaciÃ³n de la unidad fue reabierta correctamente.';
 
     if ($request->expectsJson()) {
         return response()->json([
