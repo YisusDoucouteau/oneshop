@@ -10,7 +10,7 @@ use InvalidArgumentException;
 class GestorPrecioEquipoService
 {
     public function __construct(
-        private MotorCosteoUnidadService $motorCosteoUnidadService,
+        private CostoRealEquipoService $costoRealEquipoService,
         private MotorPrecioEquipoService $motorPrecioEquipoService,
         private EvaluadorPoliticaDescuentoService $evaluadorPoliticaDescuentoService
     ) {
@@ -18,15 +18,6 @@ class GestorPrecioEquipoService
 
     /**
      * Realiza una evaluación integral de una propuesta de precio.
-     *
-     * Este servicio coordina:
-     *
-     * - costo real conocido del equipo
-     * - precio vigente
-     * - antigüedad comercial
-     * - utilidad
-     * - descuento
-     * - política de descuento aplicable
      *
      * No registra ni modifica precios.
      */
@@ -39,6 +30,8 @@ class GestorPrecioEquipoService
             ->with([
                 'producto',
                 'detalleLote',
+                'costos',
+                'incorporacionUnidad.unidadAdquirida',
                 'precios' => function ($query) {
                     $query
                         ->where('vigente', true)
@@ -57,11 +50,16 @@ class GestorPrecioEquipoService
 
         /*
         |--------------------------------------------------------------------------
-        | Costo real
+        | Costo real actual
         |--------------------------------------------------------------------------
         */
 
-        $costoReal = $this->obtenerCostoReal($equipo);
+        $desgloseCosto =
+            $this->costoRealEquipoService
+                ->calcular($equipo);
+
+        $costoReal =
+            (float) $desgloseCosto['costo_total'];
 
         /*
         |--------------------------------------------------------------------------
@@ -86,16 +84,16 @@ class GestorPrecioEquipoService
             : $fechaReferencia->copy();
 
         $diasAntiguedad = (int) max(
-    0,
-    $fechaDisponible
-        ->copy()
-        ->startOfDay()
-        ->diffInDays(
-            $fechaReferencia
+            0,
+            $fechaDisponible
                 ->copy()
                 ->startOfDay()
-        )
-);
+                ->diffInDays(
+                    $fechaReferencia
+                        ->copy()
+                        ->startOfDay()
+                )
+        );
 
         /*
         |--------------------------------------------------------------------------
@@ -150,10 +148,10 @@ class GestorPrecioEquipoService
                 $equipo->codigo_interno,
 
             'costo_real' =>
-                round(
-                    $costoReal,
-                    2
-                ),
+                round($costoReal, 2),
+
+            'costo_desglose' =>
+                $desgloseCosto,
 
             'precio_vigente' =>
                 $precioVigente
@@ -162,24 +160,21 @@ class GestorPrecioEquipoService
                             $precioVigente->id,
 
                         'precio_publico' =>
-                            (float)
-                            $precioVigente
+                            (float) $precioVigente
                                 ->precio_publico,
 
                         'precio_sugerido' =>
                             $precioVigente
                                 ->precio_sugerido !== null
-                                ? (float)
-                                    $precioVigente
-                                        ->precio_sugerido
+                                ? (float) $precioVigente
+                                    ->precio_sugerido
                                 : null,
 
                         'precio_minimo_autorizado' =>
                             $precioVigente
                                 ->precio_minimo_autorizado !== null
-                                ? (float)
-                                    $precioVigente
-                                        ->precio_minimo_autorizado
+                                ? (float) $precioVigente
+                                    ->precio_minimo_autorizado
                                 : null,
                     ]
                     : null,
@@ -189,8 +184,7 @@ class GestorPrecioEquipoService
                     $diasAntiguedad,
 
                 'fecha_disponible' =>
-                    $fechaDisponible
-                        ->toDateString(),
+                    $fechaDisponible->toDateString(),
             ],
 
             'propuesta' =>
@@ -209,39 +203,33 @@ class GestorPrecioEquipoService
                             $politica->nombre,
 
                         'dias_desde' =>
-                            (int)
-                            $politica->dias_desde,
+                            (int) $politica->dias_desde,
 
                         'dias_hasta' =>
                             $politica->dias_hasta !== null
-                                ? (int)
-                                    $politica->dias_hasta
+                                ? (int) $politica->dias_hasta
                                 : null,
 
                         'porcentaje_maximo' =>
                             $politica
                                 ->porcentaje_maximo !== null
-                                ? (float)
-                                    $politica
-                                        ->porcentaje_maximo
+                                ? (float) $politica
+                                    ->porcentaje_maximo
                                 : null,
 
                         'utilidad_minima_bob' =>
                             $politica
                                 ->utilidad_minima_bob !== null
-                                ? (float)
-                                    $politica
-                                        ->utilidad_minima_bob
+                                ? (float) $politica
+                                    ->utilidad_minima_bob
                                 : null,
 
                         'requiere_autorizacion' =>
-                            (bool)
-                            $politica
+                            (bool) $politica
                                 ->requiere_autorizacion,
 
                         'permite_precio_costo' =>
-                            (bool)
-                            $politica
+                            (bool) $politica
                                 ->permite_precio_costo,
                     ]
                     : null,
@@ -251,55 +239,6 @@ class GestorPrecioEquipoService
         ];
     }
 
-    /**
-     * Obtiene el costo real disponible para evaluar el equipo.
-     */
-    private function obtenerCostoReal(
-        Equipo $equipo
-    ): float {
-        $precioVigente =
-            $equipo->precios->first();
-
-        /*
-        |--------------------------------------------------------------------------
-        | Primera opción: snapshot del costo real
-        |--------------------------------------------------------------------------
-        */
-
-        if (
-            $precioVigente &&
-            $precioVigente->costo_total_snapshot !== null
-        ) {
-            return (float)
-                $precioVigente
-                    ->costo_total_snapshot;
-        }
-
-        /*
-        |--------------------------------------------------------------------------
-        | Segunda opción: costo unitario del lote
-        |--------------------------------------------------------------------------
-        */
-
-        if (
-            $equipo->detalleLote &&
-            $equipo
-                ->detalleLote
-                ->costo_unitario_bob !== null
-        ) {
-            return (float)
-                $equipo
-                    ->detalleLote
-                    ->costo_unitario_bob;
-        }
-
-        return 0.0;
-    }
-
-    /**
-     * Busca la política de descuento vigente correspondiente
-     * a la antigüedad del equipo.
-     */
     private function buscarPolitica(
         Equipo $equipo,
         int $diasAntiguedad,
@@ -365,12 +304,6 @@ class GestorPrecioEquipoService
                 }
             })
 
-            /*
-            |--------------------------------------------------------------------------
-            | Las políticas específicas de categoría tienen prioridad.
-            |--------------------------------------------------------------------------
-            */
-
             ->orderByRaw(
                 'CASE
                     WHEN categoria_producto_id IS NULL
@@ -379,10 +312,7 @@ class GestorPrecioEquipoService
                  END'
             )
 
-            ->orderByDesc(
-                'dias_desde'
-            )
-
+            ->orderByDesc('dias_desde')
             ->first();
     }
 }
