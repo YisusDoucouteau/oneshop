@@ -8,10 +8,12 @@ use App\Models\Equipo;
 use App\Models\EstadoEquipo;
 use App\Models\PrecioEquipo;
 use App\Models\Producto;
+use App\Services\CostoRealEquipoService;
 use App\Services\RegistroPrecioEquipoService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Str;
 use InvalidArgumentException;
+use Mockery;
 use Tests\TestCase;
 
 class RegistroPrecioEquipoServiceTest extends TestCase
@@ -25,74 +27,112 @@ class RegistroPrecioEquipoServiceTest extends TestCase
     */
 
     private function crearEquipo(): Equipo
-{
-    $categoria = CategoriaProducto::create([
-        'codigo' => 'LAPTOP-' . Str::uuid(),
-        'nombre' => 'Laptops',
-        'descripcion' => 'Categoría para pruebas de precios.',
-        'activo' => true,
-    ]);
+    {
+        $categoria = CategoriaProducto::create([
+            'codigo' => 'LAPTOP-' . Str::uuid(),
+            'nombre' => 'Laptops',
+            'descripcion' => 'Categoría para pruebas de precios.',
+            'activo' => true,
+        ]);
 
-    $almacen = Almacen::create([
-        'codigo' => 'ORURO-TEST-' . Str::uuid(),
-        'nombre' => 'Almacén Oruro Prueba',
-        'ciudad' => 'Oruro',
-        'direccion' => 'Dirección de prueba',
-        'principal' => true,
-        'activo' => true,
-    ]);
+        $almacen = Almacen::create([
+            'codigo' => 'ORURO-TEST-' . Str::uuid(),
+            'nombre' => 'Almacén Oruro Prueba',
+            'ciudad' => 'Oruro',
+            'direccion' => 'Dirección de prueba',
+            'principal' => true,
+            'activo' => true,
+        ]);
 
-    $estadoDisponible = EstadoEquipo::create([
-        'codigo' => 'DISPONIBLE-' . Str::uuid(),
-        'nombre' => 'Disponible',
-        'descripcion' => 'Estado disponible para pruebas.',
-        'es_final' => false,
-        'orden' => 1,
-        'activo' => true,
-    ]);
+        $estadoDisponible = EstadoEquipo::create([
+            'codigo' => 'DISPONIBLE-' . Str::uuid(),
+            'nombre' => 'Disponible',
+            'descripcion' => 'Estado disponible para pruebas.',
+            'es_final' => false,
+            'orden' => 1,
+            'activo' => true,
+        ]);
 
-    $producto = Producto::create([
-        'categoria_producto_id' => $categoria->id,
-        'marca_id' => null,
-        'codigo' => 'PROD-' . Str::uuid(),
-        'nombre' => 'Laptop prueba precio',
-        'modelo' => 'TEST',
-        'descripcion' => null,
-        'es_serializado' => true,
-        'activo' => true,
-    ]);
+        $producto = Producto::create([
+            'categoria_producto_id' => $categoria->id,
+            'marca_id' => null,
+            'codigo' => 'PROD-' . Str::uuid(),
+            'nombre' => 'Laptop prueba precio',
+            'modelo' => 'TEST',
+            'descripcion' => null,
+            'es_serializado' => true,
+            'activo' => true,
+        ]);
 
-    return Equipo::create([
-        'producto_id' => $producto->id,
-        'detalle_lote_id' => null,
-        'almacen_actual_id' => $almacen->id,
-        'estado_actual_id' => $estadoDisponible->id,
-        'condicion_fisica_id' => null,
-        'codigo_interno' => 'EQ-' . Str::uuid(),
-        'serial_fabricante' => null,
-        'fecha_registro' => now(),
-        'fecha_disponible' => now(),
-        'observacion' => null,
-        'activo' => true,
-    ]);
-}
+        return Equipo::create([
+            'producto_id' => $producto->id,
+            'detalle_lote_id' => null,
+            'almacen_actual_id' => $almacen->id,
+            'estado_actual_id' => $estadoDisponible->id,
+            'condicion_fisica_id' => null,
+            'codigo_interno' => 'EQ-' . Str::uuid(),
+            'serial_fabricante' => null,
+            'fecha_registro' => now(),
+            'fecha_disponible' => now(),
+            'observacion' => null,
+            'activo' => true,
+        ]);
+    }
+
+    private function desgloseCosto(
+        float $costo
+    ): array {
+        return [
+            'equipo_id' => 1,
+            'costo_base' => $costo,
+            'costos_posteriores' => 0.0,
+            'costo_total' => $costo,
+            'fuente_base' => 'TEST',
+            'completo' => true,
+            'advertencias' => [],
+        ];
+    }
+
+    private function servicioConCosto(
+        float $costo
+    ): RegistroPrecioEquipoService {
+        $mock =
+            Mockery::mock(
+                CostoRealEquipoService::class
+            );
+
+        $mock
+            ->shouldReceive('calcular')
+            ->once()
+            ->andReturn(
+                $this->desgloseCosto($costo)
+            );
+
+        $this->app->instance(
+            CostoRealEquipoService::class,
+            $mock
+        );
+
+        return app(
+            RegistroPrecioEquipoService::class
+        );
+    }
+
     /*
     |--------------------------------------------------------------------------
     | Registro básico
     |--------------------------------------------------------------------------
     */
 
-    public function test_registra_precio_para_un_equipo(): void
+    public function test_registra_precio_para_un_equipo_usando_el_costo_calculado_por_el_sistema(): void
     {
         $equipo = $this->crearEquipo();
 
-        $servicio = app(
-            RegistroPrecioEquipoService::class
-        );
+        $servicio =
+            $this->servicioConCosto(4300);
 
         $precio = $servicio->registrar(
             $equipo->id,
-            4300,
             5200,
             5000,
             4700
@@ -122,9 +162,27 @@ class RegistroPrecioEquipoServiceTest extends TestCase
     |--------------------------------------------------------------------------
     */
 
-    public function test_nuevo_precio_cierra_el_anterior(): void
+    public function test_nuevo_precio_cierra_el_anterior_y_toma_un_nuevo_snapshot_de_costo(): void
     {
         $equipo = $this->crearEquipo();
+
+        $mock =
+            Mockery::mock(
+                CostoRealEquipoService::class
+            );
+
+        $mock
+            ->shouldReceive('calcular')
+            ->twice()
+            ->andReturn(
+                $this->desgloseCosto(4000),
+                $this->desgloseCosto(4100)
+            );
+
+        $this->app->instance(
+            CostoRealEquipoService::class,
+            $mock
+        );
 
         $servicio = app(
             RegistroPrecioEquipoService::class
@@ -132,14 +190,12 @@ class RegistroPrecioEquipoServiceTest extends TestCase
 
         $primero = $servicio->registrar(
             $equipo->id,
-            4000,
             5000,
             4800
         );
 
         $segundo = $servicio->registrar(
             $equipo->id,
-            4100,
             5200,
             5000
         );
@@ -148,6 +204,7 @@ class RegistroPrecioEquipoServiceTest extends TestCase
             'precios_equipos',
             [
                 'id' => $primero->id,
+                'costo_total_snapshot' => 4000,
                 'vigente' => 0,
             ]
         );
@@ -156,6 +213,7 @@ class RegistroPrecioEquipoServiceTest extends TestCase
             'precios_equipos',
             [
                 'id' => $segundo->id,
+                'costo_total_snapshot' => 4100,
                 'vigente' => 1,
             ]
         );
@@ -182,13 +240,11 @@ class RegistroPrecioEquipoServiceTest extends TestCase
     {
         $equipo = $this->crearEquipo();
 
-        $servicio = app(
-            RegistroPrecioEquipoService::class
-        );
+        $servicio =
+            $this->servicioConCosto(4300);
 
         $precio = $servicio->registrar(
             $equipo->id,
-            4300,
             5200,
             5650
         );
@@ -204,28 +260,15 @@ class RegistroPrecioEquipoServiceTest extends TestCase
         );
     }
 
-    /*
-    |--------------------------------------------------------------------------
-    | Caso excepcional
-    |--------------------------------------------------------------------------
-    |
-    | Daniel puede establecer un precio público superior
-    | al precio sugerido cuando exista una decisión
-    | administrativa particular.
-    |
-    */
-
     public function test_permite_precio_publico_superior_al_sugerido(): void
     {
         $equipo = $this->crearEquipo();
 
-        $servicio = app(
-            RegistroPrecioEquipoService::class
-        );
+        $servicio =
+            $this->servicioConCosto(2200);
 
         $precio = $servicio->registrar(
             $equipo->id,
-            2200,
             2500,
             2900
         );
@@ -243,7 +286,7 @@ class RegistroPrecioEquipoServiceTest extends TestCase
 
     /*
     |--------------------------------------------------------------------------
-    | Precio mínimo autorizado
+    | Validaciones
     |--------------------------------------------------------------------------
     */
 
@@ -251,9 +294,8 @@ class RegistroPrecioEquipoServiceTest extends TestCase
     {
         $equipo = $this->crearEquipo();
 
-        $servicio = app(
-            RegistroPrecioEquipoService::class
-        );
+        $servicio =
+            $this->servicioConCosto(4300);
 
         $this->expectException(
             InvalidArgumentException::class
@@ -261,26 +303,18 @@ class RegistroPrecioEquipoServiceTest extends TestCase
 
         $servicio->registrar(
             $equipo->id,
-            4300,
             5200,
             5000,
             5100
         );
     }
 
-    /*
-    |--------------------------------------------------------------------------
-    | Precio público inválido
-    |--------------------------------------------------------------------------
-    */
-
     public function test_no_permite_precio_publico_cero(): void
     {
         $equipo = $this->crearEquipo();
 
-        $servicio = app(
-            RegistroPrecioEquipoService::class
-        );
+        $servicio =
+            $this->servicioConCosto(4300);
 
         $this->expectException(
             InvalidArgumentException::class
@@ -288,7 +322,6 @@ class RegistroPrecioEquipoServiceTest extends TestCase
 
         $servicio->registrar(
             $equipo->id,
-            4300,
             5200,
             0
         );
@@ -298,9 +331,8 @@ class RegistroPrecioEquipoServiceTest extends TestCase
     {
         $equipo = $this->crearEquipo();
 
-        $servicio = app(
-            RegistroPrecioEquipoService::class
-        );
+        $servicio =
+            $this->servicioConCosto(4300);
 
         $this->expectException(
             InvalidArgumentException::class
@@ -308,25 +340,17 @@ class RegistroPrecioEquipoServiceTest extends TestCase
 
         $servicio->registrar(
             $equipo->id,
-            4300,
             5200,
             -100
         );
     }
 
-    /*
-    |--------------------------------------------------------------------------
-    | Costo inválido
-    |--------------------------------------------------------------------------
-    */
-
-    public function test_no_permite_costo_negativo(): void
+    public function test_no_permite_costo_calculado_negativo(): void
     {
         $equipo = $this->crearEquipo();
 
-        $servicio = app(
-            RegistroPrecioEquipoService::class
-        );
+        $servicio =
+            $this->servicioConCosto(-1);
 
         $this->expectException(
             InvalidArgumentException::class
@@ -334,25 +358,17 @@ class RegistroPrecioEquipoServiceTest extends TestCase
 
         $servicio->registrar(
             $equipo->id,
-            -1,
             5200,
             5000
         );
     }
-
-    /*
-    |--------------------------------------------------------------------------
-    | Precio sugerido inválido
-    |--------------------------------------------------------------------------
-    */
 
     public function test_no_permite_precio_sugerido_negativo(): void
     {
         $equipo = $this->crearEquipo();
 
-        $servicio = app(
-            RegistroPrecioEquipoService::class
-        );
+        $servicio =
+            $this->servicioConCosto(4300);
 
         $this->expectException(
             InvalidArgumentException::class
@@ -360,25 +376,17 @@ class RegistroPrecioEquipoServiceTest extends TestCase
 
         $servicio->registrar(
             $equipo->id,
-            4300,
             -1,
             5000
         );
     }
 
-    /*
-    |--------------------------------------------------------------------------
-    | Precio mínimo negativo
-    |--------------------------------------------------------------------------
-    */
-
     public function test_no_permite_precio_minimo_negativo(): void
     {
         $equipo = $this->crearEquipo();
 
-        $servicio = app(
-            RegistroPrecioEquipoService::class
-        );
+        $servicio =
+            $this->servicioConCosto(4300);
 
         $this->expectException(
             InvalidArgumentException::class
@@ -386,18 +394,11 @@ class RegistroPrecioEquipoServiceTest extends TestCase
 
         $servicio->registrar(
             $equipo->id,
-            4300,
             5200,
             5000,
             -100
         );
     }
-
-    /*
-    |--------------------------------------------------------------------------
-    | Equipo inexistente
-    |--------------------------------------------------------------------------
-    */
 
     public function test_no_permite_registrar_precio_para_equipo_inexistente(): void
     {
@@ -411,7 +412,6 @@ class RegistroPrecioEquipoServiceTest extends TestCase
 
         $servicio->registrar(
             999999,
-            4300,
             5200,
             5000
         );
@@ -427,13 +427,11 @@ class RegistroPrecioEquipoServiceTest extends TestCase
     {
         $equipo = $this->crearEquipo();
 
-        $servicio = app(
-            RegistroPrecioEquipoService::class
-        );
+        $servicio =
+            $this->servicioConCosto(4300);
 
         $precio = $servicio->registrar(
             $equipo->id,
-            4300,
             5200,
             5000
         );

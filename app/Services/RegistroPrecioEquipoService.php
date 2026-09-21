@@ -9,8 +9,16 @@ use InvalidArgumentException;
 
 class RegistroPrecioEquipoService
 {
+    public function __construct(
+        private CostoRealEquipoService $costoRealEquipoService
+    ) {
+    }
+
     /**
      * Registra un nuevo precio para un equipo.
+     *
+     * El costo real NO se recibe desde formularios ni controladores:
+     * se calcula dentro del servicio y se guarda como snapshot.
      *
      * El precio sugerido es orientativo.
      * El precio público es decidido por administración.
@@ -20,7 +28,6 @@ class RegistroPrecioEquipoService
      */
     public function registrar(
         int $equipoId,
-        float $costoReal,
         float $precioSugerido,
         float $precioPublico,
         ?float $precioMinimoAutorizado = null,
@@ -30,7 +37,6 @@ class RegistroPrecioEquipoService
     ): PrecioEquipo {
         return DB::transaction(function () use (
             $equipoId,
-            $costoReal,
             $precioSugerido,
             $precioPublico,
             $precioMinimoAutorizado,
@@ -57,15 +63,35 @@ class RegistroPrecioEquipoService
 
             /*
             |--------------------------------------------------------------------------
-            | Validaciones económicas
+            | Costo real calculado por el sistema
             |--------------------------------------------------------------------------
+            |
+            | Nunca confiamos en un costo enviado por el cliente.
+            | El snapshot se toma del costo real conocido exactamente
+            | en el momento en que se registra el nuevo precio.
             */
+
+            $desgloseCosto =
+                $this->costoRealEquipoService
+                    ->calcular($equipo);
+
+            $costoReal =
+                (float) (
+                    $desgloseCosto['costo_total']
+                    ?? 0
+                );
 
             if ($costoReal < 0) {
                 throw new InvalidArgumentException(
-                    'El costo real no puede ser negativo.'
+                    'El costo real calculado no puede ser negativo.'
                 );
             }
+
+            /*
+            |--------------------------------------------------------------------------
+            | Validaciones económicas
+            |--------------------------------------------------------------------------
+            */
 
             if ($precioSugerido < 0) {
                 throw new InvalidArgumentException(
@@ -195,9 +221,6 @@ class RegistroPrecioEquipoService
 
     /**
      * Cierra el precio vigente de un equipo.
-     *
-     * Se utiliza cuando un precio deja de estar vigente
-     * sin necesidad de crear inmediatamente otro precio.
      */
     public function cerrarVigente(
         int $equipoId
