@@ -11,10 +11,12 @@ use App\Models\PoliticaDescuento;
 use App\Models\PrecioEquipo;
 use App\Models\Producto;
 use App\Models\TransicionEstadoEquipo;
+use App\Models\TipoMovimientoInventario;
 use App\Models\User;
 use App\Models\PoliticaGarantia;
 use App\Services\ProcesadorVentaService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Tests\TestCase;
 
@@ -122,7 +124,27 @@ class ProcesadorVentaServiceTest extends TestCase
 
 
 
-        return Equipo::create([
+        /*
+         * VentaService registra ahora la salida física de inventario
+         * mediante el tipo VENTA_DIRECTA. Este test construye su propio
+         * catálogo mínimo, por lo que también debe incluir ese movimiento.
+         */
+        TipoMovimientoInventario::firstOrCreate(
+            [
+                'codigo' =>
+                    'VENTA_DIRECTA',
+            ],
+            [
+                'nombre' =>
+                    'Venta directa',
+                'activo' =>
+                    true,
+            ]
+        );
+
+
+
+        $equipo = Equipo::create([
 
             'producto_id' =>
                 $producto->id,
@@ -139,6 +161,38 @@ class ProcesadorVentaServiceTest extends TestCase
             'activo' =>
                 true,
         ]);
+
+
+
+        /*
+         * El equipo está DISPONIBLE, por lo que el fixture también
+         * debe reflejar una unidad disponible en existencias.
+         * VentaService descuenta esa unidad al registrar VENTA_DIRECTA.
+         */
+        DB::table('existencias_productos')
+            ->insert([
+                'producto_id' =>
+                    $producto->id,
+
+                'almacen_id' =>
+                    $almacen->id,
+
+                'cantidad_disponible' =>
+                    1,
+
+                'cantidad_reservada' =>
+                    0,
+
+                'created_at' =>
+                    now(),
+
+                'updated_at' =>
+                    now(),
+            ]);
+
+
+
+        return $equipo;
     }
 
 

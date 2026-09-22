@@ -291,6 +291,39 @@ class VentaService
                             null,
                     ]);
 
+                /*
+                 * Venta directa:
+                 * la unidad sale de la cantidad disponible del almacén.
+                 * Este movimiento debe ocurrir dentro de la misma transacción
+                 * que crea la venta para evitar ventas sin salida física.
+                 */
+                $this->movimientoInventarioService
+                    ->registrarSalida(
+                        productoId:
+                            $equipo->producto_id,
+
+                        almacenId:
+                            $equipo->almacen_actual_id,
+
+                        cantidad:
+                            1,
+
+                        tipoCodigo:
+                            'VENTA_DIRECTA',
+
+                        usuarioId:
+                            $vendedor->id,
+
+                        tipoReferencia:
+                            'VENTA_DIRECTA',
+
+                        referenciaId:
+                            $venta->id,
+
+                        observacion:
+                            "Venta directa {$venta->numero}"
+                    );
+
                 $this->estadoEquipoService
                     ->cambiarEstado(
                         equipoId:
