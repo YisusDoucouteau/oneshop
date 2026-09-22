@@ -16,7 +16,7 @@ use Illuminate\Support\Str;
 use Mockery;
 use Tests\TestCase;
 
-class PrecioEquipoWebTest extends TestCase
+class PrecioEquipoAjaxTest extends TestCase
 {
     use RefreshDatabase;
 
@@ -31,12 +31,12 @@ class PrecioEquipoWebTest extends TestCase
         $this->seed();
 
         $this->admin =
-            $this->crearUsuarioConRol(
+            $this->usuarioConRol(
                 'ADMIN_OPERATIVO'
             );
 
         $this->vendedor =
-            $this->crearUsuarioConRol(
+            $this->usuarioConRol(
                 'VENDEDOR'
             );
 
@@ -51,59 +51,114 @@ class PrecioEquipoWebTest extends TestCase
                 null,
 
             'costo_total_snapshot' =>
-                4050,
+                3827,
 
             'precio_sugerido' =>
-                4550,
+                5900,
 
             'precio_publico' =>
-                4550,
+                5900,
 
             'precio_minimo_autorizado' =>
-                4250,
+                5200,
 
             'vigente_desde' =>
-                now()->subDay(),
-
-            'vigente_hasta' =>
-                null,
+                now(),
 
             'vigente' =>
                 true,
 
             'aprobado_por_id' =>
                 $this->admin->id,
-
-            'observacion' =>
-                'Precio inicial.',
         ]);
     }
 
-    public function test_admin_puede_abrir_gestion_de_precio(): void
+    public function test_vendedor_recibe_ganancia_pero_no_reparto_en_json(): void
     {
-        $this
-            ->actingAs($this->admin)
-            ->get(
-                route(
-                    'precios.equipos.show',
-                    $this->equipo
-                )
-            )
+        $this->mockCosto(3827);
+
+        $response =
+            $this
+                ->actingAs($this->vendedor)
+                ->postJson(
+                    route(
+                        'precios.equipos.evaluar-json',
+                        $this->equipo
+                    ),
+                    [
+                        'precio_rebaja' =>
+                            5300,
+                    ]
+                );
+
+        $response
             ->assertOk()
-            ->assertSee('Evaluar rebaja')
-            ->assertSee('Administración del precio')
-            ->assertSee('Historial de precios');
+            ->assertJson([
+                'ok' =>
+                    true,
+
+                'ganancia' =>
+                    491.0,
+            ]);
+
+        $response
+            ->assertJsonMissingPath(
+                'reparto'
+            )
+            ->assertJsonMissingPath(
+                'margen_total'
+            );
     }
 
-    public function test_vendedor_ve_ganancia_pero_no_reparto_administrativo(): void
+    public function test_admin_recibe_reparto_administrativo(): void
     {
-        $this->mockCostoComercial(3827);
+        $this->mockCosto(3827);
+
+        $this
+            ->actingAs($this->admin)
+            ->postJson(
+                route(
+                    'precios.equipos.evaluar-json',
+                    $this->equipo
+                ),
+                [
+                    'precio_rebaja' =>
+                        5300,
+                ]
+            )
+            ->assertOk()
+            ->assertJson([
+                'ok' =>
+                    true,
+
+                'ganancia' =>
+                    491.0,
+
+                'margen_total' =>
+                    1473.0,
+
+                'reparto' => [
+                    'hugo' =>
+                        491.0,
+
+                    'daniel' =>
+                        491.0,
+
+                    'tienda' =>
+                        491.0,
+                ],
+            ]);
+    }
+
+    public function test_no_evalua_si_costo_es_cero(): void
+    {
+        $this->mockCosto(0);
 
         $this
             ->actingAs($this->vendedor)
-            ->post(
+            ->postJson(
                 route(
-                    'precios.equipos.evaluar',
+                    'precios.equipos.evaluar-json',
                     $this->equipo
                 ),
                 [
@@ -111,41 +166,14 @@ class PrecioEquipoWebTest extends TestCase
                         5300,
                 ]
             )
-            ->assertOk()
-            ->assertSee('Ganancia')
-            ->assertDontSee('Ver detalle administrativo')
-            ->assertDontSee('Margen total:')
-            ->assertDontSee('Administración del precio')
-            ->assertDontSee('Historial de precios');
+            ->assertStatus(422)
+            ->assertJson([
+                'ok' =>
+                    false,
+            ]);
     }
 
-    public function test_admin_ve_reparto_hugo_daniel_tienda(): void
-    {
-        $this->mockCostoComercial(3827);
-
-        $this
-            ->actingAs($this->admin)
-            ->post(
-                route(
-                    'precios.equipos.evaluar',
-                    $this->equipo
-                ),
-                [
-                    'precio_rebaja' =>
-                        5300,
-                ]
-            )
-            ->assertOk()
-            ->assertSee('Ganancia')
-            ->assertSee('Ver detalle administrativo')
-            ->assertSee('Hugo')
-            ->assertSee('Daniel')
-            ->assertSee('Tienda')
-            ->assertSee('Administración del precio')
-            ->assertSee('Historial de precios');
-    }
-
-    private function mockCostoComercial(
+    private function mockCosto(
         float $costo
     ): void {
         $mock =
@@ -199,19 +227,20 @@ class PrecioEquipoWebTest extends TestCase
         );
     }
 
-    private function crearUsuarioConRol(
-        string $codigoRol
+    private function usuarioConRol(
+        string $codigo
     ): User {
         $usuario =
             User::factory()->create([
-                'activo' => true,
+                'activo' =>
+                    true,
             ]);
 
         $rol =
             Rol::query()
                 ->where(
                     'codigo',
-                    $codigoRol
+                    $codigo
                 )
                 ->firstOrFail();
 
@@ -227,12 +256,12 @@ class PrecioEquipoWebTest extends TestCase
         $categoria =
             CategoriaProducto::create([
                 'codigo' =>
-                    'WEB-PRECIO-' . Str::upper(
+                    'AJAX-' . Str::upper(
                         Str::random(8)
                     ),
 
                 'nombre' =>
-                    'Laptops web precio',
+                    'Laptops AJAX',
 
                 'activo' =>
                     true,
@@ -241,12 +270,12 @@ class PrecioEquipoWebTest extends TestCase
         $almacen =
             Almacen::create([
                 'codigo' =>
-                    'ORURO-WEB-' . Str::upper(
+                    'ALM-' . Str::upper(
                         Str::random(8)
                     ),
 
                 'nombre' =>
-                    'Almacén web precios',
+                    'Almacén AJAX',
 
                 'ciudad' =>
                     'Oruro',
@@ -261,7 +290,7 @@ class PrecioEquipoWebTest extends TestCase
         $estado =
             EstadoEquipo::create([
                 'codigo' =>
-                    'DISP-WEB-' . Str::upper(
+                    'EST-' . Str::upper(
                         Str::random(8)
                     ),
 
@@ -290,7 +319,7 @@ class PrecioEquipoWebTest extends TestCase
                     'PROD-' . Str::uuid(),
 
                 'nombre' =>
-                    'Laptop gestión precio',
+                    'Laptop AJAX',
 
                 'modelo' =>
                     'TEST',
@@ -306,17 +335,11 @@ class PrecioEquipoWebTest extends TestCase
             'producto_id' =>
                 $producto->id,
 
-            'detalle_lote_id' =>
-                null,
-
             'almacen_actual_id' =>
                 $almacen->id,
 
             'estado_actual_id' =>
                 $estado->id,
-
-            'condicion_fisica_id' =>
-                null,
 
             'codigo_interno' =>
                 'EQ-' . Str::uuid(),

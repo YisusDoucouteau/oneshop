@@ -624,7 +624,58 @@ Route::post(
 | La ruta dinámica siempre al final
 |--------------------------------------------------------------------------
 */
+/*
+|--------------------------------------------------------------------------
+| FASE 7.3C2 - TIPO DE CAMBIO COMERCIAL
+|--------------------------------------------------------------------------
+|
+|
+*/
 
+Route::post(
+    '/inventario/{equipo:codigo_interno}/precio/tipo-cambio',
+    [PrecioEquipoController::class, 'actualizarTipoCambio']
+)
+->middleware('permiso:precios.modificar')
+->name('precios.equipos.tipo-cambio');
+/*
+|--------------------------------------------------------------------------
+| FASE 7.3C3 - EVALUACIÓN AJAX Y TC GLOBAL
+|--------------------------------------------------------------------------
+|
+| Agregar junto a las demás rutas de precios y antes de:
+| /inventario/{equipo:codigo_interno}
+|
+*/
+
+Route::post(
+    '/inventario/{equipo:codigo_interno}/precio/evaluar-json',
+    [PrecioEquipoController::class, 'evaluarAjax']
+)
+->middleware('permiso:precios.ver')
+->name('precios.equipos.evaluar-json');
+
+Route::post(
+    '/precios/tipo-cambio',
+    [PrecioEquipoController::class, 'actualizarTipoCambioGlobal']
+)
+->middleware('permiso:precios.modificar')
+->name('precios.tipo-cambio.store');
+
+/*
+|--------------------------------------------------------------------------
+| IMPORTANTE
+|--------------------------------------------------------------------------
+|
+| Si agregaste en 7.3C2 la ruta anterior:
+|
+| /inventario/{equipo:codigo_interno}/precio/tipo-cambio
+| -> precios.equipos.tipo-cambio
+|
+| puedes ELIMINARLA. El tipo de cambio ahora es explícitamente GLOBAL,
+| no pertenece a un equipo.
+|
+*/
 
 /*
 |--------------------------------------------------------------------------

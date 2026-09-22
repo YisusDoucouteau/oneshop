@@ -10,21 +10,16 @@ use InvalidArgumentException;
 class RegistroPrecioEquipoService
 {
     public function __construct(
-        private CostoRealEquipoService $costoRealEquipoService
+        private CostoComercialActualService $costoComercialActualService
     ) {
     }
 
     /**
      * Registra un nuevo precio para un equipo.
      *
-     * El costo real NO se recibe desde formularios ni controladores:
-     * se calcula dentro del servicio y se guarda como snapshot.
-     *
-     * El precio sugerido es orientativo.
-     * El precio público es decidido por administración.
-     *
-     * Si el equipo ya posee un precio vigente,
-     * este se cierra antes de registrar el nuevo.
+     * El snapshot económico se calcula server-side utilizando el costo
+     * comercial actual. Si el equipo usa moneda extranjera, también se
+     * conserva el tipo de cambio utilizado en ese momento.
      */
     public function registrar(
         int $equipoId,
@@ -45,12 +40,6 @@ class RegistroPrecioEquipoService
             $observacion
         ) {
 
-            /*
-            |--------------------------------------------------------------------------
-            | Equipo
-            |--------------------------------------------------------------------------
-            */
-
             $equipo = Equipo::query()
                 ->lockForUpdate()
                 ->find($equipoId);
@@ -61,18 +50,8 @@ class RegistroPrecioEquipoService
                 );
             }
 
-            /*
-            |--------------------------------------------------------------------------
-            | Costo real calculado por el sistema
-            |--------------------------------------------------------------------------
-            |
-            | Nunca confiamos en un costo enviado por el cliente.
-            | El snapshot se toma del costo real conocido exactamente
-            | en el momento en que se registra el nuevo precio.
-            */
-
             $desgloseCosto =
-                $this->costoRealEquipoService
+                $this->costoComercialActualService
                     ->calcular($equipo);
 
             $costoReal =
@@ -81,17 +60,19 @@ class RegistroPrecioEquipoService
                     ?? 0
                 );
 
+            /*
+             * Si existe un tipo de cambio comercial calculado por el sistema,
+             * tiene prioridad sobre cualquier id suministrado externamente.
+             */
+            $tipoCambioId =
+                $desgloseCosto['tipo_cambio_id']
+                ?? $tipoCambioId;
+
             if ($costoReal < 0) {
                 throw new InvalidArgumentException(
-                    'El costo real calculado no puede ser negativo.'
+                    'El costo calculado no puede ser negativo.'
                 );
             }
-
-            /*
-            |--------------------------------------------------------------------------
-            | Validaciones económicas
-            |--------------------------------------------------------------------------
-            */
 
             if ($precioSugerido < 0) {
                 throw new InvalidArgumentException(
@@ -123,12 +104,6 @@ class RegistroPrecioEquipoService
                 );
             }
 
-            /*
-            |--------------------------------------------------------------------------
-            | Cierre del precio vigente anterior
-            |--------------------------------------------------------------------------
-            */
-
             $precioAnterior = PrecioEquipo::query()
                 ->where('equipo_id', $equipo->id)
                 ->where('vigente', true)
@@ -142,12 +117,6 @@ class RegistroPrecioEquipoService
                     'vigente_hasta' => now(),
                 ]);
             }
-
-            /*
-            |--------------------------------------------------------------------------
-            | Registro del nuevo precio
-            |--------------------------------------------------------------------------
-            */
 
             $precio = PrecioEquipo::create([
                 'equipo_id' =>
@@ -206,9 +175,6 @@ class RegistroPrecioEquipoService
         });
     }
 
-    /**
-     * Obtiene el precio vigente de un equipo.
-     */
     public function obtenerVigente(
         int $equipoId
     ): ?PrecioEquipo {
@@ -219,9 +185,6 @@ class RegistroPrecioEquipoService
             ->first();
     }
 
-    /**
-     * Cierra el precio vigente de un equipo.
-     */
     public function cerrarVigente(
         int $equipoId
     ): ?PrecioEquipo {

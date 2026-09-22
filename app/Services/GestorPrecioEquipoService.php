@@ -10,17 +10,12 @@ use InvalidArgumentException;
 class GestorPrecioEquipoService
 {
     public function __construct(
-        private CostoRealEquipoService $costoRealEquipoService,
+        private CostoComercialActualService $costoComercialActualService,
         private MotorPrecioEquipoService $motorPrecioEquipoService,
         private EvaluadorPoliticaDescuentoService $evaluadorPoliticaDescuentoService
     ) {
     }
 
-    /**
-     * Realiza una evaluación integral de una propuesta de precio.
-     *
-     * No registra ni modifica precios.
-     */
     public function evaluar(
         int $equipoId,
         float $precioPropuesto,
@@ -31,7 +26,7 @@ class GestorPrecioEquipoService
                 'producto',
                 'detalleLote',
                 'costos',
-                'incorporacionUnidad.unidadAdquirida',
+                'incorporacionUnidad.unidadAdquirida.moneda',
                 'precios' => function ($query) {
                     $query
                         ->where('vigente', true)
@@ -50,12 +45,15 @@ class GestorPrecioEquipoService
 
         /*
         |--------------------------------------------------------------------------
-        | Costo real actual
+        | Costo comercial actual
         |--------------------------------------------------------------------------
+        |
+        | Para decisiones de precio/rebaja se utiliza el costo actualizado
+        | al tipo de cambio comercial vigente.
         */
 
         $desgloseCosto =
-            $this->costoRealEquipoService
+            $this->costoComercialActualService
                 ->calcular($equipo);
 
         $costoReal =
@@ -120,12 +118,6 @@ class GestorPrecioEquipoService
             $fechaReferencia
         );
 
-        /*
-        |--------------------------------------------------------------------------
-        | Evaluación contra política
-        |--------------------------------------------------------------------------
-        */
-
         $evaluacionPolitica = null;
 
         if ($politica) {
@@ -160,21 +152,24 @@ class GestorPrecioEquipoService
                             $precioVigente->id,
 
                         'precio_publico' =>
-                            (float) $precioVigente
+                            (float)
+                            $precioVigente
                                 ->precio_publico,
 
                         'precio_sugerido' =>
                             $precioVigente
                                 ->precio_sugerido !== null
-                                ? (float) $precioVigente
-                                    ->precio_sugerido
+                                ? (float)
+                                    $precioVigente
+                                        ->precio_sugerido
                                 : null,
 
                         'precio_minimo_autorizado' =>
                             $precioVigente
                                 ->precio_minimo_autorizado !== null
-                                ? (float) $precioVigente
-                                    ->precio_minimo_autorizado
+                                ? (float)
+                                    $precioVigente
+                                        ->precio_minimo_autorizado
                                 : null,
                     ]
                     : null,
@@ -184,7 +179,8 @@ class GestorPrecioEquipoService
                     $diasAntiguedad,
 
                 'fecha_disponible' =>
-                    $fechaDisponible->toDateString(),
+                    $fechaDisponible
+                        ->toDateString(),
             ],
 
             'propuesta' =>
@@ -203,33 +199,39 @@ class GestorPrecioEquipoService
                             $politica->nombre,
 
                         'dias_desde' =>
-                            (int) $politica->dias_desde,
+                            (int)
+                            $politica->dias_desde,
 
                         'dias_hasta' =>
                             $politica->dias_hasta !== null
-                                ? (int) $politica->dias_hasta
+                                ? (int)
+                                    $politica->dias_hasta
                                 : null,
 
                         'porcentaje_maximo' =>
                             $politica
                                 ->porcentaje_maximo !== null
-                                ? (float) $politica
-                                    ->porcentaje_maximo
+                                ? (float)
+                                    $politica
+                                        ->porcentaje_maximo
                                 : null,
 
                         'utilidad_minima_bob' =>
                             $politica
                                 ->utilidad_minima_bob !== null
-                                ? (float) $politica
-                                    ->utilidad_minima_bob
+                                ? (float)
+                                    $politica
+                                        ->utilidad_minima_bob
                                 : null,
 
                         'requiere_autorizacion' =>
-                            (bool) $politica
+                            (bool)
+                            $politica
                                 ->requiere_autorizacion,
 
                         'permite_precio_costo' =>
-                            (bool) $politica
+                            (bool)
+                            $politica
                                 ->permite_precio_costo,
                     ]
                     : null,
