@@ -26,8 +26,11 @@ class RentabilidadRebajaServiceTest extends TestCase
             ->once()
             ->andReturn([
                 'costo_total' => 3827.0,
+                'tipo_cambio_id' => 77,
                 'tipo_cambio' => 12.0,
                 'moneda_origen' => 'USDT',
+                'monto_origen' => 250.0,
+                'fuente' => 'TIPO_CAMBIO_COMERCIAL',
             ]);
 
         $servicio = new RentabilidadRebajaService($costo);
@@ -39,7 +42,14 @@ class RentabilidadRebajaServiceTest extends TestCase
         $this->assertSame(491.0, $resultado['reparto']['hugo']);
         $this->assertSame(491.0, $resultado['reparto']['daniel']);
         $this->assertSame(491.0, $resultado['reparto']['tienda']);
+        $this->assertSame(77, $resultado['tipo_cambio_id']);
         $this->assertSame(12.0, $resultado['tipo_cambio']);
+        $this->assertSame('USDT', $resultado['moneda_origen']);
+        $this->assertSame(250.0, $resultado['monto_origen']);
+        $this->assertSame(
+            'TIPO_CAMBIO_COMERCIAL',
+            $resultado['fuente_costo']
+        );
     }
 
     public function test_reparto_con_centavos_suma_exactamente_el_margen(): void

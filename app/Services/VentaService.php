@@ -20,7 +20,8 @@ class VentaService
     public function __construct(
         private readonly EstadoEquipoService $estadoEquipoService,
         private readonly GarantiaService $garantiaService,
-        private readonly MovimientoInventarioService $movimientoInventarioService
+        private readonly MovimientoInventarioService $movimientoInventarioService,
+        private readonly RentabilidadRebajaService $rentabilidadRebajaService
     ) {
     }
 
@@ -148,6 +149,12 @@ class VentaService
                         $precioLista - $precioUnitario
                     );
 
+                $economia =
+                    $this->snapshotEconomico(
+                        $equipo,
+                        $precioUnitario
+                    );
+
                 $datosDetalles[$equipo->id] = [
                     'precio_lista' =>
                         $precioLista,
@@ -158,9 +165,8 @@ class VentaService
                     'precio_unitario' =>
                         $precioUnitario,
 
-                    'costo' =>
-                        (float)
-                        $precio->costo_total_snapshot,
+                    'economia' =>
+                        $economia,
                 ];
             }
 
@@ -246,7 +252,37 @@ class VentaService
                             $datos['precio_unitario'],
 
                         'costo_unitario_snapshot' =>
-                            $datos['costo'],
+                            $datos['economia']['costo_actualizado'],
+
+                        'tipo_cambio_snapshot_id' =>
+                            $datos['economia']['tipo_cambio_id'],
+
+                        'tipo_cambio_valor_snapshot' =>
+                            $datos['economia']['tipo_cambio'],
+
+                        'moneda_origen_snapshot' =>
+                            $datos['economia']['moneda_origen'],
+
+                        'monto_origen_snapshot' =>
+                            $datos['economia']['monto_origen'],
+
+                        'fuente_costo_snapshot' =>
+                            $datos['economia']['fuente_costo'],
+
+                        'margen_total_snapshot' =>
+                            $datos['economia']['margen_total'],
+
+                        'ganancia_snapshot' =>
+                            $datos['economia']['ganancia'],
+
+                        'hugo_snapshot' =>
+                            $datos['economia']['reparto']['hugo'],
+
+                        'daniel_snapshot' =>
+                            $datos['economia']['reparto']['daniel'],
+
+                        'tienda_snapshot' =>
+                            $datos['economia']['reparto']['tienda'],
 
                         'subtotal' =>
                             $datos['precio_unitario'],
@@ -396,22 +432,16 @@ class VentaService
                     );
                 }
 
-                $precioVigente =
-                    $equipo->precios()
-                        ->where(
-                            'vigente',
-                            true
-                        )
-                        ->orderByDesc(
-                            'vigente_desde'
-                        )
-                        ->first();
+                $precioUnitario =
+                    (float)
+                    $detalleReserva
+                        ->precio_acordado;
 
-                if (!$precioVigente) {
-                    throw new ReglaNegocioException(
-                        "El equipo {$equipo->codigo_interno} no posee un precio vigente para consolidar la venta."
+                $economia =
+                    $this->snapshotEconomico(
+                        $equipo,
+                        $precioUnitario
                     );
-                }
 
                 $detallesVenta[] = [
                     'equipo' =>
@@ -432,14 +462,10 @@ class VentaService
                             ->descuento_acordado,
 
                     'precio_unitario' =>
-                        (float)
-                        $detalleReserva
-                            ->precio_acordado,
+                        $precioUnitario,
 
-                    'costo' =>
-                        (float)
-                        $precioVigente
-                            ->costo_total_snapshot,
+                    'economia' =>
+                        $economia,
                 ];
             }
 
@@ -504,7 +530,37 @@ class VentaService
                             $datos['precio_unitario'],
 
                         'costo_unitario_snapshot' =>
-                            $datos['costo'],
+                            $datos['economia']['costo_actualizado'],
+
+                        'tipo_cambio_snapshot_id' =>
+                            $datos['economia']['tipo_cambio_id'],
+
+                        'tipo_cambio_valor_snapshot' =>
+                            $datos['economia']['tipo_cambio'],
+
+                        'moneda_origen_snapshot' =>
+                            $datos['economia']['moneda_origen'],
+
+                        'monto_origen_snapshot' =>
+                            $datos['economia']['monto_origen'],
+
+                        'fuente_costo_snapshot' =>
+                            $datos['economia']['fuente_costo'],
+
+                        'margen_total_snapshot' =>
+                            $datos['economia']['margen_total'],
+
+                        'ganancia_snapshot' =>
+                            $datos['economia']['ganancia'],
+
+                        'hugo_snapshot' =>
+                            $datos['economia']['reparto']['hugo'],
+
+                        'daniel_snapshot' =>
+                            $datos['economia']['reparto']['daniel'],
+
+                        'tienda_snapshot' =>
+                            $datos['economia']['reparto']['tienda'],
 
                         'subtotal' =>
                             $datos['precio_unitario'],
@@ -569,6 +625,26 @@ class VentaService
             return $venta->fresh();
         }, 3);
     }
+
+    /**
+     * Obtiene la fotografía económica definitiva del equipo
+     * en el instante en que se registra la venta.
+     *
+     * La fuente de verdad es el mismo motor utilizado por
+     * Precios/Reservas para evaluar GANANCIA.
+     */
+    private function snapshotEconomico(
+        Equipo $equipo,
+        float $precioFinal
+    ): array {
+        return $this
+            ->rentabilidadRebajaService
+            ->evaluar(
+                $equipo,
+                $precioFinal
+            );
+    }
+
 
     private function obtenerVendedorActivo(
         int $vendedorId

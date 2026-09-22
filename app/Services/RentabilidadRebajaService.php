@@ -76,11 +76,25 @@ class RentabilidadRebajaService
             'costo_actualizado' =>
                 $costoActualizado,
 
+            'tipo_cambio_id' =>
+                $costo['tipo_cambio_id']
+                ?? null,
+
             'tipo_cambio' =>
-                $costo['tipo_cambio'],
+                $costo['tipo_cambio']
+                ?? null,
 
             'moneda_origen' =>
-                $costo['moneda_origen'],
+                $costo['moneda_origen']
+                ?? null,
+
+            'monto_origen' =>
+                $costo['monto_origen']
+                ?? null,
+
+            'fuente_costo' =>
+                $costo['fuente']
+                ?? null,
 
             /*
              * Indicador principal utilizado por OneShop.
