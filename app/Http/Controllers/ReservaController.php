@@ -14,78 +14,52 @@ use Illuminate\View\View;
 
 class ReservaController extends Controller
 {
-
     public function __construct(
         private readonly ReservaService $reservaService,
         private readonly VentaService $ventaService
     ) {
     }
 
-
-
-    /**
-     * Listado de reservas
-     */
     public function index(): View
     {
-
         $reservas = Reserva::query()
             ->with([
                 'cliente',
-                'detalles.equipo.producto'
+                'detalles.equipo.producto',
             ])
             ->latest()
             ->paginate(15);
-
-
 
         return view(
             'reservas.index',
             compact('reservas')
         );
-
     }
 
-
-
-
-
-    /**
-     * Formulario crear reserva
-     */
     public function create(): View
     {
-
         $clientes = Cliente::query()
             ->where('activo', true)
             ->orderBy('nombre_completo')
             ->get();
 
-
-
         $equipos = Equipo::query()
             ->with([
                 'producto',
-                'estadoActual'
+                'estadoActual',
+                'precioVigente',
             ])
             ->whereHas(
                 'estadoActual',
                 function ($query) {
-
                     $query->where(
                         'codigo',
                         'DISPONIBLE'
                     );
-
                 }
             )
-            ->where(
-                'activo',
-                true
-            )
+            ->where('activo', true)
             ->get();
-
-
 
         return view(
             'reservas.create',
@@ -94,86 +68,61 @@ class ReservaController extends Controller
                 'equipos'
             )
         );
-
     }
 
-
-
-
-
-    /**
-     * Guardar reserva
-     */
     public function store(
         Request $request
     ): RedirectResponse {
-
-
         $datos = $request->validate([
-
-
             'cliente_id' => [
                 'required',
-                'exists:clientes,id'
+                'exists:clientes,id',
             ],
-
 
             'equipos' => [
                 'required',
                 'array',
-                'min:1'
+                'min:1',
             ],
-
 
             'equipos.*' => [
                 'required',
-                'exists:equipos,id'
+                'exists:equipos,id',
             ],
-
 
             'fecha_expiracion' => [
                 'required',
-                'date'
+                'date',
             ],
-
 
             'observacion' => [
                 'nullable',
-                'string'
+                'string',
+                'max:1000',
             ],
-
-
         ]);
-
-
-
 
         $reserva =
             $this->reservaService
-            ->crearReserva(
+                ->crearReserva(
+                    clienteId:
+                        (int) $datos['cliente_id'],
 
-                clienteId:
-                    $datos['cliente_id'],
+                    usuarioId:
+                        $request->user()->id,
 
-                usuarioId:
-                    auth()->id() ?? 1,
+                    equiposIds:
+                        $datos['equipos'],
 
-                equiposIds:
-                    $datos['equipos'],
+                    fechaVencimiento:
+                        Carbon::parse(
+                            $datos['fecha_expiracion']
+                        ),
 
-                fechaVencimiento:
-                    Carbon::parse(
-                        $datos['fecha_expiracion']
-                    ),
-
-                observacion:
-                    $datos['observacion'] ?? null
-
-            );
-
-
-
-
+                    observacion:
+                        $datos['observacion']
+                        ?? null
+                );
 
         return redirect()
             ->route(
@@ -184,103 +133,59 @@ class ReservaController extends Controller
                 'success',
                 'Reserva creada correctamente.'
             );
-
     }
 
-
-
-
-
-    /**
-     * Mostrar detalle
-     */
     public function show(
         Reserva $reserva
     ): View {
-
-
         $reserva->load([
-
             'cliente',
-
             'registradoPor',
-
             'detalles.equipo.producto',
-
             'pagos',
-
             'prorrogas',
-
-            'venta'
-
+            'venta',
         ]);
-
-
 
         return view(
             'reservas.show',
             compact('reserva')
         );
-
     }
 
-
-
-
-
-    /**
-     * Cancelar / liberar reserva
-     */
     public function cancelar(
+        Request $request,
         Reserva $reserva
     ): RedirectResponse {
-
-
         $this->reservaService
             ->liberarReserva(
-
                 reservaId:
                     $reserva->id,
 
                 usuarioId:
-                    auth()->id()
-
+                    $request->user()->id
             );
-
-
 
         return back()
             ->with(
                 'success',
                 'Reserva liberada correctamente.'
             );
-
     }
 
-
-
-
-
-    /**
-     * Convertir reserva en venta
-     */
     public function convertirVenta(
+        Request $request,
         Reserva $reserva
     ): RedirectResponse {
+        $venta =
+            $this->ventaService
+                ->convertirReservaEnVenta(
+                    reservaId:
+                        $reserva->id,
 
-
-        $venta = $this->ventaService
-            ->convertirReservaEnVenta(
-
-                reservaId:
-                    $reserva->id,
-
-                vendedorId:
-    auth()->id() ?? 1
-
-            );
-
-
+                    vendedorId:
+                        $request->user()->id
+                );
 
         return redirect()
             ->route(
@@ -291,7 +196,5 @@ class ReservaController extends Controller
                 'success',
                 'Reserva convertida en venta correctamente.'
             );
-
     }
-
 }

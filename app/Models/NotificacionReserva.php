@@ -17,14 +17,14 @@ class NotificacionReserva extends Model
         'tipo',
         'canal',
         'destino',
-        'fecha_envio',
+        'fecha_notificacion',
         'resultado',
         'descripcion',
     ];
 
     protected $casts = [
-            'fecha_envio' => 'datetime',
-        ];
+        'fecha_notificacion' => 'datetime',
+    ];
 
     public function reserva(): BelongsTo
     {

@@ -14,15 +14,15 @@ class ProrrogaReserva extends Model
     protected $fillable = [
         'reserva_id',
         'autorizado_por_id',
-        'fecha_vencimiento_anterior',
-        'fecha_vencimiento_nueva',
+        'fecha_expiracion_anterior',
+        'nueva_fecha_expiracion',
         'motivo',
     ];
 
     protected $casts = [
-            'fecha_vencimiento_anterior' => 'datetime',
-            'fecha_vencimiento_nueva' => 'datetime',
-        ];
+        'fecha_expiracion_anterior' => 'datetime',
+        'nueva_fecha_expiracion' => 'datetime',
+    ];
 
     public function reserva(): BelongsTo
     {
