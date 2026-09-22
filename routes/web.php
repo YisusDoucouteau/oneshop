@@ -10,6 +10,7 @@ use App\Http\Controllers\RecepcionLoteController;
 use App\Http\Controllers\EnvioImportacionController;
 use App\Models\Producto;
 use App\Models\Moneda;
+use App\Http\Controllers\PrecioEquipoController;
 use App\Http\Controllers\ReservaController;
 use App\Http\Controllers\VentaController;
 use App\Http\Controllers\PagoVentaController;
@@ -624,6 +625,34 @@ Route::post(
 |--------------------------------------------------------------------------
 */
 
+
+/*
+|--------------------------------------------------------------------------
+| PRECIOS DE EQUIPOS
+|--------------------------------------------------------------------------
+
+|
+*/
+Route::get(
+    '/inventario/{equipo:codigo_interno}/precio',
+    [PrecioEquipoController::class, 'show']
+)
+->middleware('permiso:precios.ver')
+->name('precios.equipos.show');
+
+Route::post(
+    '/inventario/{equipo:codigo_interno}/precio/evaluar',
+    [PrecioEquipoController::class, 'evaluar']
+)
+->middleware('permiso:precios.ver')
+->name('precios.equipos.evaluar');
+
+Route::post(
+    '/inventario/{equipo:codigo_interno}/precio',
+    [PrecioEquipoController::class, 'store']
+)
+->middleware('permiso:precios.modificar')
+->name('precios.equipos.store');
 
 
 Route::get(
