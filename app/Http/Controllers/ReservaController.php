@@ -61,11 +61,16 @@ class ReservaController extends Controller
             ->where('activo', true)
             ->get();
 
+        $diasMaximosReserva =
+            $this->reservaService
+                ->obtenerDiasMaximosEstandar();
+
         return view(
             'reservas.create',
             compact(
                 'clientes',
-                'equipos'
+                'equipos',
+                'diasMaximosReserva'
             )
         );
     }
@@ -88,6 +93,17 @@ class ReservaController extends Controller
             'equipos.*' => [
                 'required',
                 'exists:equipos,id',
+            ],
+
+            'precios_acordados' => [
+                'nullable',
+                'array',
+            ],
+
+            'precios_acordados.*' => [
+                'nullable',
+                'numeric',
+                'min:0.01',
             ],
 
             'fecha_expiracion' => [
@@ -121,7 +137,11 @@ class ReservaController extends Controller
 
                     observacion:
                         $datos['observacion']
-                        ?? null
+                        ?? null,
+
+                    preciosAcordados:
+                        $datos['precios_acordados']
+                        ?? []
                 );
 
         return redirect()
