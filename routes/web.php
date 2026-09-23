@@ -598,6 +598,12 @@ Route::post(
 |--------------------------------------------------------------------------
 */
 
+/*
+|--------------------------------------------------------------------------
+| Listado de ventas
+|--------------------------------------------------------------------------
+*/
+
 Route::get(
     '/ventas',
     [VentaController::class, 'index']
@@ -605,12 +611,79 @@ Route::get(
 ->middleware('permiso:ventas.ver')
 ->name('ventas.index');
 
+
+/*
+|--------------------------------------------------------------------------
+| Registrar venta directa
+|--------------------------------------------------------------------------
+|
+| IMPORTANTE:
+| Esta ruta debe ir antes de /ventas/{venta}
+|
+*/
+
+Route::get(
+    '/ventas/crear',
+    [VentaController::class, 'create']
+)
+->middleware('permiso:ventas.crear')
+->name('ventas.create');
+
+
+/*
+|--------------------------------------------------------------------------
+| Evaluar precio de venta
+|--------------------------------------------------------------------------
+|
+| Esta ruta permite validar precio, descuento y GANANCIA
+| antes de registrar definitivamente la venta.
+|
+*/
+
+Route::post(
+    '/ventas/equipos/{equipo:codigo_interno}/evaluar-json',
+    [VentaController::class, 'evaluarPrecio']
+)
+->middleware('permiso:ventas.crear')
+->name('ventas.equipos.evaluar-json');
+
+
+/*
+|--------------------------------------------------------------------------
+| Guardar venta directa
+|--------------------------------------------------------------------------
+*/
+
+Route::post(
+    '/ventas',
+    [VentaController::class, 'store']
+)
+->middleware('permiso:ventas.crear')
+->name('ventas.store');
+
+
+/*
+|--------------------------------------------------------------------------
+| Detalle de venta
+|--------------------------------------------------------------------------
+|
+| La ruta dinámica debe quedar después de las rutas específicas.
+|
+*/
+
 Route::get(
     '/ventas/{venta}',
     [VentaController::class, 'show']
 )
 ->middleware('permiso:ventas.ver')
 ->name('ventas.show');
+
+
+/*
+|--------------------------------------------------------------------------
+| Pagos de venta
+|--------------------------------------------------------------------------
+*/
 
 Route::post(
     '/ventas/{venta}/pagos',
