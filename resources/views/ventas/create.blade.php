@@ -38,21 +38,75 @@
                 ]
             )
             ->all();
+
+    $condicionesAnteriores =
+        collect(old('equipos', []))
+            ->filter(
+                fn ($item) =>
+                    isset($item['equipo_id'])
+            )
+            ->mapWithKeys(
+                fn ($item) => [
+                    (int) $item['equipo_id'] =>
+                        strtoupper(
+                            (string)
+                            ($item['condicion'] ?? 'USADO')
+                        ),
+                ]
+            )
+            ->all();
+
+    $clientesVenta =
+        $clientes
+            ->mapWithKeys(
+                fn ($cliente) => [
+                    (string) $cliente->id => [
+                        'nombre' =>
+                            $cliente->nombre_completo,
+
+                        'telefono' =>
+                            $cliente->telefono,
+                    ],
+                ]
+            )
+            ->all();
 @endphp
 
 <div
     class="space-y-6"
     x-data="{
         equipoBusqueda: '',
-        clienteBusqueda: '',
         clienteId: @js(old('cliente_id')),
+        clienteNombre: @js(old('cliente_nombre', '')),
+        clienteTelefono: @js(old('cliente_telefono', '')),
+        clientes: @js($clientesVenta),
         seleccionados: @js($equiposAnteriores),
         precios: @js($preciosAnteriores),
         publicados: @js($preciosPublicados),
+        condiciones: @js($condicionesAnteriores),
         evaluaciones: {},
         cargando: {},
         csrf: @js(csrf_token()),
         evaluarBase: @js(url('/ventas/equipos')),
+
+        aplicarCliente() {
+            const cliente =
+                this.clientes[
+                    String(this.clienteId ?? '')
+                ];
+
+            if (!cliente) {
+                return;
+            }
+
+            this.clienteNombre =
+                cliente.nombre
+                ?? '';
+
+            this.clienteTelefono =
+                cliente.telefono
+                ?? '';
+        },
 
         coincide(texto, busqueda) {
             return String(texto ?? '')
@@ -93,6 +147,13 @@
             ) {
                 this.precios[id] =
                     Number(precio);
+            }
+
+            if (
+                !this.condiciones[id]
+            ) {
+                this.condiciones[id] =
+                    'USADO';
             }
 
             this.$nextTick(
@@ -351,45 +412,99 @@
             <x-ui.card>
                 <div class="mb-5">
                     <h2 class="text-lg font-bold text-slate-950">
-                        Cliente
+                        Datos del cliente
                     </h2>
 
                     <p class="mt-1 text-sm text-slate-500">
-                        Es opcional. Déjalo vacío para una venta de mostrador.
+                        Escribe el nombre directamente. Vincular un cliente registrado es opcional y solo sirve para autocompletar.
                     </p>
                 </div>
 
-                <label
-                    for="cliente_id"
-                    class="block text-sm font-semibold text-slate-700"
-                >
-                    Cliente de la venta
-                </label>
-
-                <select
-                    id="cliente_id"
-                    name="cliente_id"
-                    x-model="clienteId"
-                    class="mt-2 w-full rounded-xl border-slate-300 text-sm focus:border-slate-900 focus:ring-slate-900"
-                >
-                    <option value="">
-                        Venta de mostrador · sin cliente
-                    </option>
-
-                    @foreach($clientes as $cliente)
-                        <option
-                            value="{{ $cliente->id }}"
-                            @selected(
-                                (string) old('cliente_id')
-                                ===
-                                (string) $cliente->id
-                            )
+                <div class="grid gap-4 lg:grid-cols-2">
+                    <div class="lg:col-span-2">
+                        <label
+                            for="cliente_id"
+                            class="block text-sm font-semibold text-slate-700"
                         >
-                            {{ $cliente->nombre_completo }}
-                            {{ $cliente->telefono ? ' · '.$cliente->telefono : '' }}
-                        </option>
-                    @endforeach
-                </select>
+                            Cliente registrado
+                            <span class="font-normal text-slate-400">
+                                · opcional
+                            </span>
+                        </label>
+
+                        <select
+                            id="cliente_id"
+                            name="cliente_id"
+                            x-model="clienteId"
+                            @change="aplicarCliente()"
+                            class="mt-2 w-full rounded-xl border-slate-300 text-sm focus:border-slate-900 focus:ring-slate-900"
+                        >
+                            <option value="">
+                                No vincular · ingreso manual
+                            </option>
+
+                            @foreach($clientes as $cliente)
+                                <option
+                                    value="{{ $cliente->id }}"
+                                    @selected(
+                                        (string) old('cliente_id')
+                                        ===
+                                        (string) $cliente->id
+                                    )
+                                >
+                                    {{ $cliente->nombre_completo }}
+                                    {{ $cliente->telefono ? ' · '.$cliente->telefono : '' }}
+                                </option>
+                            @endforeach
+                        </select>
+                    </div>
+
+                    <div>
+                        <label
+                            for="cliente_nombre"
+                            class="block text-sm font-semibold text-slate-700"
+                        >
+                            Nombre / Señor(es)
+                        </label>
+
+                        <input
+                            id="cliente_nombre"
+                            name="cliente_nombre"
+                            type="text"
+                            maxlength="180"
+                            x-model="clienteNombre"
+                            placeholder="Ej. Juan Pérez"
+                            class="mt-2 w-full rounded-xl border-slate-300 text-sm focus:border-slate-900 focus:ring-slate-900"
+                            required
+                        >
+
+                        <p class="mt-1 text-xs text-slate-500">
+                            Este nombre quedará congelado en la nota de venta.
+                        </p>
+                    </div>
+
+                    <div>
+                        <label
+                            for="cliente_telefono"
+                            class="block text-sm font-semibold text-slate-700"
+                        >
+                            Teléfono
+                            <span class="font-normal text-slate-400">
+                                · opcional
+                            </span>
+                        </label>
+
+                        <input
+                            id="cliente_telefono"
+                            name="cliente_telefono"
+                            type="text"
+                            maxlength="50"
+                            x-model="clienteTelefono"
+                            placeholder="Ej. 71234567"
+                            class="mt-2 w-full rounded-xl border-slate-300 text-sm focus:border-slate-900 focus:ring-slate-900"
+                        >
+                    </div>
+                </div>
             </x-ui.card>
 
             <x-ui.card>
@@ -509,7 +624,7 @@
                             <div
                                 x-show="seleccionado({{ $equipo->id }})"
                                 x-cloak
-                                class="mt-4 grid gap-4 border-t border-slate-200 pt-4 lg:grid-cols-[minmax(0,1fr)_auto]"
+                                class="mt-4 grid gap-4 border-t border-slate-200 pt-4 lg:grid-cols-[minmax(0,1fr)_11rem_17rem]"
                             >
                                 <div>
                                     <input
@@ -549,6 +664,35 @@
                                             class="w-full rounded-xl border-slate-300 font-bold text-slate-950 focus:border-slate-900 focus:ring-slate-900"
                                         >
                                     </div>
+                                </div>
+
+                                <div>
+                                    <label
+                                        for="condicion-venta-{{ $equipo->id }}"
+                                        class="block text-sm font-semibold text-slate-700"
+                                    >
+                                        Condición
+                                    </label>
+
+                                    <select
+                                        id="condicion-venta-{{ $equipo->id }}"
+                                        name="equipos[{{ $equipo->id }}][condicion]"
+                                        x-model="condiciones[{{ $equipo->id }}]"
+                                        :disabled="!seleccionado({{ $equipo->id }})"
+                                        class="mt-2 w-full rounded-xl border-slate-300 text-sm font-semibold focus:border-slate-900 focus:ring-slate-900"
+                                    >
+                                        <option value="USADO">
+                                            Usado
+                                        </option>
+
+                                        <option value="NUEVO">
+                                            Nuevo
+                                        </option>
+                                    </select>
+
+                                    <p class="mt-1 text-xs text-slate-400">
+                                        Por defecto: usado.
+                                    </p>
                                 </div>
 
                                 <div class="lg:min-w-[17rem]">
@@ -735,8 +879,7 @@
                     x-cloak
                     class="mt-5 rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800"
                 >
-                    Hay un precio fuera de política. Al continuar se generará la solicitud de aprobación correspondiente y la venta no se cerrará todavía.
-                </div>
+                    Hay un precio fuera de política. Al continuar se generará la solicitud de aprobación correspondiente y la venta no se cerrará todavía.</div>
 
                 <div
                     x-show="hayBloqueo()"

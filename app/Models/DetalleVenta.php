@@ -29,6 +29,10 @@ class DetalleVenta extends Model
         'hugo_snapshot',
         'daniel_snapshot',
         'tienda_snapshot',
+        'marca_snapshot',
+        'modelo_snapshot',
+        'codigo_interno_snapshot',
+        'condicion_venta_snapshot',
         'subtotal',
         'observacion',
     ];
@@ -51,17 +55,23 @@ class DetalleVenta extends Model
 
     public function venta(): BelongsTo
     {
-        return $this->belongsTo(Venta::class);
+        return $this->belongsTo(
+            Venta::class
+        );
     }
 
     public function producto(): BelongsTo
     {
-        return $this->belongsTo(Producto::class);
+        return $this->belongsTo(
+            Producto::class
+        );
     }
 
     public function equipo(): BelongsTo
     {
-        return $this->belongsTo(Equipo::class);
+        return $this->belongsTo(
+            Equipo::class
+        );
     }
 
     public function tipoCambioSnapshot(): BelongsTo

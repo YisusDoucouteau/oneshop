@@ -30,14 +30,20 @@ class VentaService
         array $equiposIds,
         ?int $clienteId = null,
         ?string $observacion = null,
-        array $preciosAcordados = []
+        array $preciosAcordados = [],
+        ?string $clienteNombreSnapshot = null,
+        ?string $clienteTelefonoSnapshot = null,
+        array $condicionesVenta = []
     ): Venta {
         return DB::transaction(function () use (
             $vendedorId,
             $equiposIds,
             $clienteId,
             $observacion,
-            $preciosAcordados
+            $preciosAcordados,
+            $clienteNombreSnapshot,
+            $clienteTelefonoSnapshot,
+            $condicionesVenta
         ) {
             $vendedor =
                 $this->obtenerVendedorActivo(
@@ -49,6 +55,13 @@ class VentaService
                     $clienteId
                 );
 
+            $clienteSnapshot =
+                $this->resolverSnapshotCliente(
+                    $cliente,
+                    $clienteNombreSnapshot,
+                    $clienteTelefonoSnapshot
+                );
+
             $equiposIds =
                 $this->normalizarEquiposIds(
                     $equiposIds
@@ -56,6 +69,9 @@ class VentaService
 
             $equipos =
                 Equipo::query()
+                    ->with([
+                        'producto.marca',
+                    ])
                     ->whereIn(
                         'id',
                         $equiposIds
@@ -167,6 +183,21 @@ class VentaService
 
                     'economia' =>
                         $economia,
+
+                    'marca_snapshot' =>
+                        $equipo->producto?->marca?->nombre,
+
+                    'modelo_snapshot' =>
+                        $equipo->producto?->modelo,
+
+                    'codigo_interno_snapshot' =>
+                        $equipo->codigo_interno,
+
+                    'condicion_venta_snapshot' =>
+                        $this->normalizarCondicionVenta(
+                            $condicionesVenta[$equipo->id]
+                            ?? 'USADO'
+                        ),
                 ];
             }
 
@@ -201,6 +232,12 @@ class VentaService
 
                     'cliente_id' =>
                         $cliente?->id,
+
+                    'cliente_nombre_snapshot' =>
+                        $clienteSnapshot['nombre'],
+
+                    'cliente_telefono_snapshot' =>
+                        $clienteSnapshot['telefono'],
 
                     'vendedor_id' =>
                         $vendedor->id,
@@ -283,6 +320,18 @@ class VentaService
 
                         'tienda_snapshot' =>
                             $datos['economia']['reparto']['tienda'],
+
+                        'marca_snapshot' =>
+                            $datos['marca_snapshot'],
+
+                        'modelo_snapshot' =>
+                            $datos['modelo_snapshot'],
+
+                        'codigo_interno_snapshot' =>
+                            $datos['codigo_interno_snapshot'],
+
+                        'condicion_venta_snapshot' =>
+                            $datos['condicion_venta_snapshot'],
 
                         'subtotal' =>
                             $datos['precio_unitario'],
@@ -374,7 +423,10 @@ class VentaService
 
             $reserva =
                 Reserva::query()
-                    ->with('detalles')
+                    ->with([
+                        'detalles',
+                        'cliente',
+                    ])
                     ->lockForUpdate()
                     ->find($reservaId);
 
@@ -415,6 +467,9 @@ class VentaService
 
             $equipos =
                 Equipo::query()
+                    ->with([
+                        'producto.marca',
+                    ])
                     ->whereIn(
                         'id',
                         $equiposIds
@@ -499,6 +554,23 @@ class VentaService
 
                     'economia' =>
                         $economia,
+
+                    'marca_snapshot' =>
+                        $equipo->producto?->marca?->nombre,
+
+                    'modelo_snapshot' =>
+                        $equipo->producto?->modelo,
+
+                    'codigo_interno_snapshot' =>
+                        $equipo->codigo_interno,
+
+                    /*
+                     * En OneShop los equipos comercializados son
+                     * normalmente usados. La reserva todavía no
+                     * expone un selector de condición.
+                     */
+                    'condicion_venta_snapshot' =>
+                        'USADO',
                 ];
             }
 
@@ -509,6 +581,12 @@ class VentaService
 
                     'cliente_id' =>
                         $reserva->cliente_id,
+
+                    'cliente_nombre_snapshot' =>
+                        $reserva->cliente?->nombre_completo,
+
+                    'cliente_telefono_snapshot' =>
+                        $reserva->cliente?->telefono,
 
                     'vendedor_id' =>
                         $vendedor->id,
@@ -595,6 +673,18 @@ class VentaService
                         'tienda_snapshot' =>
                             $datos['economia']['reparto']['tienda'],
 
+                        'marca_snapshot' =>
+                            $datos['marca_snapshot'],
+
+                        'modelo_snapshot' =>
+                            $datos['modelo_snapshot'],
+
+                        'codigo_interno_snapshot' =>
+                            $datos['codigo_interno_snapshot'],
+
+                        'condicion_venta_snapshot' =>
+                            $datos['condicion_venta_snapshot'],
+
                         'subtotal' =>
                             $datos['precio_unitario'],
                     ]);
@@ -676,6 +766,78 @@ class VentaService
                 $equipo,
                 $precioFinal
             );
+    }
+
+
+    /**
+     * Resuelve los datos que quedarán congelados en la cabecera.
+     *
+     * Si el formulario no envía un valor explícito, se usa la ficha
+     * del cliente vinculado. Esto conserva compatibilidad con flujos
+     * internos y pruebas anteriores.
+     */
+    private function resolverSnapshotCliente(
+        ?Cliente $cliente,
+        ?string $nombre,
+        ?string $telefono
+    ): array {
+        $nombreFinal =
+            $nombre !== null
+                ? trim($nombre)
+                : trim(
+                    (string)
+                    ($cliente?->nombre_completo ?? '')
+                );
+
+        $telefonoFinal =
+            $telefono !== null
+                ? trim($telefono)
+                : trim(
+                    (string)
+                    ($cliente?->telefono ?? '')
+                );
+
+        return [
+            'nombre' =>
+                $nombreFinal !== ''
+                    ? $nombreFinal
+                    : null,
+
+            'telefono' =>
+                $telefonoFinal !== ''
+                    ? $telefonoFinal
+                    : null,
+        ];
+    }
+
+
+    private function normalizarCondicionVenta(
+        ?string $condicion
+    ): string {
+        $condicion =
+            strtoupper(
+                trim(
+                    (string)
+                    ($condicion ?? 'USADO')
+                )
+            );
+
+        if (
+            !in_array(
+                $condicion,
+                [
+                    'USADO',
+                    'NUEVO',
+                ],
+                true
+            )
+        ) {
+            throw new ReglaNegocioException(
+                'La condición de venta debe ser USADO o NUEVO.'
+            );
+        }
+
+        return $condicion;
     }
 
 

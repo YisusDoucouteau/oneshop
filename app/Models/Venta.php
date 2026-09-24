@@ -13,6 +13,8 @@ class Venta extends Model
     protected $fillable = [
         'numero',
         'cliente_id',
+        'cliente_nombre_snapshot',
+        'cliente_telefono_snapshot',
         'vendedor_id',
         'reserva_id',
         'fecha_venta',
@@ -27,16 +29,18 @@ class Venta extends Model
     ];
 
     protected $casts = [
-            'fecha_venta' => 'datetime',
-            'subtotal' => 'decimal:2',
-            'descuento_total' => 'decimal:2',
-            'total' => 'decimal:2',
-            'fecha_anulacion' => 'datetime',
-        ];
+        'fecha_venta' => 'datetime',
+        'subtotal' => 'decimal:2',
+        'descuento_total' => 'decimal:2',
+        'total' => 'decimal:2',
+        'fecha_anulacion' => 'datetime',
+    ];
 
     public function cliente(): BelongsTo
     {
-        return $this->belongsTo(Cliente::class);
+        return $this->belongsTo(
+            Cliente::class
+        );
     }
 
     public function vendedor(): BelongsTo
@@ -49,7 +53,9 @@ class Venta extends Model
 
     public function reserva(): BelongsTo
     {
-        return $this->belongsTo(Reserva::class);
+        return $this->belongsTo(
+            Reserva::class
+        );
     }
 
     public function anuladoPor(): BelongsTo

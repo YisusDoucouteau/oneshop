@@ -51,6 +51,9 @@ class VentaDirectaWebTest extends TestCase
                 'Registrar venta directa'
             )
             ->assertSee(
+                'Nombre / Señor(es)'
+            )
+            ->assertSee(
                 'Equipos disponibles'
             )
             ->assertSee(
@@ -337,10 +340,15 @@ class VentaDirectaWebTest extends TestCase
 
                         'precio' =>
                             4800.0,
+
+                        'condicion' =>
+                            'USADO',
                     ],
                 ],
                 null,
-                'Venta mostrador'
+                'Venta mostrador',
+                'Cliente mostrador',
+                '71234567'
             )
             ->andReturn(
                 $venta
@@ -359,6 +367,12 @@ class VentaDirectaWebTest extends TestCase
                     'cliente_id' =>
                         null,
 
+                    'cliente_nombre' =>
+                        'Cliente mostrador',
+
+                    'cliente_telefono' =>
+                        '71234567',
+
                     'equipos' => [
                         $equipo->id => [
                             'equipo_id' =>
@@ -366,6 +380,9 @@ class VentaDirectaWebTest extends TestCase
 
                             'precio' =>
                                 4800,
+
+                            'condicion' =>
+                                'USADO',
                         ],
                     ],
 
@@ -384,6 +401,47 @@ class VentaDirectaWebTest extends TestCase
                 'Venta registrada correctamente.'
             );
     }
+
+    public function test_store_exige_nombre_del_cliente_para_la_boleta(): void
+    {
+        $vendedor =
+            $this->usuarioConRol(
+                'VENDEDOR'
+            );
+
+        $equipo =
+            $this->crearEquipoDisponible();
+
+        $this
+            ->actingAs($vendedor)
+            ->from(
+                route('ventas.create')
+            )
+            ->post(
+                route('ventas.store'),
+                [
+                    'equipos' => [
+                        $equipo->id => [
+                            'equipo_id' =>
+                                $equipo->id,
+
+                            'precio' =>
+                                4800,
+
+                            'condicion' =>
+                                'USADO',
+                        ],
+                    ],
+                ]
+            )
+            ->assertRedirect(
+                route('ventas.create')
+            )
+            ->assertSessionHasErrors(
+                'cliente_nombre'
+            );
+    }
+
 
     public function test_error_de_negocio_regresa_al_formulario_con_mensaje(): void
     {
@@ -424,6 +482,9 @@ class VentaDirectaWebTest extends TestCase
             ->post(
                 route('ventas.store'),
                 [
+                    'cliente_nombre' =>
+                        'Cliente prueba',
+
                     'equipos' => [
                         $equipo->id => [
                             'equipo_id' =>
@@ -431,6 +492,9 @@ class VentaDirectaWebTest extends TestCase
 
                             'precio' =>
                                 4300,
+
+                            'condicion' =>
+                                'USADO',
                         ],
                     ],
                 ]

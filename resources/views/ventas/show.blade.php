@@ -33,15 +33,26 @@
             </p>
         </div>
 
-        @if($venta->estado !== 'ANULADA' && (float) $resumenPago['saldo'] > 0)
-            <button
-                type="button"
-                @click="mostrarPago = !mostrarPago"
-                class="rounded-xl bg-oneshop-primary px-5 py-3 font-semibold text-white"
+        <div class="flex flex-col gap-2 sm:flex-row">
+            <a
+                href="{{ route('ventas.boleta', $venta) }}"
+                target="_blank"
+                rel="noopener"
+                class="inline-flex items-center justify-center rounded-xl border border-slate-300 bg-white px-5 py-3 font-semibold text-slate-700 hover:bg-slate-50"
             >
-                Registrar pago
-            </button>
-        @endif
+                Nota de venta y garantía
+            </a>
+
+            @if($venta->estado !== 'ANULADA' && (float) $resumenPago['saldo'] > 0)
+                <button
+                    type="button"
+                    @click="mostrarPago = !mostrarPago"
+                    class="rounded-xl bg-oneshop-primary px-5 py-3 font-semibold text-white"
+                >
+                    Registrar pago
+                </button>
+            @endif
+        </div>
     </div>
 
     @if(session('success'))
@@ -287,15 +298,16 @@
                         @endphp
 
                         <article class="rounded-2xl border border-slate-200 p-5">
-                            <div class="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+                           <div class="grid gap-4 xl:grid-cols-[minmax(18rem,1fr)_minmax(32rem,1.5fr)] xl:items-start">
                                 <div class="min-w-0">
                                     <p class="font-bold text-slate-900">
-                                        {{ $detalle->equipo?->codigo_interno ?? $detalle->producto?->codigo ?? '-' }}
+                                        {{ $detalle->codigo_interno_snapshot ?? $detalle->equipo?->codigo_interno ?? $detalle->producto?->codigo ?? '-' }}
                                     </p>
 
                                     <p class="mt-1 text-sm text-slate-500">
-                                        {{ $detalle->equipo?->producto?->nombre ?? $detalle->producto?->nombre }}
-                                        {{ $detalle->equipo?->producto?->modelo ?? $detalle->producto?->modelo }}
+                                        {{ $detalle->marca_snapshot ?? $detalle->equipo?->producto?->marca?->nombre ?? '' }}
+                                        {{ $detalle->modelo_snapshot ?? $detalle->equipo?->producto?->modelo ?? $detalle->producto?->modelo }} ·
+                                        {{ $detalle->condicion_venta_snapshot ?? 'Condición no congelada' }}
                                     </p>
 
                                     @if($detalle->garantia)
@@ -306,7 +318,7 @@
                                     @endif
                                 </div>
 
-                                <div class="grid min-w-full gap-3 sm:grid-cols-3 lg:min-w-[30rem]">
+                               <div class="grid w-full gap-3 sm:grid-cols-3">
                                     <div class="rounded-xl bg-slate-50 p-3">
                                         <p class="text-xs font-semibold uppercase tracking-wide text-slate-400">
                                             Publicado
@@ -474,11 +486,11 @@
                 </h2>
 
                 <p class="font-semibold text-slate-900">
-                    {{ $venta->cliente?->nombre_completo ?? 'Sin cliente' }}
+                    {{ $venta->cliente_nombre_snapshot ?? $venta->cliente?->nombre_completo ?? 'Sin cliente' }}
                 </p>
 
                 <p class="mt-1 text-sm text-slate-500">
-                    {{ $venta->cliente?->telefono ?? '-' }}
+                    {{ $venta->cliente_telefono_snapshot ?? $venta->cliente?->telefono ?? '-' }}
                 </p>
 
                 <p class="text-sm text-slate-500">

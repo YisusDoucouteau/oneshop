@@ -26,7 +26,9 @@ class ProcesadorVentaService
         int $vendedorId,
         array $equipos,
         ?int $clienteId = null,
-        ?string $observacion = null
+        ?string $observacion = null,
+        ?string $clienteNombre = null,
+        ?string $clienteTelefono = null
     ): Venta {
 
 
@@ -95,13 +97,29 @@ class ProcesadorVentaService
         )
         ->all();
 
+        $condicionesVenta =
+            collect($equipos)
+                ->mapWithKeys(
+                    fn ($item) => [
+                        (int) $item['equipo_id'] =>
+                            (string) (
+                                $item['condicion']
+                                ?? 'USADO'
+                            ),
+                    ]
+                )
+                ->all();
+
        return $this->ventaService
     ->registrarVentaDirecta(
         vendedorId: $vendedorId,
         equiposIds: $equiposIds,
         clienteId: $clienteId,
         observacion: $observacion,
-        preciosAcordados: $preciosAcordados
+        preciosAcordados: $preciosAcordados,
+        clienteNombreSnapshot: $clienteNombre,
+        clienteTelefonoSnapshot: $clienteTelefono,
+        condicionesVenta: $condicionesVenta
     );
     }
 }

@@ -7,10 +7,12 @@ use App\Models\Cliente;
 use App\Models\Equipo;
 use App\Models\MetodoPago;
 use App\Models\Venta;
+use App\Services\NumeroLiteralService;
 use App\Services\PagoService;
 use App\Services\ProcesadorVentaService;
 use App\Services\RentabilidadRebajaService;
 use App\Services\ValidadorVentaPrecioService;
+use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -23,7 +25,8 @@ class VentaController extends Controller
         private readonly PagoService $pagoService,
         private readonly ProcesadorVentaService $procesadorVentaService,
         private readonly ValidadorVentaPrecioService $validadorVentaPrecioService,
-        private readonly RentabilidadRebajaService $rentabilidadRebajaService
+        private readonly RentabilidadRebajaService $rentabilidadRebajaService,
+        private readonly NumeroLiteralService $numeroLiteralService
     ) {
     }
 
@@ -233,6 +236,18 @@ class VentaController extends Controller
                 'exists:clientes,id',
             ],
 
+            'cliente_nombre' => [
+                'required',
+                'string',
+                'max:180',
+            ],
+
+            'cliente_telefono' => [
+                'nullable',
+                'string',
+                'max:50',
+            ],
+
             'equipos' => [
                 'required',
                 'array',
@@ -252,6 +267,12 @@ class VentaController extends Controller
                 'gt:0',
             ],
 
+            'equipos.*.condicion' => [
+                'required',
+                'string',
+                'in:USADO,NUEVO',
+            ],
+
             'observacion' => [
                 'nullable',
                 'string',
@@ -268,6 +289,9 @@ class VentaController extends Controller
 
                         'precio' =>
                             (float) $item['precio'],
+
+                        'condicion' =>
+                            (string) $item['condicion'],
                     ]
                 )
                 ->values()
@@ -290,7 +314,22 @@ class VentaController extends Controller
 
                         observacion:
                             $datos['observacion']
-                            ?? null
+                            ?? null,
+
+                        clienteNombre:
+                            trim(
+                                (string) $datos['cliente_nombre']
+                            ),
+
+                        clienteTelefono:
+                            isset($datos['cliente_telefono'])
+                                && trim(
+                                    (string) $datos['cliente_telefono']
+                                ) !== ''
+                                ? trim(
+                                    (string) $datos['cliente_telefono']
+                                )
+                                : null
                     );
         } catch (
             ReglaNegocioException
@@ -315,6 +354,50 @@ class VentaController extends Controller
             );
     }
 
+    /**
+     * Genera la Nota de Venta y Garantía en PDF usando exclusivamente
+     * los datos congelados de la venta cuando estén disponibles.
+     */
+    public function boleta(
+        Venta $venta
+    ) {
+        $venta->load([
+            'cliente',
+            'vendedor',
+            'detalles.producto.marca',
+            'detalles.equipo.producto.marca',
+            'detalles.garantia',
+        ]);
+
+        $totalLiteral =
+            $this->numeroLiteralService
+                ->bolivianos(
+                    (string) $venta->total
+                );
+
+        $datosEmpresa =
+            config('oneshop.boleta');
+
+        return Pdf::loadView(
+            'ventas.boleta',
+            compact(
+                'venta',
+                'totalLiteral',
+                'datosEmpresa'
+            )
+        )
+            ->setPaper(
+                'a5',
+                'landscape'
+            )
+            ->stream(
+                'nota-venta-'
+                . $venta->numero
+                . '.pdf'
+            );
+    }
+
+
     public function show(
         Request $request,
         Venta $venta
@@ -323,8 +406,8 @@ class VentaController extends Controller
             'cliente',
             'vendedor',
             'reserva',
-            'detalles.producto',
-            'detalles.equipo.producto',
+            'detalles.producto.marca',
+            'detalles.equipo.producto.marca',
             'detalles.garantia',
             'pagos.metodoPago',
             'pagos.registradoPor',
