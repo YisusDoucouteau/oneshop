@@ -1194,7 +1194,7 @@
 
 
                                             <div class="rounded-xl bg-white p-3 text-sm text-slate-600">
-                                          
+
                                             </div>
 
 
