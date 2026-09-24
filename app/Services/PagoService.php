@@ -280,11 +280,47 @@ class PagoService
             2
         );
 
+        $pendienteReserva = '0.00';
+
+        if ($venta->reserva_id !== null) {
+            $pendienteReserva = $this->sumarPagosReserva(
+                reservaId: $venta->reserva_id,
+                estados: ['PENDIENTE']
+            );
+        }
+
+        $pendienteVenta = $this->sumarPagosVenta(
+            ventaId: $venta->id,
+            estados: ['PENDIENTE']
+        );
+
+        $pendienteTotal = bcadd(
+            $pendienteReserva,
+            $pendienteVenta,
+            2
+        );
+
+        $comprometidoTotal = bcadd(
+            $pagadoTotal,
+            $pendienteTotal,
+            2
+        );
+
         $saldo = bcsub(
             (string) $venta->total,
             $pagadoTotal,
             2
         );
+
+        $saldoDisponible = bcsub(
+            (string) $venta->total,
+            $comprometidoTotal,
+            2
+        );
+
+        if (bccomp($saldoDisponible, '0.00', 2) < 0) {
+            $saldoDisponible = '0.00';
+        }
 
         return [
             'total' => bcadd(
@@ -294,12 +330,17 @@ class PagoService
             ),
 
             'pagado_reserva' => $pagadoReserva,
-
             'pagado_venta' => $pagadoVenta,
-
             'pagado_total' => $pagadoTotal,
 
+            'pendiente_reserva' => $pendienteReserva,
+            'pendiente_venta' => $pendienteVenta,
+            'pendiente_total' => $pendienteTotal,
+
+            'comprometido_total' => $comprometidoTotal,
+
             'saldo' => $saldo,
+            'saldo_disponible' => $saldoDisponible,
         ];
     }
 

@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Exceptions\ReglaNegocioException;
 use App\Models\Venta;
 use App\Services\PagoService;
 use Illuminate\Http\RedirectResponse;
@@ -41,17 +42,29 @@ class PagoVentaController extends Controller
             ],
         ]);
 
-        $this->pagoService->registrarPagoVenta(
-            ventaId: $venta->id,
-            metodoPagoId: (int) $datos['metodo_pago_id'],
-            monto: $datos['monto'],
-            registradoPorId: (int) $request->user()->id,
-            referencia: $datos['referencia'] ?? null,
-            observacion: $datos['observacion'] ?? null
-        );
+        try {
+            $this->pagoService->registrarPagoVenta(
+                ventaId: $venta->id,
+                metodoPagoId: (int) $datos['metodo_pago_id'],
+                monto: $datos['monto'],
+                registradoPorId: (int) $request->user()->id,
+                referencia: $datos['referencia'] ?? null,
+                observacion: $datos['observacion'] ?? null
+            );
+        } catch (ReglaNegocioException $exception) {
+            return redirect()
+                ->route('ventas.show', $venta)
+                ->withInput()
+                ->withErrors([
+                    'pago' => $exception->getMessage(),
+                ]);
+        }
 
         return redirect()
             ->route('ventas.show', $venta)
-            ->with('success', 'Pago registrado correctamente.');
+            ->with(
+                'success',
+                'Pago registrado correctamente.'
+            );
     }
 }

@@ -81,9 +81,14 @@ class CatalogoInventarioSeeder extends Seeder
             ],
 
             [
-                'codigo'=>'VENTA_RESERVADA',
-                'nombre'=>'Venta proveniente de reserva'
-            ],
+    'codigo' => 'VENTA_RESERVADA',
+    'nombre' => 'Venta proveniente de reserva'
+],
+
+[
+    'codigo' => 'ANULACION_VENTA',
+    'nombre' => 'Anulación de venta'
+],
 
             [
                 'codigo'=>'ENTRADA',
@@ -136,7 +141,10 @@ class CatalogoInventarioSeeder extends Seeder
             'DISPONIBLE',
             'VENDIDO'
         );
-
+        $this->crearTransicion(
+    'VENDIDO',
+    'DISPONIBLE'
+);
 
     }
 

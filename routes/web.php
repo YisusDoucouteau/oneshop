@@ -10,6 +10,7 @@ use App\Http\Controllers\RecepcionLoteController;
 use App\Http\Controllers\EnvioImportacionController;
 use App\Models\Producto;
 use App\Models\Moneda;
+use App\Http\Controllers\AnulacionVentaController;
 use App\Http\Controllers\PrecioEquipoController;
 use App\Http\Controllers\ReservaController;
 use App\Http\Controllers\VentaController;
@@ -677,7 +678,12 @@ Route::get(
 )
 ->middleware('permiso:ventas.ver')
 ->name('ventas.show');
-
+Route::post(
+    '/ventas/{venta}/anular',
+    [AnulacionVentaController::class, 'store']
+)
+->middleware('permiso:ventas.anular')
+->name('ventas.anular');
 
 /*
 |--------------------------------------------------------------------------

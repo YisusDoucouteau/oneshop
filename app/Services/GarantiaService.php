@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Exceptions\ReglaNegocioException;
 use App\Models\DetalleVenta;
 use App\Models\Garantia;
+use App\Models\CasoGarantia;
 use App\Models\PoliticaGarantia;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
@@ -18,7 +19,7 @@ class GarantiaService
      * 1. Política específica del producto.
      * 2. Política por categoría del producto.
      *
-     * Se guarda snapshot histórico de las condiciones.
+     * Se conservan las condiciones históricas de la garantía.
      */
     public function crearDesdeDetalleVenta(
         DetalleVenta $detalleVenta
@@ -106,6 +107,75 @@ class GarantiaService
     /**
      * Obtiene la política de garantía aplicable.
      */
+/**
+ * Comprueba si la garantía asociada puede anularse.
+ */
+public function validarAnulacionDesdeDetalleVenta(
+    DetalleVenta $detalleVenta
+): void {
+    $garantia = Garantia::query()
+        ->where(
+            'detalle_venta_id',
+            $detalleVenta->id
+        )
+        ->lockForUpdate()
+        ->first();
+
+    if (!$garantia) {
+        return;
+    }
+
+    $tieneCaso = CasoGarantia::query()
+        ->where(
+            'garantia_id',
+            $garantia->id
+        )
+        ->exists();
+
+    if ($tieneCaso) {
+        throw new ReglaNegocioException(
+            'La garantía ya tiene un caso de garantía registrado. La venta debe resolverse por postventa.'
+        );
+    }
+}
+
+
+/**
+ * Anula la garantía asociada al detalle de venta.
+ */
+public function anularDesdeDetalleVenta(
+    DetalleVenta $detalleVenta
+): ?Garantia {
+    return DB::transaction(function () use ($detalleVenta) {
+
+        $garantia = Garantia::query()
+            ->where(
+                'detalle_venta_id',
+                $detalleVenta->id
+            )
+            ->lockForUpdate()
+            ->first();
+
+        if (!$garantia) {
+            return null;
+        }
+
+        if ($garantia->estado === 'ANULADA') {
+            return $garantia;
+        }
+
+        $this->validarAnulacionDesdeDetalleVenta(
+            $detalleVenta
+        );
+
+        $garantia->estado = 'ANULADA';
+        $garantia->save();
+
+        return $garantia->fresh();
+    }, 3);
+}
+
+
     private function obtenerPoliticaAplicable(
         DetalleVenta $detalleVenta
     ): ?PoliticaGarantia {

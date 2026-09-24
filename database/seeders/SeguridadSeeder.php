@@ -332,7 +332,7 @@ class SeguridadSeeder extends Seeder
             'reservas.ver',
 
             'ventas.ver',
-
+            'ventas.anular',
             'garantias.ver',
 
             'reportes.ver',
