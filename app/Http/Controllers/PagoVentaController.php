@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Exceptions\ReglaNegocioException;
+use App\Models\Pago;
 use App\Models\Venta;
 use App\Services\PagoService;
 use Illuminate\Http\RedirectResponse;
@@ -65,6 +66,77 @@ class PagoVentaController extends Controller
             ->with(
                 'success',
                 'Pago registrado correctamente.'
+            );
+    }
+
+    public function verificar(
+        Request $request,
+        Venta $venta,
+        Pago $pago
+    ): RedirectResponse {
+        if ((int) $pago->venta_id !== (int) $venta->id) {
+            abort(404);
+        }
+
+        try {
+            $this->pagoService->verificarPago(
+                pagoId: $pago->id,
+                verificadoPorId: (int) $request->user()->id
+            );
+        } catch (ReglaNegocioException $exception) {
+            return redirect()
+                ->route('ventas.show', $venta)
+                ->withErrors([
+                    'gestion_pago' => $exception->getMessage(),
+                ]);
+        }
+
+        return redirect()
+            ->route('ventas.show', $venta)
+            ->with(
+                'success',
+                'Pago verificado correctamente.'
+            );
+    }
+
+    public function rechazar(
+        Request $request,
+        Venta $venta,
+        Pago $pago
+    ): RedirectResponse {
+        if ((int) $pago->venta_id !== (int) $venta->id) {
+            abort(404);
+        }
+
+        $datos = $request->validate([
+            'motivo_rechazo' => [
+                'required',
+                'string',
+                'min:5',
+                'max:1000',
+            ],
+        ]);
+
+        try {
+            $this->pagoService->rechazarPago(
+                pagoId: $pago->id,
+                verificadoPorId: (int) $request->user()->id,
+                motivo: $datos['motivo_rechazo']
+            );
+        } catch (ReglaNegocioException $exception) {
+            return redirect()
+                ->route('ventas.show', $venta)
+                ->withInput()
+                ->withErrors([
+                    'gestion_pago' => $exception->getMessage(),
+                ]);
+        }
+
+        return redirect()
+            ->route('ventas.show', $venta)
+            ->with(
+                'success',
+                'Pago rechazado correctamente. El importe volvió a quedar disponible.'
             );
     }
 }

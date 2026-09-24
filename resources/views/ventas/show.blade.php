@@ -834,59 +834,146 @@
 
                 </h2>
 
-                <div class="space-y-3">
+                @error('gestion_pago')
+    <div class="mb-4 rounded-xl border border-red-200 bg-red-50 p-4 text-sm font-medium text-red-700">
+        {{ $message }}
+    </div>
+@enderror
 
-                    @forelse($venta->pagos as $pago)
+@error('motivo_rechazo')
+    <div class="mb-4 rounded-xl border border-red-200 bg-red-50 p-4 text-sm font-medium text-red-700">
+        {{ $message }}
+    </div>
+@enderror
 
-                        <div class="flex flex-col gap-2 rounded-xl border border-slate-200 p-4 sm:flex-row sm:items-center sm:justify-between">
+<div class="space-y-3">
+    @forelse($venta->pagos as $pago)
+        <div class="rounded-xl border border-slate-200 p-4">
+            <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                <div>
+                    <p class="font-semibold text-slate-900">
+                        {{ $pago->metodoPago?->nombre ?? 'Método no disponible' }}
+                    </p>
 
-                            <div>
+                    <p class="mt-1 text-xs text-slate-500">
+                        {{ $pago->fecha_pago?->format('d/m/Y H:i') }}
 
-                                <p class="font-semibold text-slate-900">
+                        @if($pago->referencia)
+                            · {{ $pago->referencia }}
+                        @endif
+                    </p>
 
-                                    {{ $pago->metodoPago?->nombre ?? 'Método no disponible' }}
+                    @if($pago->estado === 'VERIFICADO' && $pago->fecha_verificacion)
+                        <p class="mt-1 text-xs text-green-700">
+                            Verificado el
+                            {{ $pago->fecha_verificacion->format('d/m/Y H:i') }}
 
-                                </p>
-
-                                <p class="text-xs text-slate-500">
-
-                                    {{ $pago->fecha_pago?->format('d/m/Y H:i') }}
-
-                                    {{ $pago->referencia ? ' · '.$pago->referencia : '' }}
-
-                                </p>
-
-                            </div>
-
-                            <div class="text-right">
-
-                                <p class="font-bold text-slate-900">
-
-                                    Bs {{ number_format((float) $pago->monto, 2) }}
-
-                                </p>
-
-                                <p class="text-xs font-semibold {{ $pago->estado === 'VERIFICADO' ? 'text-green-700' : 'text-amber-700' }}">
-
-                                    {{ $pago->estado }}
-
-                                </p>
-
-                            </div>
-
-                        </div>
-
-                    @empty
-
-                        <p class="rounded-xl bg-slate-50 p-4 text-sm text-slate-500">
-
-                            Aún no se registraron pagos posteriores a la venta.
-
+                            @if($pago->verificadoPor)
+                                por {{ $pago->verificadoPor->name }}
+                            @endif
                         </p>
+                    @endif
 
-                    @endforelse
-
+                    @if($pago->estado === 'RECHAZADO')
+                        <p class="mt-1 text-xs text-red-700">
+                            Rechazado
+                            @if($pago->motivo_rechazo)
+                                · {{ $pago->motivo_rechazo }}
+                            @endif
+                        </p>
+                    @endif
                 </div>
+
+                <div class="text-right">
+                    <p class="font-bold text-slate-900">
+                        Bs {{ number_format((float) $pago->monto, 2) }}
+                    </p>
+
+                    <p
+                        class="text-xs font-semibold
+                            {{ $pago->estado === 'VERIFICADO'
+                                ? 'text-green-700'
+                                : ($pago->estado === 'RECHAZADO'
+                                    ? 'text-red-700'
+                                    : 'text-amber-700') }}"
+                    >
+                        {{ $pago->estado }}
+                    </p>
+                </div>
+            </div>
+
+            @if(
+                $pago->estado === 'PENDIENTE'
+                && auth()->user()?->tienePermiso('pagos.verificar')
+            )
+                <div class="mt-4 border-t border-slate-100 pt-4">
+                    <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-end">
+                        <form
+                            method="POST"
+                            action="{{ route('ventas.pagos.verificar', [$venta, $pago]) }}"
+                            onsubmit="return confirm('¿Confirmas que este pago fue recibido correctamente?');"
+                        >
+                            @csrf
+
+                            <button
+                                type="submit"
+                                class="w-full rounded-xl bg-green-600 px-4 py-2.5 text-sm font-bold text-white hover:bg-green-700 sm:w-auto"
+                            >
+                                Verificar pago
+                            </button>
+                        </form>
+
+                        <details class="group sm:min-w-[22rem]">
+                            <summary class="cursor-pointer list-none rounded-xl border border-red-200 px-4 py-2.5 text-center text-sm font-bold text-red-700 hover:bg-red-50">
+                                Rechazar pago
+                            </summary>
+
+                            <form
+                                method="POST"
+                                action="{{ route('ventas.pagos.rechazar', [$venta, $pago]) }}"
+                                class="mt-3 rounded-xl border border-red-100 bg-red-50 p-4"
+                                onsubmit="return confirm('¿Confirmas el rechazo de este pago?');"
+                            >
+                                @csrf
+
+                                <label
+                                    for="motivo_rechazo_{{ $pago->id }}"
+                                    class="block text-sm font-semibold text-slate-700"
+                                >
+                                    Motivo del rechazo
+                                </label>
+
+                                <textarea
+                                    id="motivo_rechazo_{{ $pago->id }}"
+                                    name="motivo_rechazo"
+                                    rows="2"
+                                    minlength="5"
+                                    maxlength="1000"
+                                    required
+                                    class="mt-2 w-full rounded-xl border-slate-300 text-sm"
+                                    placeholder="Ej.: transferencia no localizada o comprobante inválido."
+                                ></textarea>
+
+                                <div class="mt-3 flex justify-end">
+                                    <button
+                                        type="submit"
+                                        class="rounded-xl bg-red-600 px-4 py-2.5 text-sm font-bold text-white hover:bg-red-700"
+                                    >
+                                        Confirmar rechazo
+                                    </button>
+                                </div>
+                            </form>
+                        </details>
+                    </div>
+                </div>
+            @endif
+        </div>
+    @empty
+        <p class="rounded-xl bg-slate-50 p-4 text-sm text-slate-500">
+            Aún no se registraron pagos posteriores a la venta.
+        </p>
+    @endforelse
+</div>
 
             </x-ui.card>
 

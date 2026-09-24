@@ -703,6 +703,20 @@ Route::post(
 | La ruta dinámica siempre al final
 |--------------------------------------------------------------------------
 */
+Route::post(
+    '/ventas/{venta}/pagos/{pago}/verificar',
+    [PagoVentaController::class, 'verificar']
+)
+->middleware('permiso:pagos.verificar')
+->name('ventas.pagos.verificar');
+
+
+Route::post(
+    '/ventas/{venta}/pagos/{pago}/rechazar',
+    [PagoVentaController::class, 'rechazar']
+)
+->middleware('permiso:pagos.verificar')
+->name('ventas.pagos.rechazar');
 /*
 |--------------------------------------------------------------------------
 | Nota de venta y garantía
