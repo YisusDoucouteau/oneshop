@@ -16,6 +16,7 @@ use App\Http\Controllers\ReservaController;
 use App\Http\Controllers\VentaController;
 use App\Http\Controllers\PagoVentaController;
 use App\Http\Controllers\CostoLoteController;
+use App\Http\Controllers\CasoGarantiaController;
 use App\Http\Controllers\IntervencionUnidadAdquiridaController;
 use App\Services\UnidadAdquiridaService;
 use Illuminate\Support\Facades\Route;
@@ -717,6 +718,14 @@ Route::post(
 )
 ->middleware('permiso:pagos.verificar')
 ->name('ventas.pagos.rechazar');
+
+Route::post(
+    '/garantias/{garantia}/casos',
+    [CasoGarantiaController::class, 'store']
+)
+->middleware('permiso:garantias.registrar')
+->name('garantias.casos.store');
+
 /*
 |--------------------------------------------------------------------------
 | Nota de venta y garantía
@@ -729,6 +738,18 @@ Route::get(
 )
 ->middleware('permiso:ventas.ver')
 ->name('ventas.boleta');
+/*
+|--------------------------------------------------------------------------
+| POSTVENTA Y GARANTÍAS
+|--------------------------------------------------------------------------
+*/
+
+Route::post(
+    '/garantias/{garantia}/casos',
+    [CasoGarantiaController::class, 'store']
+)
+->middleware('permiso:garantias.registrar')
+->name('garantias.casos.store');
 /*
 |--------------------------------------------------------------------------
 | FASE 7.3C2 - TIPO DE CAMBIO COMERCIAL

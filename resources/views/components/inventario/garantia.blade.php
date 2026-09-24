@@ -1,3 +1,42 @@
+@php
+    $detalleGarantiaActual = $equipo
+        ->detallesVentas
+        ->filter(function ($detalle) {
+            return $detalle->garantia
+                && $detalle->venta
+                && $detalle->venta->estado !== 'ANULADA';
+        })
+        ->sortByDesc(function ($detalle) {
+            return $detalle->venta?->fecha_venta?->timestamp ?? 0;
+        })
+        ->first();
+
+    $garantiaActual =
+        $detalleGarantiaActual?->garantia;
+
+    $casoActivo =
+        $equipo->casosGarantia
+            ->first(function ($caso) {
+                return in_array(
+                    strtoupper($caso->estado ?? ''),
+                    [
+                        'ABIERTO',
+                        'DIAGNOSTICADO',
+                        'EN_PROCESO',
+                    ],
+                    true
+                );
+            });
+
+    $puedeAbrirCaso =
+        $garantiaActual
+        && $garantiaActual->estaVigente()
+        && !$casoActivo
+        && auth()->user()?->tienePermiso(
+            'garantias.registrar'
+        );
+@endphp
+
 <section
     class="
     rounded-2xl
@@ -77,6 +116,202 @@
 
 
     <div class="p-6">
+
+        @if($garantiaActual)
+
+            <div class="mb-6 rounded-2xl border border-slate-200 bg-white p-5">
+
+                <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+
+                    <div>
+
+                        <p class="text-sm font-semibold text-slate-900">
+                            Garantía {{ $garantiaActual->numero }}
+                        </p>
+
+                        <p class="mt-1 text-sm text-slate-500">
+                            Vigencia:
+                            {{ $garantiaActual->fecha_inicio?->format('d/m/Y') ?? '-' }}
+                            al
+                            {{ $garantiaActual->fecha_fin?->format('d/m/Y') ?? '-' }}
+                        </p>
+
+                    </div>
+
+
+                    @if($garantiaActual->estaVigente())
+
+                        <span class="inline-flex w-fit rounded-full bg-emerald-100 px-3 py-1 text-xs font-semibold text-emerald-700">
+                            VIGENTE
+                        </span>
+
+                    @else
+
+                        <span class="inline-flex w-fit rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-600">
+                            NO VIGENTE
+                        </span>
+
+                    @endif
+
+                </div>
+
+
+                @error('garantia')
+
+                    <div class="mt-4 rounded-xl bg-red-50 p-4 text-sm font-medium text-red-700">
+                        {{ $message }}
+                    </div>
+
+                @enderror
+
+
+                @if($casoActivo)
+
+                    <div class="mt-4 rounded-xl bg-amber-50 p-4">
+
+                        <p class="text-sm font-semibold text-amber-800">
+                            Existe un caso de postventa activo.
+                        </p>
+
+                        <p class="mt-1 text-sm text-amber-700">
+                            {{ $casoActivo->numero }}
+                            ·
+                            {{ $casoActivo->estado }}
+                        </p>
+
+                    </div>
+
+                @elseif($puedeAbrirCaso)
+
+                    <details
+                        class="mt-5 rounded-xl border border-blue-200 bg-blue-50"
+                        @if(
+                            $errors->has('garantia')
+                            || $errors->has('motivo_cliente')
+                            || $errors->has('observacion')
+                        )
+                            open
+                        @endif
+                    >
+
+                        <summary class="cursor-pointer px-5 py-4 font-semibold text-blue-800">
+                            Abrir caso de garantía
+                        </summary>
+
+                        <form
+                            method="POST"
+                            action="{{ route(
+                                'garantias.casos.store',
+                                $garantiaActual
+                            ) }}"
+                            class="space-y-5 border-t border-blue-200 p-5"
+                        >
+
+                            @csrf
+
+                            <div>
+
+                                <label
+                                    for="motivo_cliente"
+                                    class="block text-sm font-semibold text-slate-700"
+                                >
+                                    Problema reportado por el cliente
+                                </label>
+
+                                <textarea
+                                    id="motivo_cliente"
+                                    name="motivo_cliente"
+                                    rows="4"
+                                    required
+                                    maxlength="3000"
+                                    class="mt-2 w-full rounded-xl border-slate-300 text-sm shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                                    placeholder="Ej.: El equipo dejó de encender después de dos semanas de uso."
+                                >{{ old('motivo_cliente') }}</textarea>
+
+                                @error('motivo_cliente')
+
+                                    <p class="mt-2 text-sm font-medium text-red-600">
+                                        {{ $message }}
+                                    </p>
+
+                                @enderror
+
+                            </div>
+
+
+                            <div>
+
+                                <label
+                                    for="observacion"
+                                    class="block text-sm font-semibold text-slate-700"
+                                >
+                                    Observación interna
+                                </label>
+
+                                <textarea
+                                    id="observacion"
+                                    name="observacion"
+                                    rows="3"
+                                    maxlength="3000"
+                                    class="mt-2 w-full rounded-xl border-slate-300 text-sm shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                                    placeholder="Estado físico al recibir, accesorios entregados, detalles adicionales..."
+                                >{{ old('observacion') }}</textarea>
+
+                                @error('observacion')
+
+                                    <p class="mt-2 text-sm font-medium text-red-600">
+                                        {{ $message }}
+                                    </p>
+
+                                @enderror
+
+                            </div>
+
+
+                            <div class="rounded-xl bg-white p-4 text-sm text-slate-600">
+
+                                <p class="font-semibold text-slate-800">
+                                    Importante
+                                </p>
+
+                                <p class="mt-1">
+                                    Abrir el caso no devuelve el equipo al inventario
+                                    ni modifica su estado de venta.
+                                </p>
+
+                            </div>
+
+
+                            <div class="flex justify-end">
+
+                                <button
+                                    type="submit"
+                                    class="rounded-xl bg-blue-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-blue-700"
+                                >
+                                    Registrar caso
+                                </button>
+
+                            </div>
+
+                        </form>
+
+                    </details>
+
+                @elseif(
+                    auth()->user()?->tienePermiso('garantias.registrar')
+                    && !$garantiaActual->estaVigente()
+                )
+
+                    <div class="mt-4 rounded-xl bg-slate-50 p-4 text-sm text-slate-600">
+                        Esta garantía ya no se encuentra vigente.
+                    </div>
+
+                @endif
+
+            </div>
+
+        @endif
+
 
 
         @if($equipo->casosGarantia && $equipo->casosGarantia->count())
@@ -189,7 +424,7 @@
 
                             @php
 
-                                $estado = 
+                                $estado =
                                 strtoupper($caso->estado ?? '');
 
                             @endphp
@@ -215,12 +450,12 @@
 
                                     'bg-amber-100 text-amber-700'
                                     =>
-                                    in_array($estado,['ABIERTO','PENDIENTE','DIAGNOSTICO']),
+                                    in_array($estado,['ABIERTO','PENDIENTE','DIAGNOSTICO','DIAGNOSTICADO','EN_PROCESO']),
 
 
                                     'bg-slate-100 text-slate-700'
                                     =>
-                                    !in_array($estado,['CERRADO','FINALIZADO','ABIERTO','PENDIENTE','DIAGNOSTICO'])
+                                    !in_array($estado,['CERRADO','FINALIZADO','ABIERTO','PENDIENTE','DIAGNOSTICO','DIAGNOSTICADO','EN_PROCESO'])
 
                                 ])
                             >
