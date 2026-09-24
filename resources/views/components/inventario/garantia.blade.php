@@ -35,6 +35,11 @@
         && auth()->user()?->tienePermiso(
             'garantias.registrar'
         );
+
+    $puedeGestionarGarantias =
+        auth()->user()?->tienePermiso(
+            'garantias.gestionar'
+        );
 @endphp
 
 <section
@@ -755,6 +760,18 @@
                                             </p>
 
 
+                                            @if($intervencion->resultado)
+
+                                                <p class="mt-2 rounded-lg bg-slate-50 px-3 py-2 text-sm text-slate-600">
+                                                    <span class="font-semibold text-slate-700">
+                                                        Resultado:
+                                                    </span>
+                                                    {{ $intervencion->resultado }}
+                                                </p>
+
+                                            @endif
+
+
 
                                             <p class="mt-2 text-xs text-slate-400">
 
@@ -792,6 +809,420 @@
 
 
 
+
+
+
+                        @php
+                            $estadoCaso =
+                                strtoupper(
+                                    $caso->estado ?? ''
+                                );
+
+                            $esFormularioCasoActual =
+                                (int) old(
+                                    '_caso_id',
+                                    0
+                                ) === (int) $caso->id;
+
+                            $puedeDiagnosticar =
+                                $puedeGestionarGarantias
+                                && $estadoCaso === 'ABIERTO';
+
+                            $puedeIntervenir =
+                                $puedeGestionarGarantias
+                                && in_array(
+                                    $estadoCaso,
+                                    [
+                                        'DIAGNOSTICADO',
+                                        'EN_PROCESO',
+                                    ],
+                                    true
+                                );
+
+                            $puedeCerrarCaso =
+                                $puedeGestionarGarantias
+                                && in_array(
+                                    $estadoCaso,
+                                    [
+                                        'DIAGNOSTICADO',
+                                        'EN_PROCESO',
+                                    ],
+                                    true
+                                );
+                        @endphp
+
+
+                        @if(
+                            $puedeGestionarGarantias
+                            && $estadoCaso !== 'CERRADO'
+                        )
+
+                            <div class="mt-6 rounded-2xl border border-blue-100 bg-blue-50/60 p-5">
+
+                                <div class="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+
+                                    <div>
+    <p class="font-semibold text-slate-900">
+        Gestión técnica del caso
+    </p>
+</div>
+
+                                    <span class="inline-flex w-fit rounded-full bg-white px-3 py-1 text-xs font-semibold text-blue-700 shadow-sm">
+                                        {{ $estadoCaso }}
+                                    </span>
+
+                                </div>
+
+
+                                @if(
+                                    $esFormularioCasoActual
+                                    && $errors->has('garantia_gestion')
+                                )
+
+                                    <div class="mt-4 rounded-xl bg-red-50 p-4 text-sm font-medium text-red-700">
+                                        {{ $errors->first('garantia_gestion') }}
+                                    </div>
+
+                                @endif
+
+
+                                @if($puedeDiagnosticar)
+
+                                    <details
+                                        class="mt-5 rounded-xl border border-slate-200 bg-white"
+                                        @if(
+                                            $esFormularioCasoActual
+                                            && (
+                                                $errors->has('diagnostico_final')
+                                                || $errors->has('garantia_gestion')
+                                            )
+                                        )
+                                            open
+                                        @endif
+                                    >
+
+                                        <summary class="cursor-pointer px-4 py-3 text-sm font-semibold text-slate-800">
+                                            Registrar diagnóstico
+                                        </summary>
+
+                                        <form
+                                            method="POST"
+                                            action="{{ route(
+                                                'garantias.casos.diagnostico',
+                                                $caso
+                                            ) }}"
+                                            class="space-y-4 border-t border-slate-200 p-4"
+                                        >
+
+                                            @csrf
+
+                                            <input
+                                                type="hidden"
+                                                name="_caso_id"
+                                                value="{{ $caso->id }}"
+                                            >
+
+                                            <div>
+
+                                                <label
+                                                    for="diagnostico_final_{{ $caso->id }}"
+                                                    class="block text-sm font-semibold text-slate-700"
+                                                >
+                                                    Diagnóstico técnico
+                                                </label>
+
+                                                <textarea
+                                                    id="diagnostico_final_{{ $caso->id }}"
+                                                    name="diagnostico_final"
+                                                    rows="4"
+                                                    required
+                                                    maxlength="5000"
+                                                    class="mt-2 w-full rounded-xl border-slate-300 text-sm shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                                                    placeholder="Describe la falla encontrada y el diagnóstico técnico."
+                                                >{{ $esFormularioCasoActual ? old('diagnostico_final') : '' }}</textarea>
+
+                                                @if(
+                                                    $esFormularioCasoActual
+                                                    && $errors->has('diagnostico_final')
+                                                )
+
+                                                    <p class="mt-2 text-sm font-medium text-red-600">
+                                                        {{ $errors->first('diagnostico_final') }}
+                                                    </p>
+
+                                                @endif
+
+                                            </div>
+
+                                            <div class="flex justify-end">
+
+                                                <button
+                                                    type="submit"
+                                                    class="rounded-xl bg-blue-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-blue-700"
+                                                >
+                                                    Guardar diagnóstico
+                                                </button>
+
+                                            </div>
+
+                                        </form>
+
+                                    </details>
+
+                                @endif
+
+
+                                @if($puedeIntervenir)
+
+                                    <details
+                                        class="mt-4 rounded-xl border border-slate-200 bg-white"
+                                        @if(
+                                            $esFormularioCasoActual
+                                            && (
+                                                $errors->has('tipo_intervencion')
+                                                || $errors->has('descripcion')
+                                                || $errors->has('resultado')
+                                                || $errors->has('garantia_gestion')
+                                            )
+                                        )
+                                            open
+                                        @endif
+                                    >
+
+                                        <summary class="cursor-pointer px-4 py-3 text-sm font-semibold text-slate-800">
+                                            Registrar intervención
+                                        </summary>
+
+                                        <form
+                                            method="POST"
+                                            action="{{ route(
+                                                'garantias.casos.intervenciones.store',
+                                                $caso
+                                            ) }}"
+                                            class="space-y-4 border-t border-slate-200 p-4"
+                                        >
+
+                                            @csrf
+
+                                            <input
+                                                type="hidden"
+                                                name="_caso_id"
+                                                value="{{ $caso->id }}"
+                                            >
+
+                                            <div>
+
+                                                <label
+                                                    for="tipo_intervencion_{{ $caso->id }}"
+                                                    class="block text-sm font-semibold text-slate-700"
+                                                >
+                                                    Tipo de intervención
+                                                </label>
+
+                                                <input
+                                                    id="tipo_intervencion_{{ $caso->id }}"
+                                                    type="text"
+                                                    name="tipo_intervencion"
+                                                    required
+                                                    maxlength="100"
+                                                    value="{{ $esFormularioCasoActual ? old('tipo_intervencion') : '' }}"
+                                                    class="mt-2 w-full rounded-xl border-slate-300 text-sm shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                                                    placeholder="Ej.: REPARACIÓN, PRUEBA, AJUSTE..."
+                                                >
+
+                                                @if(
+                                                    $esFormularioCasoActual
+                                                    && $errors->has('tipo_intervencion')
+                                                )
+
+                                                    <p class="mt-2 text-sm font-medium text-red-600">
+                                                        {{ $errors->first('tipo_intervencion') }}
+                                                    </p>
+
+                                                @endif
+
+                                            </div>
+
+
+                                            <div>
+
+                                                <label
+                                                    for="descripcion_{{ $caso->id }}"
+                                                    class="block text-sm font-semibold text-slate-700"
+                                                >
+                                                    Trabajo realizado
+                                                </label>
+
+                                                <textarea
+                                                    id="descripcion_{{ $caso->id }}"
+                                                    name="descripcion"
+                                                    rows="3"
+                                                    required
+                                                    maxlength="5000"
+                                                    class="mt-2 w-full rounded-xl border-slate-300 text-sm shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                                                    placeholder="Describe la intervención realizada."
+                                                >{{ $esFormularioCasoActual ? old('descripcion') : '' }}</textarea>
+
+                                                @if(
+                                                    $esFormularioCasoActual
+                                                    && $errors->has('descripcion')
+                                                )
+
+                                                    <p class="mt-2 text-sm font-medium text-red-600">
+                                                        {{ $errors->first('descripcion') }}
+                                                    </p>
+
+                                                @endif
+
+                                            </div>
+
+
+                                            <div>
+
+                                                <label
+                                                    for="resultado_{{ $caso->id }}"
+                                                    class="block text-sm font-semibold text-slate-700"
+                                                >
+                                                    Resultado
+                                                </label>
+
+                                                <textarea
+                                                    id="resultado_{{ $caso->id }}"
+                                                    name="resultado"
+                                                    rows="2"
+                                                    maxlength="5000"
+                                                    class="mt-2 w-full rounded-xl border-slate-300 text-sm shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                                                    placeholder="Resultado obtenido después de la intervención."
+                                                >{{ $esFormularioCasoActual ? old('resultado') : '' }}</textarea>
+
+                                                @if(
+                                                    $esFormularioCasoActual
+                                                    && $errors->has('resultado')
+                                                )
+
+                                                    <p class="mt-2 text-sm font-medium text-red-600">
+                                                        {{ $errors->first('resultado') }}
+                                                    </p>
+
+                                                @endif
+
+                                            </div>
+
+
+                                            <div class="flex justify-end">
+
+                                                <button
+                                                    type="submit"
+                                                    class="rounded-xl bg-blue-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-blue-700"
+                                                >
+                                                    Registrar intervención
+                                                </button>
+
+                                            </div>
+
+                                        </form>
+
+                                    </details>
+
+                                @endif
+
+
+                                @if($puedeCerrarCaso)
+
+                                    <details
+                                        class="mt-4 rounded-xl border border-emerald-200 bg-emerald-50"
+                                        @if(
+                                            $esFormularioCasoActual
+                                            && $errors->has('resolucion')
+                                        )
+                                            open
+                                        @endif
+                                    >
+
+                                        <summary class="cursor-pointer px-4 py-3 text-sm font-semibold text-emerald-800">
+                                            Cerrar caso
+                                        </summary>
+
+                                        <form
+                                            method="POST"
+                                            action="{{ route(
+                                                'garantias.casos.cerrar',
+                                                $caso
+                                            ) }}"
+                                            class="space-y-4 border-t border-emerald-200 p-4"
+                                        >
+
+                                            @csrf
+
+                                            <input
+                                                type="hidden"
+                                                name="_caso_id"
+                                                value="{{ $caso->id }}"
+                                            >
+
+                                            <div>
+
+                                                <label
+                                                    for="resolucion_{{ $caso->id }}"
+                                                    class="block text-sm font-semibold text-slate-700"
+                                                >
+                                                    Resolución final
+                                                </label>
+
+                                                <textarea
+                                                    id="resolucion_{{ $caso->id }}"
+                                                    name="resolucion"
+                                                    rows="3"
+                                                    required
+                                                    maxlength="5000"
+                                                    class="mt-2 w-full rounded-xl border-slate-300 text-sm shadow-sm focus:border-emerald-500 focus:ring-emerald-500"
+                                                    placeholder="Ej.: Equipo reparado, probado y entregado funcionando correctamente."
+                                                >{{ $esFormularioCasoActual ? old('resolucion') : '' }}</textarea>
+
+                                                @if(
+                                                    $esFormularioCasoActual
+                                                    && $errors->has('resolucion')
+                                                )
+
+                                                    <p class="mt-2 text-sm font-medium text-red-600">
+                                                        {{ $errors->first('resolucion') }}
+                                                    </p>
+
+                                                @endif
+
+                                            </div>
+
+
+                                            <div class="rounded-xl bg-white p-3 text-sm text-slate-600">
+                                          
+                                            </div>
+
+
+                                            <div class="flex justify-end">
+
+                                                <button
+                                                    type="submit"
+                                                    class="rounded-xl bg-emerald-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-emerald-700"
+                                                >
+                                                    Cerrar caso
+                                                </button>
+
+                                            </div>
+
+                                        </form>
+
+                                    </details>
+
+                                @endif
+
+                            </div>
+
+                        @elseif(
+                            $puedeGestionarGarantias
+                            && $estadoCaso === 'CERRADO'
+                        )
+
+                        @endif
 
 
                         @if($caso->observacion)

@@ -164,19 +164,65 @@ class CasoGarantiaService
 
     public function registrarDiagnostico(
         int $casoId,
+        int $usuarioId,
         string $diagnostico
     ): CasoGarantia {
-        $caso = CasoGarantia::findOrFail($casoId);
+        return DB::transaction(function () use (
+            $casoId,
+            $usuarioId,
+            $diagnostico
+        ) {
+            $usuario =
+                $this->obtenerUsuarioGestorActivo(
+                    $usuarioId
+                );
 
-        $caso->update([
-            'diagnostico_final' =>
-                $diagnostico,
+            $diagnostico = trim($diagnostico);
 
-            'estado' =>
-                'DIAGNOSTICADO',
-        ]);
+            if ($diagnostico === '') {
+                throw new ReglaNegocioException(
+                    'Debe registrar el diagnóstico del caso.'
+                );
+            }
 
-        return $caso->fresh();
+            $caso = CasoGarantia::query()
+                ->lockForUpdate()
+                ->find($casoId);
+
+            if (!$caso) {
+                throw new ReglaNegocioException(
+                    'El caso de garantía no existe.'
+                );
+            }
+
+            if ($caso->estado === 'CERRADO') {
+                throw new ReglaNegocioException(
+                    'El caso ya se encuentra cerrado y no puede modificarse.'
+                );
+            }
+
+            if ($caso->estado !== 'ABIERTO') {
+                throw new ReglaNegocioException(
+                    'Solo los casos abiertos pueden recibir un diagnóstico inicial.'
+                );
+            }
+
+            $caso->diagnostico_final =
+                $diagnostico;
+
+            $caso->estado =
+                'DIAGNOSTICADO';
+
+            $caso->save();
+
+            return $caso->fresh([
+                'garantia',
+                'equipoAfectado',
+                'recibidoPor',
+                'cerradoPor',
+                'intervenciones.usuario',
+            ]);
+        }, 3);
     }
 
     public function registrarIntervencion(
@@ -186,25 +232,107 @@ class CasoGarantiaService
         string $descripcion,
         ?string $resultado = null
     ): IntervencionGarantia {
-        return IntervencionGarantia::create([
-            'caso_garantia_id' =>
-                $casoId,
+        return DB::transaction(function () use (
+            $casoId,
+            $usuarioId,
+            $tipo,
+            $descripcion,
+            $resultado
+        ) {
+            $usuario =
+                $this->obtenerUsuarioGestorActivo(
+                    $usuarioId
+                );
 
-            'usuario_id' =>
-                $usuarioId,
+            $tipo = trim($tipo);
+            $descripcion = trim($descripcion);
+            $resultado = $resultado !== null
+                ? trim($resultado)
+                : null;
 
-            'tipo_intervencion' =>
-                $tipo,
+            if ($tipo === '') {
+                throw new ReglaNegocioException(
+                    'Debe indicar el tipo de intervención.'
+                );
+            }
 
-            'fecha_intervencion' =>
-                now(),
+            if ($descripcion === '') {
+                throw new ReglaNegocioException(
+                    'Debe describir la intervención realizada.'
+                );
+            }
 
-            'descripcion' =>
-                $descripcion,
+            $caso = CasoGarantia::query()
+                ->lockForUpdate()
+                ->find($casoId);
 
-            'resultado' =>
-                $resultado,
-        ]);
+            if (!$caso) {
+                throw new ReglaNegocioException(
+                    'El caso de garantía no existe.'
+                );
+            }
+
+            if ($caso->estado === 'CERRADO') {
+                throw new ReglaNegocioException(
+                    'El caso ya se encuentra cerrado y no admite intervenciones.'
+                );
+            }
+
+            if ($caso->estado === 'ABIERTO') {
+                throw new ReglaNegocioException(
+                    'Debe registrar el diagnóstico antes de agregar intervenciones.'
+                );
+            }
+
+            if (
+                !in_array(
+                    $caso->estado,
+                    [
+                        'DIAGNOSTICADO',
+                        'EN_PROCESO',
+                    ],
+                    true
+                )
+            ) {
+                throw new ReglaNegocioException(
+                    'El estado actual del caso no permite registrar intervenciones.'
+                );
+            }
+
+            $intervencion =
+                IntervencionGarantia::query()
+                    ->create([
+                        'caso_garantia_id' =>
+                            $caso->id,
+
+                        'usuario_id' =>
+                            $usuario->id,
+
+                        'tipo_intervencion' =>
+                            $tipo,
+
+                        'fecha_intervencion' =>
+                            now(),
+
+                        'descripcion' =>
+                            $descripcion,
+
+                        'resultado' =>
+                            $resultado,
+                    ]);
+
+            if ($caso->estado === 'DIAGNOSTICADO') {
+                $caso->estado =
+                    'EN_PROCESO';
+
+                $caso->save();
+            }
+
+            return $intervencion->fresh([
+                'casoGarantia',
+                'usuario',
+            ]);
+        }, 3);
     }
 
     public function cerrarCaso(
@@ -212,25 +340,102 @@ class CasoGarantiaService
         int $usuarioId,
         string $resolucion
     ): CasoGarantia {
-        $caso = CasoGarantia::findOrFail($casoId);
+        return DB::transaction(function () use (
+            $casoId,
+            $usuarioId,
+            $resolucion
+        ) {
+            $usuario =
+                $this->obtenerUsuarioGestorActivo(
+                    $usuarioId
+                );
 
-        $caso->update([
-            'estado' =>
-                'CERRADO',
+            $resolucion = trim($resolucion);
 
-            'resolucion' =>
-                $resolucion,
+            if ($resolucion === '') {
+                throw new ReglaNegocioException(
+                    'Debe indicar la resolución final del caso.'
+                );
+            }
 
-            'fecha_cierre' =>
-                now(),
+            $caso = CasoGarantia::query()
+                ->lockForUpdate()
+                ->find($casoId);
 
-            'cerrado_por_id' =>
-                $usuarioId,
-        ]);
+            if (!$caso) {
+                throw new ReglaNegocioException(
+                    'El caso de garantía no existe.'
+                );
+            }
 
-        return $caso->fresh();
+            if ($caso->estado === 'CERRADO') {
+                throw new ReglaNegocioException(
+                    'El caso ya se encuentra cerrado.'
+                );
+            }
+
+            if ($caso->estado === 'ABIERTO') {
+                throw new ReglaNegocioException(
+                    'Debe registrar un diagnóstico antes de cerrar el caso.'
+                );
+            }
+
+            if (
+                !in_array(
+                    $caso->estado,
+                    [
+                        'DIAGNOSTICADO',
+                        'EN_PROCESO',
+                    ],
+                    true
+                )
+            ) {
+                throw new ReglaNegocioException(
+                    'El estado actual del caso no permite cerrarlo.'
+                );
+            }
+
+            if (
+                trim(
+                    (string) $caso->diagnostico_final
+                ) === ''
+            ) {
+                throw new ReglaNegocioException(
+                    'El caso no posee un diagnóstico registrado.'
+                );
+            }
+
+            $caso->estado =
+                'CERRADO';
+
+            $caso->resolucion =
+                $resolucion;
+
+            $caso->fecha_cierre =
+                now();
+
+            $caso->cerrado_por_id =
+                $usuario->id;
+
+            $caso->save();
+
+            return $caso->fresh([
+                'garantia',
+                'equipoAfectado',
+                'recibidoPor',
+                'cerradoPor',
+                'intervenciones.usuario',
+            ]);
+        }, 3);
     }
 
+    /*
+     * Fase 10C.
+     *
+     * Se conserva el método existente, pero su endurecimiento
+     * (disponibilidad del equipo entrante, inventario,
+     * trazabilidad y autorización) se realizará en 10C.
+     */
     public function registrarCambioEquipo(
         int $casoId,
         int $equipoSalienteId,
@@ -263,5 +468,31 @@ class CasoGarantiaService
             'motivo' =>
                 $motivo,
         ]);
+    }
+
+    private function obtenerUsuarioGestorActivo(
+        int $usuarioId
+    ): User {
+        $usuario = User::query()
+            ->where('activo', true)
+            ->find($usuarioId);
+
+        if (!$usuario) {
+            throw new ReglaNegocioException(
+                'El usuario no existe o se encuentra inactivo.'
+            );
+        }
+
+        if (
+            !$usuario->tienePermiso(
+                'garantias.gestionar'
+            )
+        ) {
+            throw new ReglaNegocioException(
+                'El usuario no cuenta con permiso para gestionar casos de garantía.'
+            );
+        }
+
+        return $usuario;
     }
 }

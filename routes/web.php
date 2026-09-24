@@ -725,6 +725,42 @@ Route::post(
 )
 ->middleware('permiso:garantias.registrar')
 ->name('garantias.casos.store');
+/*
+|--------------------------------------------------------------------------
+| GARANTÍAS / POSTVENTA
+|--------------------------------------------------------------------------
+*/
+
+Route::post(
+    '/garantias/{garantia}/casos',
+    [CasoGarantiaController::class, 'store']
+)
+->middleware('permiso:garantias.registrar')
+->name('garantias.casos.store');
+
+
+Route::post(
+    '/garantias/casos/{caso}/diagnostico',
+    [CasoGarantiaController::class, 'diagnostico']
+)
+->middleware('permiso:garantias.gestionar')
+->name('garantias.casos.diagnostico');
+
+
+Route::post(
+    '/garantias/casos/{caso}/intervenciones',
+    [CasoGarantiaController::class, 'intervencion']
+)
+->middleware('permiso:garantias.gestionar')
+->name('garantias.casos.intervenciones.store');
+
+
+Route::post(
+    '/garantias/casos/{caso}/cerrar',
+    [CasoGarantiaController::class, 'cerrar']
+)
+->middleware('permiso:garantias.gestionar')
+->name('garantias.casos.cerrar');
 
 /*
 |--------------------------------------------------------------------------

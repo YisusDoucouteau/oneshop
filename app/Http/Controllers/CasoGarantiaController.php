@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Exceptions\ReglaNegocioException;
+use App\Models\CasoGarantia;
 use App\Models\Garantia;
 use App\Services\CasoGarantiaService;
 use Illuminate\Http\RedirectResponse;
@@ -45,13 +46,160 @@ class CasoGarantiaController extends Controller
             return back()
                 ->withInput()
                 ->withErrors([
-                    'garantia' => $exception->getMessage(),
+                    'garantia' =>
+                        $exception->getMessage(),
                 ]);
         }
 
         return back()->with(
             'success',
             "Caso de garantía {$caso->numero} abierto correctamente."
+        );
+    }
+
+    public function diagnostico(
+        Request $request,
+        CasoGarantia $caso
+    ): RedirectResponse {
+        $datos = $request->validate([
+            'diagnostico_final' => [
+                'required',
+                'string',
+                'min:5',
+                'max:5000',
+            ],
+
+            '_caso_id' => [
+                'nullable',
+                'integer',
+            ],
+        ]);
+
+        try {
+            $caso = $this
+                ->casoGarantiaService
+                ->registrarDiagnostico(
+                    casoId: $caso->id,
+                    usuarioId:
+                        (int) $request->user()->id,
+                    diagnostico:
+                        $datos['diagnostico_final']
+                );
+        } catch (ReglaNegocioException $exception) {
+            return back()
+                ->withInput()
+                ->withErrors([
+                    'garantia_gestion' =>
+                        $exception->getMessage(),
+                ]);
+        }
+
+        return back()->with(
+            'success',
+            "Diagnóstico registrado en {$caso->numero}."
+        );
+    }
+
+    public function intervencion(
+        Request $request,
+        CasoGarantia $caso
+    ): RedirectResponse {
+        $datos = $request->validate([
+            'tipo_intervencion' => [
+                'required',
+                'string',
+                'min:2',
+                'max:100',
+            ],
+
+            'descripcion' => [
+                'required',
+                'string',
+                'min:5',
+                'max:5000',
+            ],
+
+            'resultado' => [
+                'nullable',
+                'string',
+                'max:5000',
+            ],
+
+            '_caso_id' => [
+                'nullable',
+                'integer',
+            ],
+        ]);
+
+        try {
+            $this
+                ->casoGarantiaService
+                ->registrarIntervencion(
+                    casoId: $caso->id,
+                    usuarioId:
+                        (int) $request->user()->id,
+                    tipo:
+                        $datos['tipo_intervencion'],
+                    descripcion:
+                        $datos['descripcion'],
+                    resultado:
+                        $datos['resultado'] ?? null
+                );
+        } catch (ReglaNegocioException $exception) {
+            return back()
+                ->withInput()
+                ->withErrors([
+                    'garantia_gestion' =>
+                        $exception->getMessage(),
+                ]);
+        }
+
+        return back()->with(
+            'success',
+            "Intervención registrada en {$caso->numero}."
+        );
+    }
+
+    public function cerrar(
+        Request $request,
+        CasoGarantia $caso
+    ): RedirectResponse {
+        $datos = $request->validate([
+            'resolucion' => [
+                'required',
+                'string',
+                'min:5',
+                'max:5000',
+            ],
+
+            '_caso_id' => [
+                'nullable',
+                'integer',
+            ],
+        ]);
+
+        try {
+            $caso = $this
+                ->casoGarantiaService
+                ->cerrarCaso(
+                    casoId: $caso->id,
+                    usuarioId:
+                        (int) $request->user()->id,
+                    resolucion:
+                        $datos['resolucion']
+                );
+        } catch (ReglaNegocioException $exception) {
+            return back()
+                ->withInput()
+                ->withErrors([
+                    'garantia_gestion' =>
+                        $exception->getMessage(),
+                ]);
+        }
+
+        return back()->with(
+            'success',
+            "Caso {$caso->numero} cerrado correctamente."
         );
     }
 }

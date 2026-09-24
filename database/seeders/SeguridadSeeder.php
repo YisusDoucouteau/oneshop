@@ -209,6 +209,12 @@ class SeguridadSeeder extends Seeder
             ],
 
 
+            /*
+            |--------------------------------------------------------------------------
+            | Garantías / postventa
+            |--------------------------------------------------------------------------
+            */
+
             [
                 'codigo' => 'garantias.ver',
                 'nombre' => 'Ver garantías'
@@ -217,6 +223,11 @@ class SeguridadSeeder extends Seeder
             [
                 'codigo' => 'garantias.registrar',
                 'nombre' => 'Registrar casos de garantía'
+            ],
+
+            [
+                'codigo' => 'garantias.gestionar',
+                'nombre' => 'Gestionar casos de garantía'
             ],
 
             [
@@ -277,7 +288,6 @@ class SeguridadSeeder extends Seeder
         |--------------------------------------------------------------------------
         */
 
-
         $todosLosPermisos = DB::table('permisos')
             ->pluck('id', 'codigo');
 
@@ -287,7 +297,14 @@ class SeguridadSeeder extends Seeder
 
 
 
-        // Administrador: todo
+        /*
+        |--------------------------------------------------------------------------
+        | Administrador
+        |--------------------------------------------------------------------------
+        |
+        | El administrador recibe absolutamente todos los permisos.
+        |
+        */
 
         foreach ($todosLosPermisos as $permisoId) {
 
@@ -303,7 +320,11 @@ class SeguridadSeeder extends Seeder
 
 
 
-        // Administrador operativo
+        /*
+        |--------------------------------------------------------------------------
+        | Administrador operativo
+        |--------------------------------------------------------------------------
+        */
 
         $permisosOperativos = [
 
@@ -333,7 +354,9 @@ class SeguridadSeeder extends Seeder
 
             'ventas.ver',
             'ventas.anular',
+
             'garantias.ver',
+            'garantias.gestionar',
 
             'reportes.ver',
 
@@ -341,7 +364,15 @@ class SeguridadSeeder extends Seeder
 
 
 
-        // Vendedor
+        /*
+        |--------------------------------------------------------------------------
+        | Vendedor
+        |--------------------------------------------------------------------------
+        |
+        | Puede registrar el ingreso de un equipo a postventa,
+        | pero no realizar diagnóstico, intervención o cierre técnico.
+        |
+        */
 
         $permisosVendedor = [
 
@@ -367,7 +398,15 @@ class SeguridadSeeder extends Seeder
 
 
 
-        // Técnico
+        /*
+        |--------------------------------------------------------------------------
+        | Técnico
+        |--------------------------------------------------------------------------
+        |
+        | Puede gestionar técnicamente un caso previamente abierto:
+        | diagnóstico, intervenciones y cierre.
+        |
+        */
 
         $permisosTecnico = [
 
@@ -380,10 +419,17 @@ class SeguridadSeeder extends Seeder
             'tecnico.registrar_reparacion',
 
             'garantias.ver',
+            'garantias.gestionar',
 
         ];
 
 
+
+        /*
+        |--------------------------------------------------------------------------
+        | Aplicar permisos por rol
+        |--------------------------------------------------------------------------
+        */
 
         $this->asignarPermisos(
             $rolesIds['ADMIN_OPERATIVO'],
