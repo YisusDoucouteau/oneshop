@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class CambioEquipo extends Model
@@ -17,7 +18,6 @@ class CambioEquipo extends Model
         'fecha_cambio',
         'motivo',
         'observacion',
-
         'valor_original_snapshot',
         'valor_reemplazo_snapshot',
         'diferencia_snapshot',
@@ -28,7 +28,6 @@ class CambioEquipo extends Model
 
     protected $casts = [
         'fecha_cambio' => 'datetime',
-
         'valor_original_snapshot' => 'decimal:2',
         'valor_reemplazo_snapshot' => 'decimal:2',
         'diferencia_snapshot' => 'decimal:2',
@@ -65,4 +64,11 @@ class CambioEquipo extends Model
             'autorizado_por_id'
         );
     }
+    public function movimientosAjuste(): HasMany
+{
+    return $this->hasMany(
+        MovimientoAjusteGarantia::class,
+        'cambio_equipo_id'
+    );
+}
 }

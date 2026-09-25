@@ -28,4 +28,11 @@ class MetodoPago extends Model
             'metodo_pago_id'
         );
     }
+    public function movimientosAjustesGarantia(): HasMany
+{
+    return $this->hasMany(
+        MovimientoAjusteGarantia::class,
+        'metodo_pago_id'
+    );
+}
 }

@@ -44,10 +44,12 @@
         />
 
         {{-- Garantía --}}
-        <x-inventario.garantia
-            :equipo="$equipo"
-            :reemplazos="$equiposReemplazo"
-        />
+<x-inventario.garantia
+    :equipo="$equipo"
+    :equipos-reemplazo="$equiposReemplazo"
+    :metodos="$metodosPagoAjuste"
+    :resumenes="$resumenesAjusteGarantia"
+/>
 
         {{-- Etiqueta --}}
         <x-inventario.etiqueta

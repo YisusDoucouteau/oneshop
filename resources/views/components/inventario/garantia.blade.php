@@ -1,11 +1,21 @@
 @props([
     'equipo',
-    'reemplazos' => null,
+    'equiposReemplazo' => null,
+    'metodos' => null,
+    'resumenes' => null,
 ])
 
 @php
     $equiposReemplazo =
-        $reemplazos
+        $equiposReemplazo
+        ?? collect();
+
+    $metodos =
+        $metodos
+        ?? collect();
+
+    $resumenes =
+        $resumenes
         ?? collect();
 
     $detalleGarantiaActual = $equipo
@@ -1164,7 +1174,15 @@
 
                                     </div>
 
-                                @else
+
+
+                                   <x-inventario.ajuste-garantia
+    :cambio="$cambioEquipo"
+    :resumen="$resumenes->get($cambioEquipo->id)"
+    :metodos="$metodos"
+/>
+
+@else
 
                                     <div class="mt-5 rounded-xl border border-slate-200 bg-white p-4">
 

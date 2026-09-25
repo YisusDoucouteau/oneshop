@@ -8,6 +8,8 @@ use App\Models\Equipo;
 use App\Models\EstadoEquipo;
 use App\Models\Producto;
 use App\Services\RegistroEquipoService;
+use App\Models\MetodoPago;
+use App\Services\AjusteGarantiaService;
 use App\Services\TrazabilidadEquipoService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -164,7 +166,8 @@ public function store(
 }
    public function show(
     Equipo $equipo,
-    TrazabilidadEquipoService $trazabilidad
+    TrazabilidadEquipoService $trazabilidad,
+    AjusteGarantiaService $ajusteGarantiaService
 ): View {
     $equipo->load([
         'producto.marca',
@@ -182,6 +185,9 @@ public function store(
         'casosGarantia.cambioEquipo.equipoSaliente',
         'casosGarantia.cambioEquipo.equipoEntrante',
         'casosGarantia.cambioEquipo.autorizadoPor',
+        'casosGarantia.cambioEquipo.movimientosAjuste.metodoPago',
+        'casosGarantia.cambioEquipo.movimientosAjuste.registradoPor',
+        'casosGarantia.cambioEquipo.movimientosAjuste.verificadoPor',
 
         'historialEstados.estadoOrigen',
         'historialEstados.estadoDestino',
@@ -296,12 +302,55 @@ public function store(
                 ->get();
     }
 
-    return view(
+
+    $metodosPagoAjuste =
+        collect();
+
+    if (
+        auth()->user()?->tienePermiso(
+            'garantias.ajustes.registrar'
+        )
+    ) {
+        $metodosPagoAjuste =
+            MetodoPago::query()
+                ->where(
+                    'activo',
+                    true
+                )
+                ->orderBy(
+                    'nombre'
+                )
+                ->get();
+    }
+
+    $resumenesAjusteGarantia =
+        collect();
+
+    foreach (
+        $equipo->casosGarantia
+        as $caso
+    ) {
+        if (!$caso->cambioEquipo) {
+            continue;
+        }
+
+        $resumenesAjusteGarantia->put(
+            $caso->cambioEquipo->id,
+            $ajusteGarantiaService
+                ->obtenerResumen(
+                    $caso->cambioEquipo->id
+                )
+        );
+    }
+
+return view(
         'inventario.show',
         compact(
             'equipo',
             'eventosTrazabilidad',
-            'equiposReemplazo'
+            'equiposReemplazo',
+            'metodosPagoAjuste',
+            'resumenesAjusteGarantia'
         )
     );
 }

@@ -10,6 +10,7 @@ use App\Http\Controllers\RecepcionLoteController;
 use App\Http\Controllers\EnvioImportacionController;
 use App\Models\Producto;
 use App\Models\Moneda;
+use App\Http\Controllers\AjusteGarantiaController;
 use App\Http\Controllers\AnulacionVentaController;
 use App\Http\Controllers\PrecioEquipoController;
 use App\Http\Controllers\ReservaController;
@@ -903,7 +904,34 @@ Route::get(
 )
 ->middleware('permiso:inventario.ver')
 ->name('inventario.show');
+/*
+|--------------------------------------------------------------------------
+| Ajuste económico por cambio de garantía
+|--------------------------------------------------------------------------
+*/
 
+Route::post(
+    '/garantias/cambios/{cambio}/ajustes',
+    [AjusteGarantiaController::class, 'store']
+)
+->middleware('permiso:garantias.ajustes.registrar')
+->name('garantias.ajustes.store');
+
+
+Route::post(
+    '/garantias/cambios/{cambio}/ajustes/{movimiento}/verificar',
+    [AjusteGarantiaController::class, 'verificar']
+)
+->middleware('permiso:garantias.ajustes.verificar')
+->name('garantias.ajustes.verificar');
+
+
+Route::post(
+    '/garantias/cambios/{cambio}/ajustes/{movimiento}/rechazar',
+    [AjusteGarantiaController::class, 'rechazar']
+)
+->middleware('permiso:garantias.ajustes.verificar')
+->name('garantias.ajustes.rechazar');
 
 });
 

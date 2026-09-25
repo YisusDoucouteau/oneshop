@@ -78,6 +78,12 @@ class SeguridadSeeder extends Seeder
 
         $permisos = [
 
+            /*
+            |--------------------------------------------------------------------------
+            | Usuarios
+            |--------------------------------------------------------------------------
+            */
+
             [
                 'codigo' => 'usuarios.ver',
                 'nombre' => 'Ver usuarios'
@@ -89,6 +95,12 @@ class SeguridadSeeder extends Seeder
             ],
 
 
+            /*
+            |--------------------------------------------------------------------------
+            | Clientes
+            |--------------------------------------------------------------------------
+            */
+
             [
                 'codigo' => 'clientes.ver',
                 'nombre' => 'Ver clientes'
@@ -99,6 +111,12 @@ class SeguridadSeeder extends Seeder
                 'nombre' => 'Gestionar clientes'
             ],
 
+
+            /*
+            |--------------------------------------------------------------------------
+            | Inventario
+            |--------------------------------------------------------------------------
+            */
 
             [
                 'codigo' => 'inventario.ver',
@@ -116,11 +134,23 @@ class SeguridadSeeder extends Seeder
             ],
 
 
+            /*
+            |--------------------------------------------------------------------------
+            | Movimientos de inventario
+            |--------------------------------------------------------------------------
+            */
+
             [
                 'codigo' => 'movimientos.ver',
                 'nombre' => 'Ver movimientos de inventario'
             ],
 
+
+            /*
+            |--------------------------------------------------------------------------
+            | Importaciones
+            |--------------------------------------------------------------------------
+            */
 
             [
                 'codigo' => 'importacion.ver',
@@ -133,11 +163,23 @@ class SeguridadSeeder extends Seeder
             ],
 
 
+            /*
+            |--------------------------------------------------------------------------
+            | Transferencias
+            |--------------------------------------------------------------------------
+            */
+
             [
                 'codigo' => 'transferencias.gestionar',
                 'nombre' => 'Gestionar transferencias'
             ],
 
+
+            /*
+            |--------------------------------------------------------------------------
+            | Técnico
+            |--------------------------------------------------------------------------
+            */
 
             [
                 'codigo' => 'tecnico.ver',
@@ -155,6 +197,12 @@ class SeguridadSeeder extends Seeder
             ],
 
 
+            /*
+            |--------------------------------------------------------------------------
+            | Precios
+            |--------------------------------------------------------------------------
+            */
+
             [
                 'codigo' => 'precios.ver',
                 'nombre' => 'Ver precios'
@@ -171,6 +219,12 @@ class SeguridadSeeder extends Seeder
             ],
 
 
+            /*
+            |--------------------------------------------------------------------------
+            | Reservas
+            |--------------------------------------------------------------------------
+            */
+
             [
                 'codigo' => 'reservas.ver',
                 'nombre' => 'Ver reservas'
@@ -181,6 +235,12 @@ class SeguridadSeeder extends Seeder
                 'nombre' => 'Gestionar reservas'
             ],
 
+
+            /*
+            |--------------------------------------------------------------------------
+            | Ventas
+            |--------------------------------------------------------------------------
+            */
 
             [
                 'codigo' => 'ventas.ver',
@@ -197,6 +257,12 @@ class SeguridadSeeder extends Seeder
                 'nombre' => 'Anular ventas'
             ],
 
+
+            /*
+            |--------------------------------------------------------------------------
+            | Pagos
+            |--------------------------------------------------------------------------
+            */
 
             [
                 'codigo' => 'pagos.registrar',
@@ -235,6 +301,22 @@ class SeguridadSeeder extends Seeder
                 'nombre' => 'Autorizar cambio de equipo'
             ],
 
+            [
+                'codigo' => 'garantias.ajustes.registrar',
+                'nombre' => 'Registrar ajustes económicos de garantía'
+            ],
+
+            [
+                'codigo' => 'garantias.ajustes.verificar',
+                'nombre' => 'Verificar ajustes económicos de garantía'
+            ],
+
+
+            /*
+            |--------------------------------------------------------------------------
+            | Finanzas
+            |--------------------------------------------------------------------------
+            */
 
             [
                 'codigo' => 'finanzas.ver',
@@ -247,10 +329,23 @@ class SeguridadSeeder extends Seeder
             ],
 
 
+            /*
+            |--------------------------------------------------------------------------
+            | Reportes
+            |--------------------------------------------------------------------------
+            */
+
             [
                 'codigo' => 'reportes.ver',
                 'nombre' => 'Ver reportes'
             ],
+
+
+            /*
+            |--------------------------------------------------------------------------
+            | Auditoría
+            |--------------------------------------------------------------------------
+            */
 
             [
                 'codigo' => 'auditoria.ver',
@@ -302,7 +397,8 @@ class SeguridadSeeder extends Seeder
         | Administrador
         |--------------------------------------------------------------------------
         |
-        | El administrador recibe absolutamente todos los permisos.
+        | El administrador recibe todos los permisos existentes, incluidos los
+        | nuevos permisos económicos de garantía.
         |
         */
 
@@ -368,10 +464,6 @@ class SeguridadSeeder extends Seeder
         |--------------------------------------------------------------------------
         | Vendedor
         |--------------------------------------------------------------------------
-        |
-        | Puede registrar el ingreso de un equipo a postventa,
-        | pero no realizar diagnóstico, intervención o cierre técnico.
-        |
         */
 
         $permisosVendedor = [
@@ -402,10 +494,6 @@ class SeguridadSeeder extends Seeder
         |--------------------------------------------------------------------------
         | Técnico
         |--------------------------------------------------------------------------
-        |
-        | Puede gestionar técnicamente un caso previamente abierto:
-        | diagnóstico, intervenciones y cierre.
-        |
         */
 
         $permisosTecnico = [
