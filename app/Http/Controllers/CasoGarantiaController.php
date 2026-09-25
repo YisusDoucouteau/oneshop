@@ -36,12 +36,21 @@ class CasoGarantiaController extends Controller
         ]);
 
         try {
-            $caso = $this->casoGarantiaService->abrirCaso(
-                garantiaId: $garantia->id,
-                usuarioId: (int) $request->user()->id,
-                motivoCliente: $datos['motivo_cliente'],
-                observacion: $datos['observacion'] ?? null
-            );
+            $caso = $this
+                ->casoGarantiaService
+                ->abrirCaso(
+                    garantiaId:
+                        $garantia->id,
+
+                    usuarioId:
+                        (int) $request->user()->id,
+
+                    motivoCliente:
+                        $datos['motivo_cliente'],
+
+                    observacion:
+                        $datos['observacion'] ?? null
+                );
         } catch (ReglaNegocioException $exception) {
             return back()
                 ->withInput()
@@ -79,9 +88,12 @@ class CasoGarantiaController extends Controller
             $caso = $this
                 ->casoGarantiaService
                 ->registrarDiagnostico(
-                    casoId: $caso->id,
+                    casoId:
+                        $caso->id,
+
                     usuarioId:
                         (int) $request->user()->id,
+
                     diagnostico:
                         $datos['diagnostico_final']
                 );
@@ -135,13 +147,18 @@ class CasoGarantiaController extends Controller
             $this
                 ->casoGarantiaService
                 ->registrarIntervencion(
-                    casoId: $caso->id,
+                    casoId:
+                        $caso->id,
+
                     usuarioId:
                         (int) $request->user()->id,
+
                     tipo:
                         $datos['tipo_intervencion'],
+
                     descripcion:
                         $datos['descripcion'],
+
                     resultado:
                         $datos['resultado'] ?? null
                 );
@@ -182,9 +199,12 @@ class CasoGarantiaController extends Controller
             $caso = $this
                 ->casoGarantiaService
                 ->cerrarCaso(
-                    casoId: $caso->id,
+                    casoId:
+                        $caso->id,
+
                     usuarioId:
                         (int) $request->user()->id,
+
                     resolucion:
                         $datos['resolucion']
                 );
@@ -200,6 +220,73 @@ class CasoGarantiaController extends Controller
         return back()->with(
             'success',
             "Caso {$caso->numero} cerrado correctamente."
+        );
+    }
+
+    public function cambioEquipo(
+        Request $request,
+        CasoGarantia $caso
+    ): RedirectResponse {
+        $datos = $request->validate([
+            'equipo_entrante_id' => [
+                'required',
+                'integer',
+                'exists:equipos,id',
+            ],
+
+            'motivo' => [
+                'required',
+                'string',
+                'min:5',
+                'max:255',
+            ],
+
+            'observacion' => [
+                'nullable',
+                'string',
+                'max:5000',
+            ],
+
+            '_caso_id' => [
+                'nullable',
+                'integer',
+            ],
+        ]);
+
+        try {
+            $cambio = $this
+                ->casoGarantiaService
+                ->registrarCambioEquipo(
+                    casoId:
+                        $caso->id,
+
+                    equipoSalienteId:
+                        (int) $caso->equipo_afectado_id,
+
+                    equipoEntranteId:
+                        (int) $datos['equipo_entrante_id'],
+
+                    usuarioId:
+                        (int) $request->user()->id,
+
+                    motivo:
+                        $datos['motivo'],
+
+                    observacion:
+                        $datos['observacion'] ?? null
+                );
+        } catch (ReglaNegocioException $exception) {
+            return back()
+                ->withInput()
+                ->withErrors([
+                    'garantia_cambio' =>
+                        $exception->getMessage(),
+                ]);
+        }
+
+        return back()->with(
+            'success',
+            "Cambio de equipo registrado correctamente en el caso {$caso->numero}."
         );
     }
 }

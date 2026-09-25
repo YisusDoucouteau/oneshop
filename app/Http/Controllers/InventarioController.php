@@ -166,41 +166,142 @@ public function store(
     Equipo $equipo,
     TrazabilidadEquipoService $trazabilidad
 ): View {
-
     $equipo->load([
-
         'producto.marca',
         'producto.categoria',
-
         'almacenActual',
         'estadoActual',
         'condicionFisica',
-
         'especificacion',
         'precioVigente',
-
         'detalleLote.lote.proveedor',
 
         'casosGarantia.recibidoPor',
         'casosGarantia.cerradoPor',
+        'casosGarantia.intervenciones.usuario',
+        'casosGarantia.cambioEquipo.equipoSaliente',
+        'casosGarantia.cambioEquipo.equipoEntrante',
+        'casosGarantia.cambioEquipo.autorizadoPor',
 
         'historialEstados.estadoOrigen',
         'historialEstados.estadoDestino',
         'historialEstados.usuario',
-
     ]);
 
+    $eventosTrazabilidad =
+        $trazabilidad->obtener(
+            $equipo
+        );
 
-    $eventosTrazabilidad = $trazabilidad->obtener(
-        $equipo
-    );
+    $equiposReemplazo =
+        collect();
 
+    if (
+        auth()->user()?->tienePermiso(
+            'garantias.autorizar_cambio'
+        )
+    ) {
+        $equiposReemplazo =
+            Equipo::query()
+                ->with([
+                    'almacenActual',
+                    'producto.marca',
+                    'estadoActual',
+                    'precioVigente',
+                ])
+
+                /*
+                 * Nunca puede seleccionarse
+                 * el mismo equipo original.
+                 */
+                ->where(
+                    'id',
+                    '<>',
+                    $equipo->id
+                )
+
+                /*
+                 * El reemplazo debe estar activo.
+                 */
+                ->where(
+                    'activo',
+                    true
+                )
+
+                /*
+                 * Debe estar físicamente
+                 * asociado a un almacén.
+                 */
+                ->whereNotNull(
+                    'almacen_actual_id'
+                )
+
+                /*
+                 * Solo equipos DISPONIBLES.
+                 */
+                ->whereHas(
+                    'estadoActual',
+                    function ($query) {
+                        $query->where(
+                            'codigo',
+                            'DISPONIBLE'
+                        );
+                    }
+                )
+
+                /*
+                 * No mostrar equipos que tengan
+                 * una reserva activa.
+                 */
+                ->whereDoesntHave(
+                    'detallesReservas.reserva',
+                    function ($query) {
+                        $query->where(
+                            'estado',
+                            'ACTIVA'
+                        );
+                    }
+                )
+
+                /*
+                 * El producto del equipo debe tener
+                 * stock disponible en su propio almacén.
+                 */
+                ->whereExists(
+                    function ($query) {
+                        $query
+                            ->selectRaw('1')
+                            ->from(
+                                'existencias_productos'
+                            )
+                            ->whereColumn(
+                                'existencias_productos.producto_id',
+                                'equipos.producto_id'
+                            )
+                            ->whereColumn(
+                                'existencias_productos.almacen_id',
+                                'equipos.almacen_actual_id'
+                            )
+                            ->where(
+                                'existencias_productos.cantidad_disponible',
+                                '>',
+                                0
+                            );
+                    }
+                )
+
+                ->orderBy(
+                    'codigo_interno'
+                )
+                ->get();
+    }
 
     return view(
         'inventario.show',
         compact(
             'equipo',
-            'eventosTrazabilidad'
+            'eventosTrazabilidad',
+            'equiposReemplazo'
         )
     );
 }

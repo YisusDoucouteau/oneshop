@@ -38,6 +38,10 @@ class CatalogoInventarioSeeder extends Seeder
                 'codigo' => 'PREPARACION',
                 'nombre' => 'Preparación',
             ],
+[
+    'codigo' => 'GARANTIA',
+    'nombre' => 'En garantía',
+],
 
         ];
 
@@ -95,12 +99,17 @@ class CatalogoInventarioSeeder extends Seeder
                 'nombre'=>'Entrada inventario'
             ],
 
-            [
-                'codigo'=>'SALIDA',
-                'nombre'=>'Salida inventario'
-            ],
+           [
+    'codigo' => 'SALIDA',
+    'nombre' => 'Salida inventario'
+],
 
-        ];
+[
+    'codigo' => 'CAMBIO_GARANTIA',
+    'nombre' => 'Salida por cambio de garantía'
+],
+
+];
 
 
         foreach($movimientos as $movimiento){
@@ -145,49 +154,56 @@ class CatalogoInventarioSeeder extends Seeder
     'VENDIDO',
     'DISPONIBLE'
 );
-
+$this->crearTransicion(
+    'VENDIDO',
+    'GARANTIA',
+    true
+);
     }
 
 
 
-    private function crearTransicion(
-        string $origen,
-        string $destino
-    ): void
-    {
+   private function crearTransicion(
+    string $origen,
+    string $destino,
+    bool $requiereAutorizacion = false
+): void
+{
+    $estadoOrigen =
+        EstadoEquipo::where(
+            'codigo',
+            $origen
+        )->first();
 
-        $estadoOrigen =
-            EstadoEquipo::where(
-                'codigo',
-                $origen
-            )->first();
+    $estadoDestino =
+        EstadoEquipo::where(
+            'codigo',
+            $destino
+        )->first();
 
-
-        $estadoDestino =
-            EstadoEquipo::where(
-                'codigo',
-                $destino
-            )->first();
-
-
-
-        if(!$estadoOrigen || !$estadoDestino){
-            return;
-        }
-
-
-
-        TransicionEstadoEquipo::firstOrCreate(
-            [
-                'estado_origen_id'=>$estadoOrigen->id,
-                'estado_destino_id'=>$estadoDestino->id,
-            ],
-            [
-                'requiere_autorizacion'=>false,
-                'activo'=>true
-            ]
-        );
-
+    if (
+        !$estadoOrigen
+        || !$estadoDestino
+    ) {
+        return;
     }
+
+    TransicionEstadoEquipo::updateOrCreate(
+        [
+            'estado_origen_id' =>
+                $estadoOrigen->id,
+
+            'estado_destino_id' =>
+                $estadoDestino->id,
+        ],
+        [
+            'requiere_autorizacion' =>
+                $requiereAutorizacion,
+
+            'activo' =>
+                true,
+        ]
+    );
+}
 
 }

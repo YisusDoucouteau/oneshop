@@ -596,7 +596,7 @@ Route::post(
 
 /*
 |--------------------------------------------------------------------------
-| VENTAS Y PAGOS
+| VENTAS
 |--------------------------------------------------------------------------
 */
 
@@ -616,11 +616,10 @@ Route::get(
 
 /*
 |--------------------------------------------------------------------------
-| Registrar venta directa
+| Crear venta directa
 |--------------------------------------------------------------------------
 |
-| IMPORTANTE:
-| Esta ruta debe ir antes de /ventas/{venta}
+| Debe ir antes de /ventas/{venta}
 |
 */
 
@@ -634,12 +633,8 @@ Route::get(
 
 /*
 |--------------------------------------------------------------------------
-| Evaluar precio de venta
+| Evaluación de precio para venta
 |--------------------------------------------------------------------------
-|
-| Esta ruta permite validar precio, descuento y GANANCIA
-| antes de registrar definitivamente la venta.
-|
 */
 
 Route::post(
@@ -652,7 +647,7 @@ Route::post(
 
 /*
 |--------------------------------------------------------------------------
-| Guardar venta directa
+| Registrar venta directa
 |--------------------------------------------------------------------------
 */
 
@@ -666,29 +661,7 @@ Route::post(
 
 /*
 |--------------------------------------------------------------------------
-| Detalle de venta
-|--------------------------------------------------------------------------
-|
-| La ruta dinámica debe quedar después de las rutas específicas.
-|
-*/
-
-Route::get(
-    '/ventas/{venta}',
-    [VentaController::class, 'show']
-)
-->middleware('permiso:ventas.ver')
-->name('ventas.show');
-Route::post(
-    '/ventas/{venta}/anular',
-    [AnulacionVentaController::class, 'store']
-)
-->middleware('permiso:ventas.anular')
-->name('ventas.anular');
-
-/*
-|--------------------------------------------------------------------------
-| Pagos de venta
+| PAGOS DE VENTA
 |--------------------------------------------------------------------------
 */
 
@@ -698,12 +671,8 @@ Route::post(
 )
 ->middleware('permiso:pagos.registrar')
 ->name('ventas.pagos.store');
-/*
-|--------------------------------------------------------------------------
-| IMPORTANTE:
-| La ruta dinámica siempre al final
-|--------------------------------------------------------------------------
-*/
+
+
 Route::post(
     '/ventas/{venta}/pagos/{pago}/verificar',
     [PagoVentaController::class, 'verificar']
@@ -719,52 +688,24 @@ Route::post(
 ->middleware('permiso:pagos.verificar')
 ->name('ventas.pagos.rechazar');
 
-Route::post(
-    '/garantias/{garantia}/casos',
-    [CasoGarantiaController::class, 'store']
-)
-->middleware('permiso:garantias.registrar')
-->name('garantias.casos.store');
+
 /*
 |--------------------------------------------------------------------------
-| GARANTÍAS / POSTVENTA
+| ANULACIÓN DE VENTA
 |--------------------------------------------------------------------------
 */
 
 Route::post(
-    '/garantias/{garantia}/casos',
-    [CasoGarantiaController::class, 'store']
+    '/ventas/{venta}/anular',
+    [AnulacionVentaController::class, 'store']
 )
-->middleware('permiso:garantias.registrar')
-->name('garantias.casos.store');
+->middleware('permiso:ventas.anular')
+->name('ventas.anular');
 
-
-Route::post(
-    '/garantias/casos/{caso}/diagnostico',
-    [CasoGarantiaController::class, 'diagnostico']
-)
-->middleware('permiso:garantias.gestionar')
-->name('garantias.casos.diagnostico');
-
-
-Route::post(
-    '/garantias/casos/{caso}/intervenciones',
-    [CasoGarantiaController::class, 'intervencion']
-)
-->middleware('permiso:garantias.gestionar')
-->name('garantias.casos.intervenciones.store');
-
-
-Route::post(
-    '/garantias/casos/{caso}/cerrar',
-    [CasoGarantiaController::class, 'cerrar']
-)
-->middleware('permiso:garantias.gestionar')
-->name('garantias.casos.cerrar');
 
 /*
 |--------------------------------------------------------------------------
-| Nota de venta y garantía
+| BOLETA / NOTA DE VENTA
 |--------------------------------------------------------------------------
 */
 
@@ -774,9 +715,34 @@ Route::get(
 )
 ->middleware('permiso:ventas.ver')
 ->name('ventas.boleta');
+
+
 /*
 |--------------------------------------------------------------------------
-| POSTVENTA Y GARANTÍAS
+| Detalle de venta
+|--------------------------------------------------------------------------
+|
+| La ruta dinámica general queda después de las rutas específicas.
+|
+*/
+
+Route::get(
+    '/ventas/{venta}',
+    [VentaController::class, 'show']
+)
+->middleware('permiso:ventas.ver')
+->name('ventas.show');
+
+
+/*
+|--------------------------------------------------------------------------
+| GARANTÍAS / POSTVENTA
+|--------------------------------------------------------------------------
+*/
+
+/*
+|--------------------------------------------------------------------------
+| Apertura de caso
 |--------------------------------------------------------------------------
 */
 
@@ -786,28 +752,88 @@ Route::post(
 )
 ->middleware('permiso:garantias.registrar')
 ->name('garantias.casos.store');
+
+
 /*
 |--------------------------------------------------------------------------
-| FASE 7.3C2 - TIPO DE CAMBIO COMERCIAL
+| Diagnóstico técnico
 |--------------------------------------------------------------------------
-|
-|
 */
 
 Route::post(
-    '/inventario/{equipo:codigo_interno}/precio/tipo-cambio',
-    [PrecioEquipoController::class, 'actualizarTipoCambio']
+    '/garantias/casos/{caso}/diagnostico',
+    [CasoGarantiaController::class, 'diagnostico']
 )
-->middleware('permiso:precios.modificar')
-->name('precios.equipos.tipo-cambio');
+->middleware('permiso:garantias.gestionar')
+->name('garantias.casos.diagnostico');
+
+
 /*
 |--------------------------------------------------------------------------
-| FASE 7.3C3 - EVALUACIÓN AJAX Y TC GLOBAL
+| Intervenciones técnicas
 |--------------------------------------------------------------------------
-|
-| Agregar junto a las demás rutas de precios y antes de:
-| /inventario/{equipo:codigo_interno}
-|
+*/
+
+Route::post(
+    '/garantias/casos/{caso}/intervenciones',
+    [CasoGarantiaController::class, 'intervencion']
+)
+->middleware('permiso:garantias.gestionar')
+->name('garantias.casos.intervenciones.store');
+
+
+/*
+|--------------------------------------------------------------------------
+| Cambio de equipo por garantía
+|--------------------------------------------------------------------------
+*/
+
+Route::post(
+    '/garantias/casos/{caso}/cambio-equipo',
+    [CasoGarantiaController::class, 'cambioEquipo']
+)
+->middleware('permiso:garantias.autorizar_cambio')
+->name('garantias.casos.cambio-equipo');
+
+
+/*
+|--------------------------------------------------------------------------
+| Cierre de caso
+|--------------------------------------------------------------------------
+*/
+
+Route::post(
+    '/garantias/casos/{caso}/cerrar',
+    [CasoGarantiaController::class, 'cerrar']
+)
+->middleware('permiso:garantias.gestionar')
+->name('garantias.casos.cerrar');
+
+
+/*
+|--------------------------------------------------------------------------
+| PRECIOS
+|--------------------------------------------------------------------------
+*/
+
+/*
+|--------------------------------------------------------------------------
+| Tipo de cambio global
+|--------------------------------------------------------------------------
+*/
+
+Route::post(
+    '/precios/tipo-cambio',
+    [PrecioEquipoController::class, 'actualizarTipoCambioGlobal']
+)
+->middleware('permiso:precios.modificar')
+->name('precios.tipo-cambio.store');
+
+
+/*
+|--------------------------------------------------------------------------
+| Evaluación AJAX de precio
+|--------------------------------------------------------------------------
 */
 
 Route::post(
@@ -817,35 +843,13 @@ Route::post(
 ->middleware('permiso:precios.ver')
 ->name('precios.equipos.evaluar-json');
 
-Route::post(
-    '/precios/tipo-cambio',
-    [PrecioEquipoController::class, 'actualizarTipoCambioGlobal']
-)
-->middleware('permiso:precios.modificar')
-->name('precios.tipo-cambio.store');
 
 /*
 |--------------------------------------------------------------------------
-| IMPORTANTE
+| Ver precio del equipo
 |--------------------------------------------------------------------------
-|
-| Si agregaste en 7.3C2 la ruta anterior:
-|
-| /inventario/{equipo:codigo_interno}/precio/tipo-cambio
-| -> precios.equipos.tipo-cambio
-|
-| puedes ELIMINARLA. El tipo de cambio ahora es explícitamente GLOBAL,
-| no pertenece a un equipo.
-|
 */
 
-/*
-|--------------------------------------------------------------------------
-| PRECIOS DE EQUIPOS
-|--------------------------------------------------------------------------
-
-|
-*/
 Route::get(
     '/inventario/{equipo:codigo_interno}/precio',
     [PrecioEquipoController::class, 'show']
@@ -853,12 +857,26 @@ Route::get(
 ->middleware('permiso:precios.ver')
 ->name('precios.equipos.show');
 
+
+/*
+|--------------------------------------------------------------------------
+| Evaluar precio del equipo
+|--------------------------------------------------------------------------
+*/
+
 Route::post(
     '/inventario/{equipo:codigo_interno}/precio/evaluar',
     [PrecioEquipoController::class, 'evaluar']
 )
 ->middleware('permiso:precios.ver')
 ->name('precios.equipos.evaluar');
+
+
+/*
+|--------------------------------------------------------------------------
+| Registrar / modificar precio del equipo
+|--------------------------------------------------------------------------
+*/
 
 Route::post(
     '/inventario/{equipo:codigo_interno}/precio',
@@ -868,13 +886,23 @@ Route::post(
 ->name('precios.equipos.store');
 
 
+/*
+|--------------------------------------------------------------------------
+| INVENTARIO - DETALLE
+|--------------------------------------------------------------------------
+|
+| IMPORTANTE:
+| Esta ruta dinámica debe quedar al final de todas las rutas
+| que comienzan con /inventario/.
+|
+*/
+
 Route::get(
     '/inventario/{equipo:codigo_interno}',
-    [InventarioController::class,'show']
+    [InventarioController::class, 'show']
 )
 ->middleware('permiso:inventario.ver')
 ->name('inventario.show');
-
 
 
 });

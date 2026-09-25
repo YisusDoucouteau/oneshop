@@ -1,4 +1,13 @@
+@props([
+    'equipo',
+    'reemplazos' => null,
+])
+
 @php
+    $equiposReemplazo =
+        $reemplazos
+        ?? collect();
+
     $detalleGarantiaActual = $equipo
         ->detallesVentas
         ->filter(function ($detalle) {
@@ -39,6 +48,11 @@
     $puedeGestionarGarantias =
         auth()->user()?->tienePermiso(
             'garantias.gestionar'
+        );
+
+    $puedeAutorizarCambio =
+        auth()->user()?->tienePermiso(
+            'garantias.autorizar_cambio'
         );
 @endphp
 
@@ -849,7 +863,375 @@
                                     ],
                                     true
                                 );
+
+                            $cambioEquipo =
+                                $caso->cambioEquipo;
+
+                            $puedeCambiarEquipo =
+                                $puedeAutorizarCambio
+                                && !$cambioEquipo
+                                && in_array(
+                                    $estadoCaso,
+                                    [
+                                        'DIAGNOSTICADO',
+                                        'EN_PROCESO',
+                                    ],
+                                    true
+                                );
+
+                            $errorCambioActual =
+                                $esFormularioCasoActual
+                                && (
+                                    $errors->has('equipo_entrante_id')
+                                    || $errors->has('motivo')
+                                    || $errors->has('observacion')
+                                    || $errors->has('garantia_cambio')
+                                );
                         @endphp
+
+
+                        {{-- Cambio de equipo por garantía --}}
+
+                        @if($cambioEquipo)
+
+                            <div class="mt-6 rounded-2xl border border-amber-200 bg-amber-50 p-5">
+
+                                <div class="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+
+                                    <div>
+                                        <p class="font-semibold text-amber-900">
+                                            Cambio de equipo realizado
+                                        </p>
+
+                                        <p class="mt-1 text-sm text-amber-700">
+                                            El equipo original se conserva en el historial de la venta
+                                            y el reemplazo queda trazado en este caso.
+                                        </p>
+                                    </div>
+
+                                    <span class="inline-flex w-fit rounded-full bg-white px-3 py-1 text-xs font-semibold text-amber-700 shadow-sm">
+                                        CAMBIO REGISTRADO
+                                    </span>
+
+                                </div>
+
+
+                                <div class="mt-5 grid gap-4 md:grid-cols-2">
+
+                                    <div class="rounded-xl border border-amber-100 bg-white p-4">
+
+                                        <p class="text-xs font-semibold uppercase tracking-wide text-slate-400">
+                                            Equipo original
+                                        </p>
+
+                                        <p class="mt-2 font-semibold text-slate-800">
+                                            {{
+                                                $cambioEquipo
+                                                    ->equipoSaliente
+                                                    ?->codigo_interno
+                                                ?? 'No disponible'
+                                            }}
+                                        </p>
+
+                                    </div>
+
+
+                                    <div class="rounded-xl border border-amber-100 bg-white p-4">
+
+                                        <p class="text-xs font-semibold uppercase tracking-wide text-slate-400">
+                                            Equipo entregado
+                                        </p>
+
+                                        <p class="mt-2 font-semibold text-slate-800">
+                                            {{
+                                                $cambioEquipo
+                                                    ->equipoEntrante
+                                                    ?->codigo_interno
+                                                ?? 'No disponible'
+                                            }}
+                                        </p>
+
+                                    </div>
+
+                                </div>
+
+
+                                <div class="mt-4 space-y-2 text-sm text-slate-600">
+
+                                    <p>
+                                        <span class="font-semibold text-slate-700">
+                                            Fecha:
+                                        </span>
+
+                                        {{
+                                            $cambioEquipo->fecha_cambio
+                                                ?->format('d/m/Y H:i')
+                                            ?? '—'
+                                        }}
+                                    </p>
+
+                                    <p>
+                                        <span class="font-semibold text-slate-700">
+                                            Autorizado por:
+                                        </span>
+
+                                        {{
+                                            $cambioEquipo
+                                                ->autorizadoPor
+                                                ?->name
+                                            ?? '—'
+                                        }}
+                                    </p>
+
+                                    <p>
+                                        <span class="font-semibold text-slate-700">
+                                            Motivo:
+                                        </span>
+
+                                        {{ $cambioEquipo->motivo }}
+                                    </p>
+
+                                    @if($cambioEquipo->observacion)
+
+                                        <p>
+                                            <span class="font-semibold text-slate-700">
+                                                Observación:
+                                            </span>
+
+                                            {{ $cambioEquipo->observacion }}
+                                        </p>
+
+                                    @endif
+
+                                </div>
+
+                            </div>
+
+                        @elseif($puedeCambiarEquipo)
+
+                            <details
+                                class="mt-6 rounded-2xl border border-amber-200 bg-amber-50"
+                                @if($errorCambioActual)
+                                    open
+                                @endif
+                            >
+
+                                <summary class="cursor-pointer px-5 py-4 font-semibold text-amber-900">
+                                    Autorizar cambio de equipo
+                                </summary>
+
+
+                                <form
+                                    method="POST"
+                                    action="{{ route(
+                                        'garantias.casos.cambio-equipo',
+                                        $caso
+                                    ) }}"
+                                    class="space-y-5 border-t border-amber-200 bg-white p-5"
+                                >
+
+                                    @csrf
+
+                                    <input
+                                        type="hidden"
+                                        name="_caso_id"
+                                        value="{{ $caso->id }}"
+                                    >
+
+
+                                    @if(
+                                        $errorCambioActual
+                                        && $errors->has('garantia_cambio')
+                                    )
+
+                                        <div class="rounded-xl bg-red-50 p-4 text-sm font-medium text-red-700">
+                                            {{ $errors->first('garantia_cambio') }}
+                                        </div>
+
+                                    @endif
+
+
+                                    <div>
+
+                                        <label
+    for="equipo_entrante_id_{{ $caso->id }}"
+    class="block text-sm font-semibold text-slate-700"
+>
+    Equipo de reemplazo
+</label>
+
+
+@if($equiposReemplazo->isNotEmpty())
+
+                                            <select
+                                                id="equipo_entrante_id_{{ $caso->id }}"
+                                                name="equipo_entrante_id"
+                                                required
+                                                class="mt-2 w-full rounded-xl border-slate-300 text-sm shadow-sm focus:border-amber-500 focus:ring-amber-500"
+                                            >
+
+                                                <option value="">
+                                                    Seleccione un equipo disponible
+                                                </option>
+
+                                                @foreach($equiposReemplazo as $equipoReemplazo)
+
+                                                    <option
+                                                        value="{{ $equipoReemplazo->id }}"
+                                                        @selected(
+                                                            $esFormularioCasoActual
+                                                            && (int) old('equipo_entrante_id')
+                                                                === (int) $equipoReemplazo->id
+                                                        )
+                                                    >
+                                                        {{ $equipoReemplazo->codigo_interno }}
+                                                        —
+                                                        {{ $equipoReemplazo->producto?->nombre ?? 'Producto' }}
+                                                        @if($equipoReemplazo->producto?->modelo)
+                                                            / {{ $equipoReemplazo->producto->modelo }}
+                                                        @endif
+                                                        —
+                                                        Bs {{
+                                                            number_format(
+                                                                (float) (
+                                                                    $equipoReemplazo
+                                                                        ->precioVigente
+                                                                        ?->precio_publico
+                                                                    ?? 0
+                                                                ),
+                                                                2,
+                                                                '.',
+                                                                ''
+                                                            )
+                                                        }}
+                                                        —
+                                                        {{ $equipoReemplazo->almacenActual?->nombre ?? 'Sin almacén' }}
+                                                    </option>
+
+                                                @endforeach
+
+                                            </select>
+
+                                        @else
+
+                                            <div class="mt-2 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">
+                                                No existen equipos disponibles para realizar
+                                                el reemplazo.
+                                            </div>
+
+                                        @endif
+
+
+                                        @if(
+                                            $errorCambioActual
+                                            && $errors->has('equipo_entrante_id')
+                                        )
+
+                                            <p class="mt-2 text-sm text-red-600">
+                                                {{ $errors->first('equipo_entrante_id') }}
+                                            </p>
+
+                                        @endif
+
+                                    </div>
+
+
+                                    <div>
+
+                                        <label
+                                            for="motivo_cambio_{{ $caso->id }}"
+                                            class="block text-sm font-semibold text-slate-700"
+                                        >
+                                            Motivo del cambio
+                                        </label>
+
+                                        <input
+                                            id="motivo_cambio_{{ $caso->id }}"
+                                            type="text"
+                                            name="motivo"
+                                            required
+                                            minlength="5"
+                                            maxlength="255"
+                                            value="{{ $esFormularioCasoActual ? old('motivo') : '' }}"
+                                            class="mt-2 w-full rounded-xl border-slate-300 text-sm shadow-sm focus:border-amber-500 focus:ring-amber-500"
+                                            placeholder="Ej.: Falla de hardware confirmada."
+                                        >
+
+                                        @if(
+                                            $errorCambioActual
+                                            && $errors->has('motivo')
+                                        )
+
+                                            <p class="mt-2 text-sm text-red-600">
+                                                {{ $errors->first('motivo') }}
+                                            </p>
+
+                                        @endif
+
+                                    </div>
+
+
+                                    <div>
+
+                                        <label
+                                            for="observacion_cambio_{{ $caso->id }}"
+                                            class="block text-sm font-semibold text-slate-700"
+                                        >
+                                            Observación
+                                        </label>
+
+                                        <textarea
+                                            id="observacion_cambio_{{ $caso->id }}"
+                                            name="observacion"
+                                            rows="3"
+                                            maxlength="5000"
+                                            class="mt-2 w-full rounded-xl border-slate-300 text-sm shadow-sm focus:border-amber-500 focus:ring-amber-500"
+                                            placeholder="Información adicional del reemplazo."
+                                        >{{ $esFormularioCasoActual ? old('observacion') : '' }}</textarea>
+
+                                        @if(
+                                            $errorCambioActual
+                                            && $errors->has('observacion')
+                                        )
+
+                                            <p class="mt-2 text-sm text-red-600">
+                                                {{ $errors->first('observacion') }}
+                                            </p>
+
+                                        @endif
+
+                                    </div>
+
+
+                                    <div class="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">
+                                        El equipo original quedará identificado en garantía.
+                                        El reemplazo puede corresponder a otro modelo o producto,
+                                        siempre que esté disponible y el cambio sea autorizado.
+                                        El equipo entregado será descontado de su inventario
+                                        disponible y quedará registrado como vendido.
+                                    </div>
+
+
+                                    @if($equiposReemplazo->isNotEmpty())
+
+                                        <div class="flex justify-end">
+
+                                            <button
+                                                type="submit"
+                                                class="inline-flex items-center justify-center rounded-xl bg-amber-600 px-5 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-amber-700"
+                                            >
+                                                Confirmar cambio de equipo
+                                            </button>
+
+                                        </div>
+
+                                    @endif
+
+                                </form>
+
+                            </details>
+
+                        @endif
 
 
                         @if(

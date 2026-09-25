@@ -3,8 +3,10 @@
 namespace App\Services;
 
 use App\Exceptions\ReglaNegocioException;
-use App\Models\CasoGarantia;
 use App\Models\CambioEquipo;
+use App\Models\CasoGarantia;
+use App\Models\Equipo;
+use App\Models\EstadoEquipo;
 use App\Models\Garantia;
 use App\Models\IntervencionGarantia;
 use App\Models\User;
@@ -13,6 +15,12 @@ use Illuminate\Support\Str;
 
 class CasoGarantiaService
 {
+    public function __construct(
+        private readonly MovimientoInventarioService $movimientoInventarioService,
+        private readonly EstadoEquipoService $estadoEquipoService
+    ) {
+    }
+
     public function abrirCaso(
         int $garantiaId,
         int $usuarioId,
@@ -429,45 +437,392 @@ class CasoGarantiaService
         }, 3);
     }
 
-    /*
-     * Fase 10C.
+    /**
+     * Registra un cambio físico de equipo por garantía.
      *
-     * Se conserva el método existente, pero su endurecimiento
-     * (disponibilidad del equipo entrante, inventario,
-     * trazabilidad y autorización) se realizará en 10C.
+     * Reglas:
+     * - requiere permiso específico para autorizar cambios;
+     * - el caso debe estar diagnosticado o en proceso;
+     * - solo puede existir un cambio por caso;
+     * - el equipo saliente debe ser el originalmente afectado;
+     * - el equipo saliente debe continuar VENDIDO;
+     * - el reemplazo debe estar DISPONIBLE;
+     * - el reemplazo puede corresponder a otro producto, modelo o marca;
+     * - el reemplazo debe estar activo, tener almacén y no poseer reserva activa;
+     * - el reemplazo sale de su propio inventario disponible;
+     * - el equipo original pasa a GARANTIA sin aumentar stock;
+     * - el reemplazo pasa a VENDIDO;
+     * - el caso queda EN_PROCESO y no se cierra automáticamente.
      */
     public function registrarCambioEquipo(
         int $casoId,
         int $equipoSalienteId,
         int $equipoEntranteId,
         int $usuarioId,
-        string $motivo
+        string $motivo,
+        ?string $observacion = null
     ): CambioEquipo {
-        if ($equipoSalienteId === $equipoEntranteId) {
-            throw new ReglaNegocioException(
-                'El equipo entrante no puede ser igual al equipo saliente.'
-            );
-        }
+        return DB::transaction(function () use (
+            $casoId,
+            $equipoSalienteId,
+            $equipoEntranteId,
+            $usuarioId,
+            $motivo,
+            $observacion
+        ) {
+            $usuario =
+                $this->obtenerUsuarioAutorizadorCambioActivo(
+                    $usuarioId
+                );
 
-        return CambioEquipo::create([
-            'caso_garantia_id' =>
-                $casoId,
+            $motivo = trim($motivo);
 
-            'equipo_saliente_id' =>
-                $equipoSalienteId,
+            if ($motivo === '') {
+                throw new ReglaNegocioException(
+                    'Debe indicar el motivo del cambio de equipo.'
+                );
+            }
 
-            'equipo_entrante_id' =>
-                $equipoEntranteId,
+            if (mb_strlen($motivo) > 255) {
+                throw new ReglaNegocioException(
+                    'El motivo del cambio no puede superar los 255 caracteres.'
+                );
+            }
 
-            'autorizado_por_id' =>
-                $usuarioId,
+            $observacion = $observacion !== null
+                ? trim($observacion)
+                : null;
 
-            'fecha_cambio' =>
-                now(),
+            if ($observacion === '') {
+                $observacion = null;
+            }
 
-            'motivo' =>
-                $motivo,
-        ]);
+            if (
+                $equipoSalienteId
+                ===
+                $equipoEntranteId
+            ) {
+                throw new ReglaNegocioException(
+                    'El equipo entrante no puede ser igual al equipo saliente.'
+                );
+            }
+
+            /*
+             * Se bloquea primero el caso para serializar cualquier intento
+             * concurrente de registrar un cambio sobre el mismo caso.
+             */
+            $caso = CasoGarantia::query()
+                ->lockForUpdate()
+                ->find($casoId);
+
+            if (!$caso) {
+                throw new ReglaNegocioException(
+                    'El caso de garantía no existe.'
+                );
+            }
+
+            if ($caso->estado === 'CERRADO') {
+                throw new ReglaNegocioException(
+                    'No se puede registrar un cambio de equipo en un caso cerrado.'
+                );
+            }
+
+            if ($caso->estado === 'ABIERTO') {
+                throw new ReglaNegocioException(
+                    'El caso debe contar con un diagnóstico antes de autorizar un cambio de equipo.'
+                );
+            }
+
+            if (
+                !in_array(
+                    $caso->estado,
+                    [
+                        'DIAGNOSTICADO',
+                        'EN_PROCESO',
+                    ],
+                    true
+                )
+            ) {
+                throw new ReglaNegocioException(
+                    'El estado actual del caso no permite realizar un cambio de equipo.'
+                );
+            }
+
+            /*
+             * La tabla también posee UNIQUE(caso_garantia_id),
+             * pero se valida primero como regla de negocio.
+             */
+            $cambioExistente = CambioEquipo::query()
+                ->where(
+                    'caso_garantia_id',
+                    $caso->id
+                )
+                ->first();
+
+            if ($cambioExistente) {
+                throw new ReglaNegocioException(
+                    'Este caso ya tiene un cambio de equipo registrado.'
+                );
+            }
+
+            if (
+                (int) $caso->equipo_afectado_id
+                !==
+                $equipoSalienteId
+            ) {
+                throw new ReglaNegocioException(
+                    'El equipo saliente debe ser el equipo afectado originalmente por el caso.'
+                );
+            }
+
+            /*
+             * Los equipos se bloquean siempre en orden de ID.
+             * Esto ayuda a mantener un orden consistente de bloqueos.
+             */
+            $equipos = Equipo::query()
+                ->whereIn(
+                    'id',
+                    [
+                        $equipoSalienteId,
+                        $equipoEntranteId,
+                    ]
+                )
+                ->orderBy('id')
+                ->lockForUpdate()
+                ->get()
+                ->keyBy('id');
+
+            if ($equipos->count() !== 2) {
+                throw new ReglaNegocioException(
+                    'Uno o más equipos involucrados en el cambio no existen.'
+                );
+            }
+
+            $equipoSaliente =
+                $equipos->get($equipoSalienteId);
+
+            $equipoEntrante =
+                $equipos->get($equipoEntranteId);
+
+            if (!$equipoSaliente->activo) {
+                throw new ReglaNegocioException(
+                    'El equipo saliente se encuentra inactivo.'
+                );
+            }
+
+            if (!$equipoEntrante->activo) {
+                throw new ReglaNegocioException(
+                    'El equipo seleccionado como reemplazo se encuentra inactivo.'
+                );
+            }
+
+            $estados = EstadoEquipo::query()
+                ->whereIn(
+                    'codigo',
+                    [
+                        'DISPONIBLE',
+                        'VENDIDO',
+                        'GARANTIA',
+                    ]
+                )
+                ->where(
+                    'activo',
+                    true
+                )
+                ->get()
+                ->keyBy('codigo');
+
+            if (
+                !$estados->has('DISPONIBLE')
+                || !$estados->has('VENDIDO')
+                || !$estados->has('GARANTIA')
+            ) {
+                throw new ReglaNegocioException(
+                    'El catálogo de estados requerido para el cambio de garantía está incompleto.'
+                );
+            }
+
+            if (
+                (int) $equipoSaliente->estado_actual_id
+                !==
+                (int) $estados['VENDIDO']->id
+            ) {
+                throw new ReglaNegocioException(
+                    'El equipo saliente debe continuar en estado VENDIDO antes de realizar el cambio.'
+                );
+            }
+
+            if (
+                (int) $equipoEntrante->estado_actual_id
+                !==
+                (int) $estados['DISPONIBLE']->id
+            ) {
+                throw new ReglaNegocioException(
+                    'El equipo seleccionado como reemplazo no está disponible.'
+                );
+            }
+
+            /*
+             * El reemplazo puede pertenecer a otro producto, modelo o marca.
+             * Su inventario se descontará utilizando el producto y almacén
+             * propios del equipo seleccionado.
+             */
+            if ($equipoEntrante->almacen_actual_id === null) {
+                throw new ReglaNegocioException(
+                    'El equipo de reemplazo no tiene un almacén asignado.'
+                );
+            }
+
+            /*
+             * La interfaz oculta equipos reservados, pero esta regla también
+             * se valida en el servicio para impedir forzar el cambio por POST.
+             */
+            if (
+                $equipoEntrante
+                    ->detallesReservas()
+                    ->whereHas(
+                        'reserva',
+                        function ($query) {
+                            $query->where(
+                                'estado',
+                                'ACTIVA'
+                            );
+                        }
+                    )
+                    ->exists()
+            ) {
+                throw new ReglaNegocioException(
+                    'El equipo seleccionado como reemplazo posee una reserva activa.'
+                );
+            }
+
+            /*
+             * Primero se crea la trazabilidad del cambio.
+             * Si algún paso posterior falla, la transacción completa
+             * revertirá también este registro.
+             */
+            $cambio = CambioEquipo::query()->create([
+                'caso_garantia_id' =>
+                    $caso->id,
+
+                'equipo_saliente_id' =>
+                    $equipoSaliente->id,
+
+                'equipo_entrante_id' =>
+                    $equipoEntrante->id,
+
+                'autorizado_por_id' =>
+                    $usuario->id,
+
+                'fecha_cambio' =>
+                    now(),
+
+                'motivo' =>
+                    $motivo,
+
+                'observacion' =>
+                    $observacion,
+            ]);
+
+            /*
+             * El equipo de reemplazo sale del stock disponible.
+             * MovimientoInventarioService valida también existencia
+             * y cantidad disponible.
+             */
+            $this->movimientoInventarioService
+                ->registrarSalida(
+                    productoId:
+                        $equipoEntrante->producto_id,
+
+                    almacenId:
+                        $equipoEntrante->almacen_actual_id,
+
+                    cantidad:
+                        1,
+
+                    tipoCodigo:
+                        'CAMBIO_GARANTIA',
+
+                    usuarioId:
+                        $usuario->id,
+
+                    tipoReferencia:
+                        'CAMBIO_GARANTIA',
+
+                    referenciaId:
+                        $cambio->id,
+
+                    observacion:
+                        "Cambio por garantía del caso {$caso->numero}"
+                );
+
+            /*
+             * El equipo original vuelve físicamente a OneShop,
+             * pero NO retorna al inventario disponible.
+             */
+            $this->estadoEquipoService
+                ->cambiarEstado(
+                    equipoId:
+                        $equipoSaliente->id,
+
+                    codigoEstadoDestino:
+                        'GARANTIA',
+
+                    usuarioId:
+                        $usuario->id,
+
+                    autorizadoPorId:
+                        $usuario->id,
+
+                    motivo:
+                        "Cambio por garantía {$caso->numero}",
+
+                    observacion:
+                        $motivo
+                );
+
+            /*
+             * El reemplazo queda entregado al cliente.
+             */
+            $this->estadoEquipoService
+                ->cambiarEstado(
+                    equipoId:
+                        $equipoEntrante->id,
+
+                    codigoEstadoDestino:
+                        'VENDIDO',
+
+                    usuarioId:
+                        $usuario->id,
+
+                    autorizadoPorId:
+                        null,
+
+                    motivo:
+                        "Equipo entregado por cambio de garantía {$caso->numero}",
+
+                    observacion:
+                        $motivo
+                );
+
+            /*
+             * El cambio físico no cierra automáticamente el caso.
+             * El cierre seguirá usando cerrarCaso().
+             */
+            if ($caso->estado === 'DIAGNOSTICADO') {
+                $caso->estado =
+                    'EN_PROCESO';
+
+                $caso->save();
+            }
+
+            return $cambio->fresh([
+                'casoGarantia',
+                'equipoSaliente.estadoActual',
+                'equipoEntrante.estadoActual',
+                'autorizadoPor',
+            ]);
+        }, 3);
     }
 
     private function obtenerUsuarioGestorActivo(
@@ -490,6 +845,32 @@ class CasoGarantiaService
         ) {
             throw new ReglaNegocioException(
                 'El usuario no cuenta con permiso para gestionar casos de garantía.'
+            );
+        }
+
+        return $usuario;
+    }
+
+    private function obtenerUsuarioAutorizadorCambioActivo(
+        int $usuarioId
+    ): User {
+        $usuario = User::query()
+            ->where('activo', true)
+            ->find($usuarioId);
+
+        if (!$usuario) {
+            throw new ReglaNegocioException(
+                'El usuario no existe o se encuentra inactivo.'
+            );
+        }
+
+        if (
+            !$usuario->tienePermiso(
+                'garantias.autorizar_cambio'
+            )
+        ) {
+            throw new ReglaNegocioException(
+                'El usuario no cuenta con permiso para autorizar cambios de equipo.'
             );
         }
 
