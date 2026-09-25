@@ -195,7 +195,7 @@
                         <p class="mt-1 text-sm text-amber-700">
                             {{ $casoActivo->numero }}
                             ·
-                            {{ $casoActivo->estado }}
+                            {{ str_replace('_', ' ', $casoActivo->estado) }}
                         </p>
 
                     </div>
@@ -479,7 +479,7 @@
                                 ])
                             >
 
-                                {{ $caso->estado }}
+                                {{ str_replace('_', ' ', $caso->estado) }}
 
                             </span>
 
@@ -894,11 +894,99 @@
 
                         @if($cambioEquipo)
 
+                            @php
+                                $tieneAjusteEconomico =
+                                    $cambioEquipo->valor_original_snapshot !== null
+                                    && $cambioEquipo->valor_reemplazo_snapshot !== null
+                                    && $cambioEquipo->diferencia_snapshot !== null
+                                    && $cambioEquipo->moneda_ajuste !== null
+                                    && $cambioEquipo->tipo_ajuste !== null
+                                    && $cambioEquipo->estado_ajuste !== null;
+
+                                $tipoAjusteTexto = match (
+                                    $cambioEquipo->tipo_ajuste
+                                ) {
+                                    'COBRO_CLIENTE' =>
+                                        'Cobro al cliente',
+
+                                    'SALDO_FAVOR_CLIENTE' =>
+                                        'Saldo a favor del cliente',
+
+                                    'SIN_DIFERENCIA' =>
+                                        'Sin diferencia',
+
+                                    default =>
+                                        $cambioEquipo->tipo_ajuste
+                                            ? str_replace(
+                                                '_',
+                                                ' ',
+                                                $cambioEquipo->tipo_ajuste
+                                            )
+                                            : 'No disponible',
+                                };
+
+                                $estadoAjusteTexto = match (
+                                    $cambioEquipo->estado_ajuste
+                                ) {
+                                    'PENDIENTE' =>
+                                        'Pendiente',
+
+                                    'LIQUIDADO' =>
+                                        'Liquidado',
+
+                                    default =>
+                                        $cambioEquipo->estado_ajuste
+                                            ? str_replace(
+                                                '_',
+                                                ' ',
+                                                $cambioEquipo->estado_ajuste
+                                            )
+                                            : 'No disponible',
+                                };
+
+                                $estadoAjusteClase = match (
+                                    $cambioEquipo->estado_ajuste
+                                ) {
+                                    'PENDIENTE' =>
+                                        'bg-amber-100 text-amber-800',
+
+                                    'LIQUIDADO' =>
+                                        'bg-emerald-100 text-emerald-800',
+
+                                    default =>
+                                        'bg-slate-100 text-slate-700',
+                                };
+
+                                $simboloMoneda =
+                                    $cambioEquipo->moneda_ajuste === 'BOB'
+                                        ? 'Bs'
+                                        : (
+                                            $cambioEquipo->moneda_ajuste
+                                            ?? ''
+                                        );
+
+                                $diferencia =
+                                    $tieneAjusteEconomico
+                                        ? (float) $cambioEquipo
+                                            ->diferencia_snapshot
+                                        : 0;
+
+                                $signoDiferencia =
+                                    $diferencia > 0
+                                        ? '+'
+                                        : (
+                                            $diferencia < 0
+                                                ? '-'
+                                                : ''
+                                        );
+                            @endphp
+
                             <div class="mt-6 rounded-2xl border border-amber-200 bg-amber-50 p-5">
 
                                 <div class="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
 
                                     <div>
+
                                         <p class="font-semibold text-amber-900">
                                             Cambio de equipo realizado
                                         </p>
@@ -907,6 +995,7 @@
                                             El equipo original se conserva en el historial de la venta
                                             y el reemplazo queda trazado en este caso.
                                         </p>
+
                                     </div>
 
                                     <span class="inline-flex w-fit rounded-full bg-white px-3 py-1 text-xs font-semibold text-amber-700 shadow-sm">
@@ -956,9 +1045,147 @@
                                 </div>
 
 
+                                @if($tieneAjusteEconomico)
+
+                                    <div class="mt-5 rounded-xl border border-amber-200 bg-white p-4">
+
+                                        <div class="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+
+                                            <div>
+
+                                                <p class="text-xs font-semibold uppercase tracking-wide text-slate-400">
+                                                    Ajuste económico
+                                                </p>
+
+                                                <p class="mt-1 text-sm text-slate-500">
+                                                    Valores congelados al momento de autorizar el reemplazo.
+                                                </p>
+
+                                            </div>
+
+                                            <span
+                                                class="
+                                                    inline-flex
+                                                    w-fit
+                                                    rounded-full
+                                                    px-3
+                                                    py-1
+                                                    text-xs
+                                                    font-semibold
+                                                    {{ $estadoAjusteClase }}
+                                                "
+                                            >
+                                                {{ mb_strtoupper($estadoAjusteTexto) }}
+                                            </span>
+
+                                        </div>
+
+
+                                        <div class="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+
+                                            <div class="rounded-lg bg-slate-50 p-3">
+
+                                                <p class="text-xs font-semibold uppercase tracking-wide text-slate-400">
+                                                    Valor original
+                                                </p>
+
+                                                <p class="mt-1 font-semibold text-slate-800">
+                                                    {{ $simboloMoneda }}
+                                                    {{
+                                                        number_format(
+                                                            (float) $cambioEquipo
+                                                                ->valor_original_snapshot,
+                                                            2,
+                                                            ',',
+                                                            '.'
+                                                        )
+                                                    }}
+                                                </p>
+
+                                            </div>
+
+
+                                            <div class="rounded-lg bg-slate-50 p-3">
+
+                                                <p class="text-xs font-semibold uppercase tracking-wide text-slate-400">
+                                                    Valor reemplazo
+                                                </p>
+
+                                                <p class="mt-1 font-semibold text-slate-800">
+                                                    {{ $simboloMoneda }}
+                                                    {{
+                                                        number_format(
+                                                            (float) $cambioEquipo
+                                                                ->valor_reemplazo_snapshot,
+                                                            2,
+                                                            ',',
+                                                            '.'
+                                                        )
+                                                    }}
+                                                </p>
+
+                                            </div>
+
+
+                                            <div class="rounded-lg bg-slate-50 p-3">
+
+                                                <p class="text-xs font-semibold uppercase tracking-wide text-slate-400">
+                                                    Diferencia
+                                                </p>
+
+                                                <p class="mt-1 font-semibold text-slate-800">
+                                                    {{ $signoDiferencia }}{{ $simboloMoneda }}
+                                                    {{
+                                                        number_format(
+                                                            abs($diferencia),
+                                                            2,
+                                                            ',',
+                                                            '.'
+                                                        )
+                                                    }}
+                                                </p>
+
+                                            </div>
+
+
+                                            <div class="rounded-lg bg-slate-50 p-3">
+
+                                                <p class="text-xs font-semibold uppercase tracking-wide text-slate-400">
+                                                    Tipo de ajuste
+                                                </p>
+
+                                                <p class="mt-1 font-semibold text-slate-800">
+                                                    {{ $tipoAjusteTexto }}
+                                                </p>
+
+                                            </div>
+
+                                        </div>
+
+                                    </div>
+
+                                @else
+
+                                    <div class="mt-5 rounded-xl border border-slate-200 bg-white p-4">
+
+                                        <p class="font-semibold text-slate-700">
+                                            Ajuste económico no disponible
+                                        </p>
+
+                                        <p class="mt-1 text-sm text-slate-500">
+                                            Este cambio fue registrado antes de la implementación
+                                            del control económico de garantías.
+                                        </p>
+
+                                    </div>
+
+                                @endif
+
+
                                 <div class="mt-4 space-y-2 text-sm text-slate-600">
 
                                     <p>
+
                                         <span class="font-semibold text-slate-700">
                                             Fecha:
                                         </span>
@@ -968,9 +1195,12 @@
                                                 ?->format('d/m/Y H:i')
                                             ?? '—'
                                         }}
+
                                     </p>
 
+
                                     <p>
+
                                         <span class="font-semibold text-slate-700">
                                             Autorizado por:
                                         </span>
@@ -981,24 +1211,31 @@
                                                 ?->name
                                             ?? '—'
                                         }}
+
                                     </p>
 
+
                                     <p>
+
                                         <span class="font-semibold text-slate-700">
                                             Motivo:
                                         </span>
 
                                         {{ $cambioEquipo->motivo }}
+
                                     </p>
+
 
                                     @if($cambioEquipo->observacion)
 
                                         <p>
+
                                             <span class="font-semibold text-slate-700">
                                                 Observación:
                                             </span>
 
                                             {{ $cambioEquipo->observacion }}
+
                                         </p>
 
                                     @endif
@@ -1250,7 +1487,7 @@
 </div>
 
                                     <span class="inline-flex w-fit rounded-full bg-white px-3 py-1 text-xs font-semibold text-blue-700 shadow-sm">
-                                        {{ $estadoCaso }}
+                                        {{ str_replace('_', ' ', $estadoCaso) }}
                                     </span>
 
                                 </div>

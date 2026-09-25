@@ -449,6 +449,8 @@ class CasoGarantiaService
      * - el reemplazo debe estar DISPONIBLE;
      * - el reemplazo puede corresponder a otro producto, modelo o marca;
      * - el reemplazo debe estar activo, tener almacén y no poseer reserva activa;
+     * - se captura el precio histórico vendido y el precio vigente del reemplazo;
+     * - la diferencia queda clasificada sin modificar la venta histórica;
      * - el reemplazo sale de su propio inventario disponible;
      * - el equipo original pasa a GARANTIA sin aumentar stock;
      * - el reemplazo pasa a VENDIDO;
@@ -697,6 +699,120 @@ class CasoGarantiaService
             }
 
             /*
+             * Fase 10D-A.
+             *
+             * Se toma como valor original el precio unitario histórico
+             * almacenado en el detalle de la venta que originó la garantía.
+             * La venta y su detalle permanecen inmutables.
+             */
+            $garantia = Garantia::query()
+                ->lockForUpdate()
+                ->find($caso->garantia_id);
+
+            if (!$garantia) {
+                throw new ReglaNegocioException(
+                    'El caso no posee una garantía válida asociada.'
+                );
+            }
+
+            $detalleVenta = $garantia
+                ->detalleVenta()
+                ->lockForUpdate()
+                ->first();
+
+            if (!$detalleVenta) {
+                throw new ReglaNegocioException(
+                    'La garantía no posee un detalle de venta asociado.'
+                );
+            }
+
+            if (
+                $detalleVenta->precio_unitario === null
+                || (float) $detalleVenta->precio_unitario <= 0
+            ) {
+                throw new ReglaNegocioException(
+                    'No se pudo determinar el precio histórico del equipo original.'
+                );
+            }
+
+            /*
+             * Se captura el precio público vigente del equipo de reemplazo
+             * en el momento exacto de autorizar el cambio.
+             */
+            $precioReemplazo = $equipoEntrante
+                ->precios()
+                ->where(
+                    'vigente',
+                    true
+                )
+                ->orderByDesc(
+                    'vigente_desde'
+                )
+                ->lockForUpdate()
+                ->first();
+
+            if (!$precioReemplazo) {
+                throw new ReglaNegocioException(
+                    'El equipo seleccionado como reemplazo no posee un precio vigente.'
+                );
+            }
+
+            if (
+                $precioReemplazo->precio_publico === null
+                || (float) $precioReemplazo->precio_publico <= 0
+            ) {
+                throw new ReglaNegocioException(
+                    'El precio vigente del equipo de reemplazo no es válido.'
+                );
+            }
+
+            /*
+             * Se trabaja en centavos para evitar errores binarios
+             * de precisión al comparar importes monetarios.
+             */
+            $valorOriginalCentavos = (int) round(
+                (float) $detalleVenta->precio_unitario * 100
+            );
+
+            $valorReemplazoCentavos = (int) round(
+                (float) $precioReemplazo->precio_publico * 100
+            );
+
+            $diferenciaCentavos =
+                $valorReemplazoCentavos
+                -
+                $valorOriginalCentavos;
+
+            $valorOriginalSnapshot =
+                $valorOriginalCentavos / 100;
+
+            $valorReemplazoSnapshot =
+                $valorReemplazoCentavos / 100;
+
+            $diferenciaSnapshot =
+                $diferenciaCentavos / 100;
+
+            if ($diferenciaCentavos > 0) {
+                $tipoAjuste =
+                    'COBRO_CLIENTE';
+
+                $estadoAjuste =
+                    'PENDIENTE';
+            } elseif ($diferenciaCentavos < 0) {
+                $tipoAjuste =
+                    'SALDO_FAVOR_CLIENTE';
+
+                $estadoAjuste =
+                    'PENDIENTE';
+            } else {
+                $tipoAjuste =
+                    'SIN_DIFERENCIA';
+
+                $estadoAjuste =
+                    'LIQUIDADO';
+            }
+
+            /*
              * Primero se crea la trazabilidad del cambio.
              * Si algún paso posterior falla, la transacción completa
              * revertirá también este registro.
@@ -722,6 +838,24 @@ class CasoGarantiaService
 
                 'observacion' =>
                     $observacion,
+
+                'valor_original_snapshot' =>
+                    $valorOriginalSnapshot,
+
+                'valor_reemplazo_snapshot' =>
+                    $valorReemplazoSnapshot,
+
+                'diferencia_snapshot' =>
+                    $diferenciaSnapshot,
+
+                'moneda_ajuste' =>
+                    'BOB',
+
+                'tipo_ajuste' =>
+                    $tipoAjuste,
+
+                'estado_ajuste' =>
+                    $estadoAjuste,
             ]);
 
             /*

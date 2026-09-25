@@ -17,10 +17,21 @@ class CambioEquipo extends Model
         'fecha_cambio',
         'motivo',
         'observacion',
+
+        'valor_original_snapshot',
+        'valor_reemplazo_snapshot',
+        'diferencia_snapshot',
+        'moneda_ajuste',
+        'tipo_ajuste',
+        'estado_ajuste',
     ];
 
     protected $casts = [
         'fecha_cambio' => 'datetime',
+
+        'valor_original_snapshot' => 'decimal:2',
+        'valor_reemplazo_snapshot' => 'decimal:2',
+        'diferencia_snapshot' => 'decimal:2',
     ];
 
     public function casoGarantia(): BelongsTo

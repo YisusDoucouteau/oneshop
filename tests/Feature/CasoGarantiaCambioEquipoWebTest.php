@@ -137,6 +137,24 @@ class CasoGarantiaCambioEquipoWebTest extends TestCase
 
                 'autorizado_por_id' =>
                     $this->administrador->id,
+
+                'valor_original_snapshot' =>
+                    '3500.00',
+
+                'valor_reemplazo_snapshot' =>
+                    '3500.00',
+
+                'diferencia_snapshot' =>
+                    '0.00',
+
+                'moneda_ajuste' =>
+                    'BOB',
+
+                'tipo_ajuste' =>
+                    'SIN_DIFERENCIA',
+
+                'estado_ajuste' =>
+                    'LIQUIDADO',
             ]
         );
 
@@ -696,6 +714,47 @@ class CasoGarantiaCambioEquipoWebTest extends TestCase
                 'activo' =>
                     true,
             ]);
+
+        /*
+         * Fase 10D-A:
+         * todo equipo candidato a reemplazo debe
+         * poseer un precio vigente para calcular
+         * el ajuste económico.
+         */
+        PrecioEquipo::create([
+            'equipo_id' =>
+                $equipo->id,
+
+            'tipo_cambio_id' =>
+                null,
+
+            'costo_total_snapshot' =>
+                2900,
+
+            'precio_sugerido' =>
+                3500,
+
+            'precio_publico' =>
+                3500,
+
+            'precio_minimo_autorizado' =>
+                3200,
+
+            'vigente_desde' =>
+                now(),
+
+            'vigente_hasta' =>
+                null,
+
+            'vigente' =>
+                true,
+
+            'aprobado_por_id' =>
+                null,
+
+            'observacion' =>
+                'Precio vigente para reemplazo web 10D.',
+        ]);
 
         /*
          * La venta del equipo original dejo

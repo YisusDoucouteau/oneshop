@@ -1016,6 +1016,317 @@ class CasoGarantiaCambioEquipoServiceTest extends TestCase
         );
     }
 
+    public function test_ajuste_economico_cobra_al_cliente_si_reemplazo_es_mas_caro(): void
+    {
+        [
+            $caso,
+            $equipoSaliente,
+            $garantia,
+        ] = $this->crearCasoDiagnosticado();
+
+        $garantia->load(
+            'detalleVenta'
+        );
+
+        $valorOriginal =
+            (float) $garantia
+                ->detalleVenta
+                ->precio_unitario;
+
+        $equipoEntrante =
+            $this->crearEquipoReemplazo(
+                equipoBase:
+                    $equipoSaliente,
+
+                precioPublico:
+                    $valorOriginal + 500
+            );
+
+        $cambio =
+            app(CasoGarantiaService::class)
+                ->registrarCambioEquipo(
+                    casoId:
+                        $caso->id,
+
+                    equipoSalienteId:
+                        $equipoSaliente->id,
+
+                    equipoEntranteId:
+                        $equipoEntrante->id,
+
+                    usuarioId:
+                        $this->administrador->id,
+
+                    motivo:
+                        'Cambio con diferencia económica positiva.'
+                );
+
+        $this->assertSame(
+            number_format(
+                $valorOriginal,
+                2,
+                '.',
+                ''
+            ),
+            $cambio->valor_original_snapshot
+        );
+
+        $this->assertSame(
+            number_format(
+                $valorOriginal + 500,
+                2,
+                '.',
+                ''
+            ),
+            $cambio->valor_reemplazo_snapshot
+        );
+
+        $this->assertSame(
+            '500.00',
+            $cambio->diferencia_snapshot
+        );
+
+        $this->assertSame(
+            'BOB',
+            $cambio->moneda_ajuste
+        );
+
+        $this->assertSame(
+            'COBRO_CLIENTE',
+            $cambio->tipo_ajuste
+        );
+
+        $this->assertSame(
+            'PENDIENTE',
+            $cambio->estado_ajuste
+        );
+    }
+
+    public function test_ajuste_economico_se_liquida_si_no_hay_diferencia(): void
+    {
+        [
+            $caso,
+            $equipoSaliente,
+            $garantia,
+        ] = $this->crearCasoDiagnosticado();
+
+        $garantia->load(
+            'detalleVenta'
+        );
+
+        $valorOriginal =
+            (float) $garantia
+                ->detalleVenta
+                ->precio_unitario;
+
+        $equipoEntrante =
+            $this->crearEquipoReemplazo(
+                equipoBase:
+                    $equipoSaliente,
+
+                precioPublico:
+                    $valorOriginal
+            );
+
+        $cambio =
+            app(CasoGarantiaService::class)
+                ->registrarCambioEquipo(
+                    casoId:
+                        $caso->id,
+
+                    equipoSalienteId:
+                        $equipoSaliente->id,
+
+                    equipoEntranteId:
+                        $equipoEntrante->id,
+
+                    usuarioId:
+                        $this->administrador->id,
+
+                    motivo:
+                        'Cambio sin diferencia económica.'
+                );
+
+        $this->assertSame(
+            '0.00',
+            $cambio->diferencia_snapshot
+        );
+
+        $this->assertSame(
+            'SIN_DIFERENCIA',
+            $cambio->tipo_ajuste
+        );
+
+        $this->assertSame(
+            'LIQUIDADO',
+            $cambio->estado_ajuste
+        );
+    }
+
+    public function test_ajuste_economico_genera_saldo_a_favor_si_reemplazo_es_mas_barato(): void
+    {
+        [
+            $caso,
+            $equipoSaliente,
+            $garantia,
+        ] = $this->crearCasoDiagnosticado();
+
+        $garantia->load(
+            'detalleVenta'
+        );
+
+        $valorOriginal =
+            (float) $garantia
+                ->detalleVenta
+                ->precio_unitario;
+
+        $equipoEntrante =
+            $this->crearEquipoReemplazo(
+                equipoBase:
+                    $equipoSaliente,
+
+                precioPublico:
+                    $valorOriginal - 500
+            );
+
+        $cambio =
+            app(CasoGarantiaService::class)
+                ->registrarCambioEquipo(
+                    casoId:
+                        $caso->id,
+
+                    equipoSalienteId:
+                        $equipoSaliente->id,
+
+                    equipoEntranteId:
+                        $equipoEntrante->id,
+
+                    usuarioId:
+                        $this->administrador->id,
+
+                    motivo:
+                        'Cambio con diferencia económica negativa.'
+                );
+
+        $this->assertSame(
+            '-500.00',
+            $cambio->diferencia_snapshot
+        );
+
+        $this->assertSame(
+            'SALDO_FAVOR_CLIENTE',
+            $cambio->tipo_ajuste
+        );
+
+        $this->assertSame(
+            'PENDIENTE',
+            $cambio->estado_ajuste
+        );
+    }
+
+    public function test_snapshot_economico_del_cambio_permanece_inmutable_si_luego_cambia_el_precio(): void
+    {
+        [
+            $caso,
+            $equipoSaliente,
+            $garantia,
+        ] = $this->crearCasoDiagnosticado();
+
+        $garantia->load(
+            'detalleVenta'
+        );
+
+        $valorOriginal =
+            (float) $garantia
+                ->detalleVenta
+                ->precio_unitario;
+
+        $valorReemplazo =
+            $valorOriginal + 500;
+
+        $equipoEntrante =
+            $this->crearEquipoReemplazo(
+                equipoBase:
+                    $equipoSaliente,
+
+                precioPublico:
+                    $valorReemplazo
+            );
+
+        $cambio =
+            app(CasoGarantiaService::class)
+                ->registrarCambioEquipo(
+                    casoId:
+                        $caso->id,
+
+                    equipoSalienteId:
+                        $equipoSaliente->id,
+
+                    equipoEntranteId:
+                        $equipoEntrante->id,
+
+                    usuarioId:
+                        $this->administrador->id,
+
+                    motivo:
+                        'Prueba de inmutabilidad del snapshot económico.'
+                );
+
+        $precioVigente =
+            PrecioEquipo::query()
+                ->where(
+                    'equipo_id',
+                    $equipoEntrante->id
+                )
+                ->where(
+                    'vigente',
+                    true
+                )
+                ->firstOrFail();
+
+        $precioVigente->update([
+            'precio_publico' =>
+                $valorReemplazo + 750,
+        ]);
+
+        $cambio->refresh();
+
+        $this->assertSame(
+            number_format(
+                $valorOriginal,
+                2,
+                '.',
+                ''
+            ),
+            $cambio->valor_original_snapshot
+        );
+
+        $this->assertSame(
+            number_format(
+                $valorReemplazo,
+                2,
+                '.',
+                ''
+            ),
+            $cambio->valor_reemplazo_snapshot
+        );
+
+        $this->assertSame(
+            '500.00',
+            $cambio->diferencia_snapshot
+        );
+
+        $this->assertSame(
+            'COBRO_CLIENTE',
+            $cambio->tipo_ajuste
+        );
+
+        $this->assertSame(
+            'PENDIENTE',
+            $cambio->estado_ajuste
+        );
+    }
+
     private function crearCasoDiagnosticado(): array
     {
         [
@@ -1309,7 +1620,8 @@ class CasoGarantiaCambioEquipoServiceTest extends TestCase
         Equipo $equipoBase,
         bool $registrarStock = true,
         ?Producto $producto = null,
-        string $estadoCodigo = 'DISPONIBLE'
+        string $estadoCodigo = 'DISPONIBLE',
+        float $precioPublico = 3500.00
     ): Equipo {
         $producto =
             $producto
@@ -1362,6 +1674,51 @@ class CasoGarantiaCambioEquipoServiceTest extends TestCase
 
             'activo' =>
                 true,
+        ]);
+
+        /*
+         * Desde 10D todo equipo que pueda actuar como
+         * reemplazo debe poseer un precio vigente.
+         */
+        PrecioEquipo::create([
+            'equipo_id' =>
+                $equipo->id,
+
+            'tipo_cambio_id' =>
+                null,
+
+            'costo_total_snapshot' =>
+                max(
+                    0,
+                    $precioPublico - 600
+                ),
+
+            'precio_sugerido' =>
+                $precioPublico,
+
+            'precio_publico' =>
+                $precioPublico,
+
+            'precio_minimo_autorizado' =>
+                max(
+                    0,
+                    $precioPublico - 300
+                ),
+
+            'vigente_desde' =>
+                now(),
+
+            'vigente_hasta' =>
+                null,
+
+            'vigente' =>
+                true,
+
+            'aprobado_por_id' =>
+                null,
+
+            'observacion' =>
+                'Precio vigente para prueba de cambio de garantía 10D.',
         ]);
 
         if ($registrarStock) {
