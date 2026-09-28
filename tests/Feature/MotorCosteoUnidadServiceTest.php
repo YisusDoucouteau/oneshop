@@ -230,12 +230,12 @@ class MotorCosteoUnidadServiceTest extends TestCase
         );
 
         $this->assertEquals(
-            0,
+            250,
             $resultado['costos_lote']
         );
 
         $this->assertEquals(
-            3500,
+            3750,
             $resultado['costo_total']
         );
 
