@@ -3,95 +3,184 @@
 @tailwind utilities;
 
 
-
 @layer components {
 
+    /*
+    |--------------------------------------------------------------------------
+    | Tarjetas
+    |--------------------------------------------------------------------------
+    */
 
-.card-oneshop {
-
-    @apply
-    rounded-2xl
-    border
-    border-slate-200
-    bg-white
-    shadow-sm
-    transition
-    duration-200
-    hover:shadow-lg;
-
-}
-
-
-
-.btn-primary {
-
-    @apply
-    rounded-xl
-    bg-oneshop-primary
-    px-5
-    py-2.5
-    text-sm
-    font-semibold
-    text-white
-    transition
-    hover:bg-oneshop-dark;
-
-}
+    .card-oneshop {
+        @apply
+            rounded-2xl
+            border
+            border-blue-100
+            bg-white
+            shadow-sm
+            transition
+            duration-200
+            hover:border-blue-200
+            hover:shadow-oneshop;
+    }
 
 
+    /*
+    |--------------------------------------------------------------------------
+    | Botón principal
+    |--------------------------------------------------------------------------
+    |
+    | No usamos texto blanco.
+    | El azul corporativo se utiliza como borde/acento y el fondo permanece
+    | claro para maximizar la legibilidad.
+    |
+    */
 
-.btn-secondary {
-
-    @apply
-    rounded-xl
-    border
-    border-slate-200
-    bg-white
-    px-5
-    py-2.5
-    text-sm
-    font-semibold
-    text-slate-700
-    transition
-    hover:bg-slate-50;
-
-}
-
-
-
-.input-oneshop {
-
-    @apply
-    rounded-xl
-    border-slate-300
-    focus:border-oneshop-primary
-    focus:ring-oneshop-primary;
-
-}
-
-
-.table-oneshop {
-
-    @apply
-    overflow-hidden
-    rounded-2xl
-    border
-    border-slate-200
-    bg-white;
-
-}
+    .btn-primary {
+        @apply
+            inline-flex
+            items-center
+            justify-center
+            gap-2
+            rounded-xl
+            border
+            border-oneshop-primary
+            bg-oneshop-light
+            px-5
+            py-2.5
+            text-sm
+            font-semibold
+            text-oneshop-dark
+            shadow-sm
+            transition
+            duration-200
+            hover:border-oneshop-dark
+            hover:bg-blue-100
+            focus:outline-none
+            focus:ring-4
+            focus:ring-blue-100
+            disabled:cursor-not-allowed
+            disabled:opacity-60;
+    }
 
 
-.section-title {
+    /*
+    |--------------------------------------------------------------------------
+    | Botón secundario
+    |--------------------------------------------------------------------------
+    */
 
-    @apply
-    text-xl
-    font-bold
-    text-slate-900;
+    .btn-secondary {
+        @apply
+            inline-flex
+            items-center
+            justify-center
+            gap-2
+            rounded-xl
+            border
+            border-slate-300
+            bg-white
+            px-5
+            py-2.5
+            text-sm
+            font-semibold
+            text-slate-800
+            shadow-sm
+            transition
+            duration-200
+            hover:border-blue-200
+            hover:bg-oneshop-soft
+            hover:text-oneshop-dark
+            focus:outline-none
+            focus:ring-4
+            focus:ring-blue-100
+            disabled:cursor-not-allowed
+            disabled:opacity-60;
+    }
 
-}
 
-[x-cloak] {
-    display: none !important;
-}
+    /*
+    |--------------------------------------------------------------------------
+    | Inputs
+    |--------------------------------------------------------------------------
+    */
+
+    .input-oneshop {
+        @apply
+            rounded-xl
+            border-slate-300
+            bg-white
+            text-slate-900
+            placeholder:text-slate-400
+            focus:border-oneshop-primary
+            focus:ring-oneshop-primary;
+    }
+
+
+    /*
+    |--------------------------------------------------------------------------
+    | Tablas
+    |--------------------------------------------------------------------------
+    */
+
+    .table-oneshop {
+        @apply
+            overflow-hidden
+            rounded-2xl
+            border
+            border-slate-200
+            bg-white
+            shadow-sm;
+    }
+
+
+    /*
+    |--------------------------------------------------------------------------
+    | Títulos
+    |--------------------------------------------------------------------------
+    */
+
+    .section-title {
+        @apply
+            text-xl
+            font-bold
+            text-slate-900;
+    }
+
+
+    .section-description {
+        @apply
+            mt-1
+            text-sm
+            leading-6
+            text-slate-600;
+    }
+
+
+    /*
+    |--------------------------------------------------------------------------
+    | Etiqueta superior de sección
+    |--------------------------------------------------------------------------
+    */
+
+    .section-kicker {
+        @apply
+            text-xs
+            font-semibold
+            uppercase
+            tracking-wider
+            text-oneshop-dark;
+    }
+
+
+    /*
+    |--------------------------------------------------------------------------
+    | Alpine
+    |--------------------------------------------------------------------------
+    */
+
+    [x-cloak] {
+        display: none !important;
+    }
+
 }

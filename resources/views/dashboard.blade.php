@@ -79,8 +79,13 @@
 
 
 
-        <div class="space-y-5">
-
+       <div
+    class="
+        grid
+        gap-3
+        md:grid-cols-2
+    "
+>
 
             @foreach($porEstado as $estado)
 
@@ -123,28 +128,25 @@
     {{-- EQUIPOS RECIENTES --}}
 
 
-    <div class="grid gap-6 xl:grid-cols-2">
+    {{-- ACTIVIDAD DEL DASHBOARD --}}
 
+<div
+    class="
+        grid
+        gap-6
+        xl:grid-cols-2
+        xl:items-stretch
+    "
+>
 
-        <x-dashboard.equipment-list
-
-            :equipos="$ultimosEquipos"
-
-        />
-
-
-    </div>
-
-
-<div class="grid gap-6 xl:grid-cols-2">
+    <x-dashboard.equipment-list
+        :equipos="$ultimosEquipos"
+    />
 
 
     <x-dashboard.activity
-
         :movimientos="$ultimosMovimientos"
-
     />
-
 
 </div>
 

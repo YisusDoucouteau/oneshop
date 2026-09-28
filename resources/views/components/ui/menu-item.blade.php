@@ -5,57 +5,94 @@
     'permission' => null,
 ])
 
+@php
+    $routePattern =
+        str_ends_with($route, '.index')
+            ? str_replace('.index', '.*', $route)
+            : $route;
 
-@if(!$permission || auth()->user()?->tienePermiso($permission))
+    $activo = request()->routeIs($routePattern);
+@endphp
 
-<a
-    href="{{ route($route) }}"
-    class="
-        group
-        flex
-        items-center
-        gap-3
-        rounded-xl
-        px-4
-        py-3
-        text-sm
-        font-medium
-        transition-all
-        duration-200
+@if(
+    !$permission
+    || auth()->user()?->tienePermiso($permission)
+)
 
-        {{ request()->routeIs(str_replace('.index','.*',$route))
-            ? 'bg-white text-blue-950 shadow-lg'
-            : 'text-blue-100 hover:bg-white/10'
-        }}
-    "
->
+    <a
+        href="{{ route($route) }}"
+        @if($activo)
+            aria-current="page"
+        @endif
 
-    <span
         class="
+            group
+            relative
             flex
-            h-8
-            w-8
+            min-h-11
             items-center
-            justify-center
+            gap-3
             rounded-lg
-            bg-white/10
-            group-hover:bg-white/20
+            border
+            px-3
+            py-2.5
+            text-sm
+            font-semibold
+            transition-all
+            duration-150
+
+            {{
+                $activo
+    ? 'border-blue-300 bg-white text-oneshop-dark shadow-sm'
+    : 'border-transparent text-slate-700 hover:border-blue-200 hover:bg-white/60 hover:text-oneshop-dark'
+            }}
         "
     >
 
-        <x-ui.icon
-            name="{{ $icon }}"
-            size="18"
-        />
+        @if($activo)
+            <span
+                class="
+                    absolute
+                    bottom-2
+                    left-0
+                    top-2
+                    w-1
+                    rounded-r-full
+                    bg-oneshop-primary
+                "
+            ></span>
+        @endif
 
-    </span>
+
+        <span
+            class="
+                flex
+                h-8
+                w-8
+                shrink-0
+                items-center
+                justify-center
+
+                {{
+                    $activo
+                        ? 'text-oneshop-primary'
+                        : 'text-slate-500 group-hover:text-oneshop-primary'
+                }}
+            "
+        >
+
+            <x-ui.icon
+                name="{{ $icon }}"
+                size="19"
+            />
+
+        </span>
 
 
-    <span>
-        {{ $label }}
-    </span>
+        <span class="truncate">
+            {{ $label }}
+        </span>
 
-
-</a>
+    </a>
 
 @endif
