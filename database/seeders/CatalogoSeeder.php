@@ -58,7 +58,9 @@ class CatalogoSeeder extends Seeder
 
         foreach ($categorias as $categoria) {
             DB::table('categorias_productos')->updateOrInsert(
-                ['codigo' => $categoria['codigo']],
+                [
+                    'codigo' => $categoria['codigo'],
+                ],
                 [
                     'nombre' => $categoria['nombre'],
                     'descripcion' => $categoria['descripcion'],
@@ -89,7 +91,9 @@ class CatalogoSeeder extends Seeder
 
         foreach ($almacenes as $almacen) {
             DB::table('almacenes')->updateOrInsert(
-                ['codigo' => $almacen['codigo']],
+                [
+                    'codigo' => $almacen['codigo'],
+                ],
                 [
                     'nombre' => $almacen['nombre'],
                     'ciudad' => $almacen['ciudad'],
@@ -125,7 +129,9 @@ class CatalogoSeeder extends Seeder
 
         foreach ($condiciones as $condicion) {
             DB::table('condiciones_fisicas')->updateOrInsert(
-                ['codigo' => $condicion['codigo']],
+                [
+                    'codigo' => $condicion['codigo'],
+                ],
                 [
                     'nombre' => $condicion['nombre'],
                     'descripcion' => $condicion['descripcion'],
@@ -140,21 +146,73 @@ class CatalogoSeeder extends Seeder
     private function cargarEstadosEquipos(): void
     {
         $estados = [
-            ['codigo' => 'RECIBIDO', 'nombre' => 'Recibido', 'orden' => 1, 'es_final' => false],
-            ['codigo' => 'PENDIENTE_REVISION', 'nombre' => 'Pendiente de revisión', 'orden' => 2, 'es_final' => false],
-            ['codigo' => 'EN_DIAGNOSTICO', 'nombre' => 'En diagnóstico', 'orden' => 3, 'es_final' => false],
-            ['codigo' => 'EN_REPARACION', 'nombre' => 'En reparación', 'orden' => 4, 'es_final' => false],
-            ['codigo' => 'DISPONIBLE', 'nombre' => 'Disponible', 'orden' => 5, 'es_final' => false],
-            ['codigo' => 'RESERVADO', 'nombre' => 'Reservado', 'orden' => 6, 'es_final' => false],
-            ['codigo' => 'VENDIDO', 'nombre' => 'Vendido', 'orden' => 7, 'es_final' => false],
-            ['codigo' => 'EN_GARANTIA', 'nombre' => 'En garantía', 'orden' => 8, 'es_final' => false],
-            ['codigo' => 'DEVUELTO', 'nombre' => 'Devuelto', 'orden' => 9, 'es_final' => false],
-            ['codigo' => 'DADO_DE_BAJA', 'nombre' => 'Dado de baja', 'orden' => 10, 'es_final' => true],
+            [
+                'codigo' => 'RECIBIDO',
+                'nombre' => 'Recibido',
+                'orden' => 1,
+                'es_final' => false,
+            ],
+            [
+                'codigo' => 'PENDIENTE_REVISION',
+                'nombre' => 'Pendiente de revisión',
+                'orden' => 2,
+                'es_final' => false,
+            ],
+            [
+                'codigo' => 'EN_DIAGNOSTICO',
+                'nombre' => 'En diagnóstico',
+                'orden' => 3,
+                'es_final' => false,
+            ],
+            [
+                'codigo' => 'EN_REPARACION',
+                'nombre' => 'En reparación',
+                'orden' => 4,
+                'es_final' => false,
+            ],
+            [
+                'codigo' => 'DISPONIBLE',
+                'nombre' => 'Disponible',
+                'orden' => 5,
+                'es_final' => false,
+            ],
+            [
+                'codigo' => 'RESERVADO',
+                'nombre' => 'Reservado',
+                'orden' => 6,
+                'es_final' => false,
+            ],
+            [
+                'codigo' => 'VENDIDO',
+                'nombre' => 'Vendido',
+                'orden' => 7,
+                'es_final' => false,
+            ],
+            [
+                'codigo' => 'GARANTIA',
+                'nombre' => 'En garantía',
+                'orden' => 8,
+                'es_final' => false,
+            ],
+            [
+                'codigo' => 'DEVUELTO',
+                'nombre' => 'Devuelto',
+                'orden' => 9,
+                'es_final' => false,
+            ],
+            [
+                'codigo' => 'DADO_DE_BAJA',
+                'nombre' => 'Dado de baja',
+                'orden' => 10,
+                'es_final' => true,
+            ],
         ];
 
         foreach ($estados as $estado) {
             DB::table('estados_equipos')->updateOrInsert(
-                ['codigo' => $estado['codigo']],
+                [
+                    'codigo' => $estado['codigo'],
+                ],
                 [
                     'nombre' => $estado['nombre'],
                     'descripcion' => null,
@@ -166,53 +224,218 @@ class CatalogoSeeder extends Seeder
                 ]
             );
         }
+
+        /*
+        |--------------------------------------------------------------------------
+        | Compatibilidad con estado legado EN_GARANTIA
+        |--------------------------------------------------------------------------
+        |
+        | El sistema actual utiliza GARANTIA como código canónico.
+        | EN_GARANTIA pertenecía al catálogo anterior.
+        |
+        | Si existe en una base antigua:
+        | - trasladamos equipos actuales a GARANTIA;
+        | - desactivamos sus transiciones;
+        | - dejamos el estado legado inactivo para conservar referencias
+        |   históricas mediante claves foráneas.
+        |
+        */
+
+        $estadoGarantia = DB::table('estados_equipos')
+            ->where('codigo', 'GARANTIA')
+            ->first();
+
+        $estadoGarantiaLegado = DB::table('estados_equipos')
+            ->where('codigo', 'EN_GARANTIA')
+            ->first();
+
+        if (
+            $estadoGarantia
+            && $estadoGarantiaLegado
+        ) {
+            DB::table('equipos')
+                ->where(
+                    'estado_actual_id',
+                    $estadoGarantiaLegado->id
+                )
+                ->update([
+                    'estado_actual_id' => $estadoGarantia->id,
+                    'updated_at' => now(),
+                ]);
+
+            DB::table('transiciones_estados_equipos')
+                ->where(
+                    'estado_origen_id',
+                    $estadoGarantiaLegado->id
+                )
+                ->orWhere(
+                    'estado_destino_id',
+                    $estadoGarantiaLegado->id
+                )
+                ->update([
+                    'activo' => false,
+                    'updated_at' => now(),
+                ]);
+
+            DB::table('estados_equipos')
+                ->where(
+                    'id',
+                    $estadoGarantiaLegado->id
+                )
+                ->update([
+                    'activo' => false,
+                    'updated_at' => now(),
+                ]);
+        }
     }
 
     private function cargarTransiciones(): void
     {
-        $estados = DB::table('estados_equipos')->pluck('id', 'codigo');
+        $estados = DB::table('estados_equipos')
+            ->where('activo', true)
+            ->pluck(
+                'id',
+                'codigo'
+            );
 
         $transiciones = [
-            ['RECIBIDO', 'PENDIENTE_REVISION', false],
+            [
+                'RECIBIDO',
+                'PENDIENTE_REVISION',
+                false,
+            ],
 
-            ['PENDIENTE_REVISION', 'EN_DIAGNOSTICO', false],
+            [
+                'PENDIENTE_REVISION',
+                'EN_DIAGNOSTICO',
+                false,
+            ],
 
-            ['EN_DIAGNOSTICO', 'EN_REPARACION', false],
-            ['EN_DIAGNOSTICO', 'DISPONIBLE', false],
-            ['EN_DIAGNOSTICO', 'DADO_DE_BAJA', true],
+            [
+                'EN_DIAGNOSTICO',
+                'EN_REPARACION',
+                false,
+            ],
+            [
+                'EN_DIAGNOSTICO',
+                'DISPONIBLE',
+                false,
+            ],
+            [
+                'EN_DIAGNOSTICO',
+                'DADO_DE_BAJA',
+                true,
+            ],
 
-            ['EN_REPARACION', 'EN_DIAGNOSTICO', false],
-            ['EN_REPARACION', 'DISPONIBLE', false],
+            [
+                'EN_REPARACION',
+                'EN_DIAGNOSTICO',
+                false,
+            ],
+            [
+                'EN_REPARACION',
+                'DISPONIBLE',
+                false,
+            ],
 
-            ['DISPONIBLE', 'RESERVADO', false],
-            ['DISPONIBLE', 'VENDIDO', false],
+            [
+                'DISPONIBLE',
+                'RESERVADO',
+                false,
+            ],
+            [
+                'DISPONIBLE',
+                'VENDIDO',
+                false,
+            ],
 
-            ['RESERVADO', 'DISPONIBLE', false],
-            ['RESERVADO', 'VENDIDO', false],
+            [
+                'RESERVADO',
+                'DISPONIBLE',
+                false,
+            ],
+            [
+                'RESERVADO',
+                'VENDIDO',
+                false,
+            ],
 
-            ['VENDIDO', 'EN_GARANTIA', false],
+            [
+                'VENDIDO',
+                'GARANTIA',
+                false,
+            ],
 
-            ['EN_GARANTIA', 'VENDIDO', false],
-            ['EN_GARANTIA', 'DEVUELTO', true],
+            [
+                'GARANTIA',
+                'VENDIDO',
+                false,
+            ],
+            [
+                'GARANTIA',
+                'DEVUELTO',
+                true,
+            ],
 
-            ['DEVUELTO', 'EN_DIAGNOSTICO', false],
-            ['DEVUELTO', 'DADO_DE_BAJA', true],
+            [
+                'DEVUELTO',
+                'EN_DIAGNOSTICO',
+                false,
+            ],
+            [
+                'DEVUELTO',
+                'DADO_DE_BAJA',
+                true,
+            ],
         ];
 
-        foreach ($transiciones as [$origen, $destino, $requiereAutorizacion]) {
-            DB::table('transiciones_estados_equipos')->updateOrInsert(
-                [
-                    'estado_origen_id' => $estados[$origen],
-                    'estado_destino_id' => $estados[$destino],
-                ],
-                [
-                    'requiere_autorizacion' => $requiereAutorizacion,
-                    'descripcion' => null,
-                    'activo' => true,
-                    'created_at' => now(),
-                    'updated_at' => now(),
-                ]
-            );
+        foreach (
+            $transiciones
+            as [
+                $origen,
+                $destino,
+                $requiereAutorizacion,
+            ]
+        ) {
+            /*
+            |--------------------------------------------------------------------------
+            | Protección de integridad del catálogo
+            |--------------------------------------------------------------------------
+            */
+
+            if (
+                !$estados->has($origen)
+                || !$estados->has($destino)
+            ) {
+                continue;
+            }
+
+            DB::table('transiciones_estados_equipos')
+                ->updateOrInsert(
+                    [
+                        'estado_origen_id' =>
+                            $estados[$origen],
+
+                        'estado_destino_id' =>
+                            $estados[$destino],
+                    ],
+                    [
+                        'requiere_autorizacion' =>
+                            $requiereAutorizacion,
+
+                        'descripcion' =>
+                            null,
+
+                        'activo' =>
+                            true,
+
+                        'created_at' =>
+                            now(),
+
+                        'updated_at' =>
+                            now(),
+                    ]
+                );
         }
     }
 }
