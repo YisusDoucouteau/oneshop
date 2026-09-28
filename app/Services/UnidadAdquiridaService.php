@@ -742,13 +742,15 @@ class UnidadAdquiridaService
     public function registrarRevisionPreliminar(
         int $usuarioId,
         int $unidadId,
-        array $datos
+        array $datos,
+        bool $finalizar = true
     ): UnidadAdquirida {
         return DB::transaction(
             function () use (
                 $usuarioId,
                 $unidadId,
-                $datos
+                $datos,
+                $finalizar
             ) {
                 $usuario =
                     $this->obtenerUsuarioAutorizado(
@@ -1120,7 +1122,15 @@ class UnidadAdquiridaService
                     || $problemasBasicos !== []
                     || $fallasChecklist !== [];
 
-                if (
+                if (!$finalizar) {
+                    $estado =
+                        UnidadAdquirida::ESTADO_EN_REVISION;
+
+                    $resultadoRevision =
+                        RevisionTecnicaUnidadAdquirida::RESULTADO_INCOMPLETA;
+
+                    $fechaListaEnvio = null;
+                } elseif (
                     $revisionCompleta
                     && !$tieneProblemaConocido
                 ) {
@@ -1151,7 +1161,10 @@ class UnidadAdquiridaService
                     $fechaListaEnvio = null;
                 }
 
-                $fechaRevision = now();
+                $fechaRevision =
+                    $finalizar
+                        ? now()
+                        : $unidad->fecha_revision;
 
                 $unidad->fill([
                     'serial_fabricante' =>
@@ -1217,35 +1230,219 @@ class UnidadAdquiridaService
 
                 $unidad->save();
 
-                RevisionTecnicaUnidadAdquirida::create([
-                    'unidad_adquirida_id' =>
-                        $unidad->id,
-                    'usuario_id' =>
-                        $usuario->id,
-                    'fecha_revision' =>
-                        $fechaRevision,
-                    'grado_final' =>
-                        $gradoFinal,
-                    'bateria_porcentaje' =>
-                        $bateriaPorcentaje,
-                    'enciende' =>
-                        $enciende,
-                    'tiene_sistema_operativo' =>
-                        $tieneSistema,
-                    'tiene_cargador' =>
-                        $tieneCargador,
-                    'requiere_servicio' =>
-                        $requiereServicio,
-                    'servicio_requerido' =>
-                        $servicioRequerido,
-                    'checklist_tecnico' =>
-                        $checklist,
-                    'resultado' =>
-                        $resultadoRevision,
-                    'observacion' =>
-                        $validados['observacion_revision']
-                        ?? $unidad->observacion_revision,
+                if ($finalizar) {
+                    RevisionTecnicaUnidadAdquirida::create([
+                        'unidad_adquirida_id' =>
+                            $unidad->id,
+                        'usuario_id' =>
+                            $usuario->id,
+                        'fecha_revision' =>
+                            $fechaRevision,
+                        'grado_final' =>
+                            $gradoFinal,
+                        'bateria_porcentaje' =>
+                            $bateriaPorcentaje,
+                        'enciende' =>
+                            $enciende,
+                        'tiene_sistema_operativo' =>
+                            $tieneSistema,
+                        'tiene_cargador' =>
+                            $tieneCargador,
+                        'requiere_servicio' =>
+                            $requiereServicio,
+                        'servicio_requerido' =>
+                            $servicioRequerido,
+                        'checklist_tecnico' =>
+                            $checklist,
+                        'resultado' =>
+                            $resultadoRevision,
+                        'observacion' =>
+                            $validados['observacion_revision']
+                            ?? $unidad->observacion_revision,
+                    ]);
+                }
+
+                return $unidad->fresh([
+                    'producto.marca',
+                    'almacenActual',
+                    'detalleLote.lote',
+                    'revisadoPor',
+                    'revisionesTecnicas.usuario',
                 ]);
+            },
+            3
+        );
+    }
+
+    public function reabrirPreparacion(
+        int $usuarioId,
+        int $unidadId,
+        string $motivo
+    ): UnidadAdquirida {
+        return DB::transaction(
+            function () use (
+                $usuarioId,
+                $unidadId,
+                $motivo
+            ) {
+                $usuario =
+                    $this->obtenerUsuarioAutorizado(
+                        $usuarioId
+                    );
+
+                $unidad =
+                    UnidadAdquirida::query()
+                        ->lockForUpdate()
+                        ->find($unidadId);
+
+                if (!$unidad) {
+                    throw new ReglaNegocioException(
+                        'La unidad adquirida no existe.'
+                    );
+                }
+
+                if (
+                    $unidad->estado
+                    !== UnidadAdquirida::ESTADO_LISTA_ENVIO
+                ) {
+                    throw new ReglaNegocioException(
+                        'Solo una unidad lista para envío puede reabrir su preparación.'
+                    );
+                }
+
+                $almacenCochabamba =
+                    Almacen::query()
+                        ->where(
+                            'codigo',
+                            'COCHABAMBA'
+                        )
+                        ->where(
+                            'activo',
+                            true
+                        )
+                        ->first();
+
+                if (!$almacenCochabamba) {
+                    throw new ReglaNegocioException(
+                        'No se encuentra disponible el depósito de Cochabamba.'
+                    );
+                }
+
+                if (
+                    $unidad->almacen_actual_id
+                    !== $almacenCochabamba->id
+                ) {
+                    throw new ReglaNegocioException(
+                        'La preparación solo puede reabrirse mientras la unidad se encuentra en Cochabamba.'
+                    );
+                }
+
+                $motivo = trim($motivo);
+
+                if ($motivo === '') {
+                    throw new ReglaNegocioException(
+                        'Debe indicar el motivo de la reapertura de preparación.'
+                    );
+                }
+
+                /*
+                |--------------------------------------------------------------------------
+                | Estado anterior para auditoría
+                |--------------------------------------------------------------------------
+                */
+
+                $datosAnteriores = [
+                    'estado' =>
+                        $unidad->estado,
+
+                    'resultado_revision' =>
+                        $unidad->resultado_revision,
+
+                    'requiere_servicio' =>
+                        (bool) $unidad->requiere_servicio,
+
+                    'servicio_requerido' =>
+                        $unidad->servicio_requerido,
+
+                    'fecha_lista_envio' =>
+                        $unidad->fecha_lista_envio
+                            ?->toDateTimeString(),
+
+                    'revisado_por_id' =>
+                        $unidad->revisado_por_id,
+                ];
+
+                /*
+                |--------------------------------------------------------------------------
+                | Reapertura de preparación
+                |--------------------------------------------------------------------------
+                |
+                | Una unidad que ya estaba LISTA_ENVIO puede volver a preparación
+                | cuando, antes de despacharla, se detecta una nueva falla.
+                |
+                | No se crea una revisión técnica falsa. La unidad queda pendiente
+                | de una nueva revisión real.
+                |
+                */
+
+                $unidad->fill([
+                    'estado' =>
+                        UnidadAdquirida::ESTADO_EN_PREPARACION,
+
+                    'resultado_revision' =>
+                        RevisionTecnicaUnidadAdquirida::RESULTADO_REQUIERE_PREPARACION,
+
+                    'requiere_servicio' =>
+                        true,
+
+                    'servicio_requerido' =>
+                        $motivo,
+
+                    'fecha_lista_envio' =>
+                        null,
+
+                    'revisado_por_id' =>
+                        $usuario->id,
+                ]);
+
+                $unidad->save();
+
+                /*
+                |--------------------------------------------------------------------------
+                | Auditoría
+                |--------------------------------------------------------------------------
+                */
+
+                app(AuditoriaService::class)
+                    ->registrar(
+                        $usuario->id,
+                        'REABRIR_PREPARACION',
+                        'unidad_adquirida',
+                        $unidad->id,
+                        $datosAnteriores,
+                        [
+                            'estado' =>
+                                $unidad->estado,
+
+                            'resultado_revision' =>
+                                $unidad->resultado_revision,
+
+                            'requiere_servicio' =>
+                                true,
+
+                            'servicio_requerido' =>
+                                $motivo,
+
+                            'motivo' =>
+                                $motivo,
+
+                            'fecha_lista_envio' =>
+                                null,
+
+                            'revisado_por_id' =>
+                                $usuario->id,
+                        ]
+                    );
 
                 return $unidad->fresh([
                     'producto.marca',
