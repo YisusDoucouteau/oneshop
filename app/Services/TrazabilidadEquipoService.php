@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Models\CambioEquipo;
 use App\Models\Equipo;
 use Illuminate\Support\Collection;
 
@@ -36,8 +37,13 @@ class TrazabilidadEquipoService
             'transferencias.despachadoPor',
             'transferencias.recibidoPor',
 
+            'detallesReservas.reserva.cliente',
+            'detallesReservas.reserva.registradoPor',
+            'detallesReservas.reserva.prorrogas.autorizadoPor',
+
             'detallesVentas.venta.cliente',
             'detallesVentas.venta.vendedor',
+            'detallesVentas.venta.anuladoPor',
 
             'detallesVentas.garantia.casosGarantia.recibidoPor',
             'detallesVentas.garantia.casosGarantia.intervenciones.usuario',
@@ -532,6 +538,118 @@ class TrazabilidadEquipoService
 
         /*
         |--------------------------------------------------------------------------
+        | Reservas
+        |--------------------------------------------------------------------------
+        */
+
+        foreach ($equipo->detallesReservas as $detalleReserva) {
+            $reserva =
+                $detalleReserva->reserva;
+
+            if (!$reserva) {
+                continue;
+            }
+
+            if ($reserva->fecha_reserva) {
+                $eventos->push([
+                    'fecha' => $reserva->fecha_reserva,
+                    'tipo' => 'reserva',
+                    'orden' => 125,
+                    'titulo' => 'Equipo reservado',
+                    'detalle' =>
+                        collect([
+                            $reserva->numero
+                                ? 'Reserva: ' . $reserva->numero
+                                : null,
+
+                            $reserva->cliente?->nombre_completo
+                                ? 'Cliente: ' . $reserva->cliente->nombre_completo
+                                : null,
+
+                            $detalleReserva->precio_acordado !== null
+                                ? 'Precio acordado: Bs '
+                                    . number_format(
+                                        (float) $detalleReserva->precio_acordado,
+                                        2,
+                                        '.',
+                                        ''
+                                    )
+                                : null,
+                        ])
+                            ->filter()
+                            ->implode(' | '),
+                    'usuario' => $reserva->registradoPor?->name,
+                    'observacion' =>
+                        $detalleReserva->observacion
+                        ?: $reserva->observacion,
+                ]);
+            }
+
+            foreach ($reserva->prorrogas as $prorroga) {
+                if (!$prorroga->created_at) {
+                    continue;
+                }
+
+                $eventos->push([
+                    'fecha' => $prorroga->created_at,
+                    'tipo' => 'reserva',
+                    'orden' => 126,
+                    'titulo' => 'Reserva prorrogada',
+                    'detalle' =>
+                        collect([
+                            $reserva->numero
+                                ? 'Reserva: ' . $reserva->numero
+                                : null,
+
+                            $prorroga->fecha_expiracion_anterior
+                                ? 'Vencimiento anterior: '
+                                    . $prorroga->fecha_expiracion_anterior->format('d/m/Y H:i')
+                                : null,
+
+                            $prorroga->nueva_fecha_expiracion
+                                ? 'Nuevo vencimiento: '
+                                    . $prorroga->nueva_fecha_expiracion->format('d/m/Y H:i')
+                                : null,
+                        ])
+                            ->filter()
+                            ->implode(' | '),
+                    'usuario' => $prorroga->autorizadoPor?->name,
+                    'observacion' => $prorroga->motivo,
+                ]);
+            }
+
+            if ($reserva->fecha_cierre) {
+                $tituloCierre = match ($reserva->estado) {
+                    'LIBERADA' => 'Reserva liberada',
+                    'CONVERTIDA' => 'Reserva convertida en venta',
+                    default => 'Reserva cerrada',
+                };
+
+                $eventos->push([
+                    'fecha' => $reserva->fecha_cierre,
+                    'tipo' => 'reserva',
+                    'orden' => 127,
+                    'titulo' => $tituloCierre,
+                    'detalle' =>
+                        collect([
+                            $reserva->numero
+                                ? 'Reserva: ' . $reserva->numero
+                                : null,
+
+                            $reserva->estado
+                                ? 'Estado final: ' . $reserva->estado
+                                : null,
+                        ])
+                            ->filter()
+                            ->implode(' | '),
+                    'usuario' => null,
+                    'observacion' => $reserva->observacion,
+                ]);
+            }
+        }
+
+        /*
+        |--------------------------------------------------------------------------
         | Ventas
         |--------------------------------------------------------------------------
         */
@@ -542,20 +660,52 @@ class TrazabilidadEquipoService
 
             if ($venta) {
                 $eventos->push([
-                    'fecha' => $venta->created_at,
+                    'fecha' =>
+                        $venta->fecha_venta
+                        ?? $venta->created_at,
                     'tipo' => 'venta',
                     'orden' => 130,
                     'titulo' => 'Equipo vendido',
                     'detalle' =>
-                        'Cliente: '
-                        .
-                        (
-                            $venta->cliente?->nombre_completo
-                            ?? 'No registrado'
-                        ),
+                        collect([
+                            $venta->numero
+                                ? 'Venta: ' . $venta->numero
+                                : null,
+
+                            'Cliente: '
+                                . (
+                                    $venta->cliente?->nombre_completo
+                                    ?? 'No registrado'
+                                ),
+                        ])
+                            ->filter()
+                            ->implode(' | '),
                     'usuario' => $venta->vendedor?->name,
                     'observacion' => $venta->observacion,
                 ]);
+
+                if ($venta->fecha_anulacion) {
+                    $eventos->push([
+                        'fecha' => $venta->fecha_anulacion,
+                        'tipo' => 'venta',
+                        'orden' => 135,
+                        'titulo' => 'Venta anulada',
+                        'detalle' =>
+                            collect([
+                                $venta->numero
+                                    ? 'Venta: ' . $venta->numero
+                                    : null,
+
+                                $venta->motivo_anulacion
+                                    ? 'Motivo: ' . $venta->motivo_anulacion
+                                    : null,
+                            ])
+                                ->filter()
+                                ->implode(' | '),
+                        'usuario' => $venta->anuladoPor?->name,
+                        'observacion' => $venta->observacion,
+                    ]);
+                }
             }
         }
 
@@ -630,6 +780,272 @@ class TrazabilidadEquipoService
 
         /*
         |--------------------------------------------------------------------------
+        | Cambios de equipo por garantía
+        |--------------------------------------------------------------------------
+        |
+        | Se consulta por ambos extremos del cambio porque el equipo entrante
+        | no es el equipo_afectado_id original del CasoGarantia.
+        |
+        */
+
+        $cambiosGarantia =
+            CambioEquipo::query()
+                ->with([
+                    'casoGarantia',
+                    'autorizadoPor',
+                    'equipoSaliente.producto',
+                    'equipoEntrante.producto',
+                    'movimientosAjuste.metodoPago',
+                    'movimientosAjuste.registradoPor',
+                    'movimientosAjuste.verificadoPor',
+                ])
+                ->where(function ($query) use ($equipo) {
+                    $query
+                        ->where(
+                            'equipo_saliente_id',
+                            $equipo->id
+                        )
+                        ->orWhere(
+                            'equipo_entrante_id',
+                            $equipo->id
+                        );
+                })
+                ->orderBy('fecha_cambio')
+                ->get();
+
+        foreach ($cambiosGarantia as $cambio) {
+            $esSaliente =
+                (int) $cambio->equipo_saliente_id
+                ===
+                (int) $equipo->id;
+
+            $equipoRelacionado =
+                $esSaliente
+                    ? $cambio->equipoEntrante
+                    : $cambio->equipoSaliente;
+
+            $titulo =
+                $esSaliente
+                    ? 'Equipo sustituido por garantía'
+                    : 'Equipo entregado como reemplazo';
+
+            $etiquetaRelacionado =
+                $esSaliente
+                    ? 'Reemplazo'
+                    : 'Equipo sustituido';
+
+            $detalleRelacionado =
+                $equipoRelacionado
+                    ? collect([
+                        $equipoRelacionado->codigo_interno,
+                        $equipoRelacionado->producto?->nombre,
+                        $equipoRelacionado->producto?->modelo,
+                    ])
+                        ->filter()
+                        ->implode(' · ')
+                    : 'No registrado';
+
+            $eventos->push([
+                'fecha' => $cambio->fecha_cambio,
+                'tipo' => 'garantia',
+                'orden' => 165,
+                'titulo' => $titulo,
+                'detalle' =>
+                    collect([
+                        $cambio->casoGarantia?->numero
+                            ? 'Caso: '
+                                . $cambio->casoGarantia->numero
+                            : null,
+
+                        $etiquetaRelacionado
+                            . ': '
+                            . $detalleRelacionado,
+
+                        $cambio->motivo
+                            ? 'Motivo: ' . $cambio->motivo
+                            : null,
+                    ])
+                        ->filter()
+                        ->implode(' | '),
+                'usuario' => $cambio->autorizadoPor?->name,
+                'observacion' => $cambio->observacion,
+            ]);
+
+            foreach ($cambio->movimientosAjuste as $movimiento) {
+                $esDevolucion =
+                    $movimiento->tipo_movimiento
+                    ===
+                    'DEVOLUCION';
+                $requiereVerificacion =
+                    (bool) (
+                        $movimiento
+                            ->metodoPago
+                            ?->requiere_verificacion
+                        ?? false
+                    );
+
+                $estadoInicial =
+                    $requiereVerificacion
+                        ? 'PENDIENTE'
+                        : 'VERIFICADO';
+
+                $eventos->push([
+                    'fecha' =>
+                        $movimiento->fecha_movimiento,
+
+                    'tipo' =>
+                        'garantia',
+
+                    'orden' =>
+                        170,
+
+                    'titulo' =>
+                        $esDevolucion
+                            ? 'Devolución de ajuste de garantía registrada'
+                            : 'Cobro de ajuste de garantía registrado',
+
+                    'detalle' =>
+                        collect([
+                            $cambio->casoGarantia?->numero
+                                ? 'Caso: '
+                                    . $cambio->casoGarantia->numero
+                                : null,
+
+                            'Monto: '
+                                . (
+                                    $cambio->moneda_ajuste
+                                    ?? 'BOB'
+                                )
+                                . ' '
+                                . number_format(
+                                    (float) $movimiento->monto,
+                                    2,
+                                    '.',
+                                    ''
+                                ),
+
+                            'Método: '
+                                . (
+                                    $movimiento
+                                        ->metodoPago
+                                        ?->nombre
+                                    ?? 'No registrado'
+                                ),
+
+                            'Estado inicial: '
+                                . $estadoInicial,
+
+                            $movimiento->referencia
+                                ? 'Referencia: '
+                                    . $movimiento->referencia
+                                : null,
+                        ])
+                            ->filter()
+                            ->implode(' | '),
+
+                    'usuario' =>
+                        $movimiento
+                            ->registradoPor
+                            ?->name,
+
+                    'observacion' =>
+                        $movimiento->observacion,
+                ]);
+
+                if (
+                    $requiereVerificacion
+                    && $movimiento->fecha_verificacion
+                    && in_array(
+                        $movimiento->estado,
+                        [
+                            'VERIFICADO',
+                            'RECHAZADO',
+                        ],
+                        true
+                    )
+                ) {
+                    $esRechazado =
+                        $movimiento->estado
+                        ===
+                        'RECHAZADO';
+
+                    $eventos->push([
+                        'fecha' =>
+                            $movimiento->fecha_verificacion,
+
+                        'tipo' =>
+                            'garantia',
+
+                        'orden' =>
+                            175,
+
+                        'titulo' =>
+                            match (true) {
+                                $esRechazado
+                                    && $esDevolucion =>
+                                        'Devolución de ajuste rechazada',
+
+                                $esRechazado =>
+                                    'Cobro de ajuste rechazado',
+
+                                $esDevolucion =>
+                                    'Devolución de ajuste verificada',
+
+                                default =>
+                                    'Cobro de ajuste verificado',
+                            },
+
+                        'detalle' =>
+                            collect([
+                                $cambio->casoGarantia?->numero
+                                    ? 'Caso: '
+                                        . $cambio->casoGarantia->numero
+                                    : null,
+
+                                'Monto: '
+                                    . (
+                                        $cambio->moneda_ajuste
+                                        ?? 'BOB'
+                                    )
+                                    . ' '
+                                    . number_format(
+                                        (float) $movimiento->monto,
+                                        2,
+                                        '.',
+                                        ''
+                                    ),
+
+                                'Estado: '
+                                    . $movimiento->estado,
+
+                                $movimiento->referencia
+                                    ? 'Referencia: '
+                                        . $movimiento->referencia
+                                    : null,
+
+                                $esRechazado
+                                    && $movimiento->motivo_rechazo
+                                        ? 'Motivo: '
+                                            . $movimiento->motivo_rechazo
+                                        : null,
+                            ])
+                                ->filter()
+                                ->implode(' | '),
+
+                        'usuario' =>
+                            $movimiento
+                                ->verificadoPor
+                                ?->name,
+
+                        'observacion' =>
+                            null,
+                    ]);
+                }
+            }
+        }
+
+        /*
+        |--------------------------------------------------------------------------
         | Iconos timeline
         |--------------------------------------------------------------------------
         */
@@ -643,6 +1059,7 @@ class TrazabilidadEquipoService
             'envio' => 'truck',
             'estado' => 'settings',
             'transferencia' => 'truck',
+            'reserva' => 'package',
             'venta' => 'chart',
             'garantia' => 'shield',
         ];
