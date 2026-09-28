@@ -363,7 +363,7 @@ class IncorporacionUnidadAdquiridaServiceTest extends TestCase
     |--------------------------------------------------------------------------
     */
 
-    public function test_incorpora_unidad_recibida_en_oruro(): void
+        public function test_incorpora_unidad_recibida_en_oruro(): void
     {
         $unidad =
             $this->prepararUnidadRecibidaEnOruro();
@@ -382,7 +382,6 @@ class IncorporacionUnidadAdquiridaServiceTest extends TestCase
                 'Equipo incorporado desde importación.'
             );
 
-
         $this->assertNotNull(
             $unidad->equipo_id
         );
@@ -391,7 +390,6 @@ class IncorporacionUnidadAdquiridaServiceTest extends TestCase
             Equipo::class,
             $unidad->equipo
         );
-
 
         /*
          * El código interno ahora se genera
@@ -413,12 +411,24 @@ class IncorporacionUnidadAdquiridaServiceTest extends TestCase
             )
         );
 
-
         $this->assertSame(
             'SN-INCORPORACION-001',
             $unidad
                 ->equipo
                 ->serial_fabricante
+        );
+
+        $this->assertSame(
+            'SN-INCORPORACION-001',
+            $unidad->serial_fabricante
+        );
+
+        $this->assertDatabaseHas(
+            'unidades_adquiridas',
+            [
+                'id' => $unidad->id,
+                'serial_fabricante' => 'SN-INCORPORACION-001',
+            ]
         );
 
         $this->assertSame(

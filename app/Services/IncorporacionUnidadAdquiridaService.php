@@ -538,10 +538,11 @@ IncorporacionUnidadAdquirida::create([
             $unidad->equipo_id =
                 $equipo->id;
 
+            $unidad->serial_fabricante =
+                $equipo->serial_fabricante;
 
             $unidad->estado =
                 UnidadAdquirida::ESTADO_INCORPORADA;
-
 
             $unidad->save();
 
