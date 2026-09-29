@@ -1,85 +1,439 @@
-<x-app-layout>
+<x-layouts.oneshop
+    title="Lote {{ $lote->codigo }} | OneShop"
+    page-title="Detalle de importación"
+>
 
-<x-slot name="header">
+@php
+    $statusStyles = [
+        'ABIERTO' => [
+            'label' => 'Abierto',
+            'bg' => 'bg-blue-50',
+            'text' => 'text-blue-800',
+            'border' => 'border-blue-200',
+        ],
 
-    <h2 class="font-semibold text-xl text-slate-800">
-        Detalle de importación
-    </h2>
+        'RECEPCION_PARCIAL' => [
+            'label' => 'Recepción parcial',
+            'bg' => 'bg-amber-50',
+            'text' => 'text-amber-800',
+            'border' => 'border-amber-200',
+        ],
 
-</x-slot>
+        'RECIBIDO' => [
+            'label' => 'Recibido',
+            'bg' => 'bg-emerald-50',
+            'text' => 'text-emerald-800',
+            'border' => 'border-emerald-200',
+        ],
+
+        'CERRADO' => [
+            'label' => 'Cerrado',
+            'bg' => 'bg-slate-100',
+            'text' => 'text-slate-700',
+            'border' => 'border-slate-200',
+        ],
+
+        'ANULADO' => [
+            'label' => 'Anulado',
+            'bg' => 'bg-red-50',
+            'text' => 'text-red-800',
+            'border' => 'border-red-200',
+        ],
+    ];
+
+    $status =
+        $statusStyles[$lote->estado]
+        ?? [
+            'label' => ucfirst(
+                strtolower(
+                    str_replace('_', ' ', $lote->estado)
+                )
+            ),
+            'bg' => 'bg-slate-100',
+            'text' => 'text-slate-700',
+            'border' => 'border-slate-200',
+        ];
+@endphp
 
 
+<div class="space-y-6">
 
-<div class="py-6">
+    {{-- NAVEGACIÓN --}}
+    <div>
+        <a
+            href="{{ route('importaciones.index') }}"
+            class="
+                inline-flex
+                items-center
+                gap-2
 
-<div class="mx-auto max-w-7xl space-y-6 px-4 sm:px-6 lg:px-8">
+                rounded-lg
+                border
+                border-slate-200
+
+                bg-white
+
+                px-3
+                py-2
+
+                text-sm
+                font-semibold
+                text-slate-700
+
+                shadow-sm
+
+                transition
+                duration-200
+
+                hover:border-blue-200
+                hover:bg-oneshop-light
+                hover:text-oneshop-dark
+
+                focus:outline-none
+                focus:ring-4
+                focus:ring-blue-100
+            "
+        >
+            <span
+                class="
+                    font-bold
+                    text-oneshop-primary
+                "
+                aria-hidden="true"
+            >
+                ←
+            </span>
+
+            Volver a importaciones
+        </a>
+    </div>
 
 
-    {{-- PRUEBA RESUMEN --}}
+    {{-- CABECERA DEL LOTE --}}
+    <section
+        class="
+            overflow-hidden
 
-    <section class="rounded-2xl border bg-white p-6 shadow">
+            rounded-2xl
+            border
+            border-blue-100
 
-        <h2 class="text-xl font-bold text-slate-900">
+            bg-white
 
-            Lote {{ $lote->codigo }}
+            shadow-sm
+        "
+    >
 
-        </h2>
+        {{-- FRANJA SUPERIOR --}}
+        <div
+            class="
+                flex
+                flex-col
+                gap-5
+
+                border-b
+                border-blue-100
+
+                bg-gradient-to-r
+                from-blue-50
+                via-oneshop-soft
+                to-white
+
+                px-6
+                py-5
+
+                lg:flex-row
+                lg:items-center
+                lg:justify-between
+            "
+        >
+
+            <div
+                class="
+                    flex
+                    min-w-0
+                    items-start
+                    gap-4
+                "
+            >
+
+                <div
+                    class="
+                        flex
+                        h-12
+                        w-12
+                        shrink-0
+                        items-center
+                        justify-center
+
+                        rounded-xl
+                        border
+                        border-blue-200
+
+                        bg-white
+                        text-oneshop-primary
+
+                        shadow-sm
+                    "
+                >
+                    <x-ui.icon
+                        name="package"
+                        size="22"
+                    />
+                </div>
 
 
-        <p class="mt-2 text-slate-600">
+                <div class="min-w-0">
 
-            Proveedor:
+                    <p
+                        class="
+                            text-xs
+                            font-bold
+                            uppercase
+                            tracking-[0.16em]
+                            text-oneshop-primary
+                        "
+                    >
+                        Lote de importación
+                    </p>
 
-            {{ $lote->proveedor?->nombre ?? 'Sin proveedor' }}
+                    <div
+                        class="
+                            mt-1
+                            flex
+                            flex-wrap
+                            items-center
+                            gap-3
+                        "
+                    >
 
-        </p>
+                        <h1
+                            class="
+                                text-2xl
+                                font-bold
+                                tracking-tight
+                                text-slate-950
+                            "
+                        >
+                            {{ $lote->codigo }}
+                        </h1>
 
+                        <span
+                            class="
+                                inline-flex
+                                items-center
 
-        <div class="mt-4 grid gap-3 text-sm text-slate-600 sm:grid-cols-2 lg:grid-cols-4">
-            <p>
-                <span class="font-semibold text-slate-800">Estado:</span>
-                {{ $lote->estado }}
-            </p>
+                                rounded-full
+                                border
 
-            <p>
-                <span class="font-semibold text-slate-800">Fecha compra:</span>
-                {{ $lote->fecha_compra?->format('d/m/Y') ?? 'No registrada' }}
-            </p>
+                                px-3
+                                py-1
 
-            <p>
-                <span class="font-semibold text-slate-800">Referencia:</span>
-                {{ $lote->referencia_compra ?: 'Sin referencia' }}
-            </p>
+                                text-xs
+                                font-bold
 
-            <p>
-                <span class="font-semibold text-slate-800">Origen:</span>
-                {{ $lote->origen ?: 'No especificado' }}
-            </p>
+                                {{ $status['bg'] }}
+                                {{ $status['text'] }}
+                                {{ $status['border'] }}
+                            "
+                        >
+                            {{ $status['label'] }}
+                        </span>
+
+                    </div>
+
+                    <p
+                        class="
+                            mt-1
+                            text-sm
+                            text-slate-500
+                        "
+                    >
+                        {{ $lote->proveedor?->nombre ?? 'Sin proveedor definido' }}
+                    </p>
+
+                </div>
+
+            </div>
+
         </div>
 
+
+        {{-- DATOS PRINCIPALES --}}
+        <div
+            class="
+                grid
+                gap-px
+
+                bg-slate-200
+
+                sm:grid-cols-2
+                xl:grid-cols-4
+            "
+        >
+
+            {{-- FECHA --}}
+            <div class="bg-white px-6 py-4">
+
+                <p
+                    class="
+                        text-xs
+                        font-bold
+                        uppercase
+                        tracking-wide
+                        text-slate-500
+                    "
+                >
+                    Fecha de compra
+                </p>
+
+                <div
+                    class="
+                        mt-2
+                        flex
+                        items-center
+                        gap-2
+                    "
+                >
+
+                    <span class="text-oneshop-primary">
+                        <x-ui.icon
+                            name="calendar"
+                            size="16"
+                        />
+                    </span>
+
+                    <p
+                        class="
+                            text-sm
+                            font-semibold
+                            text-slate-800
+                        "
+                    >
+                        {{ $lote->fecha_compra?->format('d/m/Y') ?? 'No registrada' }}
+                    </p>
+
+                </div>
+
+            </div>
+
+
+            {{-- REFERENCIA --}}
+            <div class="bg-white px-6 py-4">
+
+                <p
+                    class="
+                        text-xs
+                        font-bold
+                        uppercase
+                        tracking-wide
+                        text-slate-500
+                    "
+                >
+                    Referencia
+                </p>
+
+                <p
+                    class="
+                        mt-2
+                        text-sm
+                        font-semibold
+                        text-slate-800
+                    "
+                >
+                    {{ $lote->referencia_compra ?: 'Sin referencia' }}
+                </p>
+
+            </div>
+
+
+            {{-- ORIGEN --}}
+            <div class="bg-white px-6 py-4">
+
+                <p
+                    class="
+                        text-xs
+                        font-bold
+                        uppercase
+                        tracking-wide
+                        text-slate-500
+                    "
+                >
+                    Origen
+                </p>
+
+                <p
+                    class="
+                        mt-2
+                        text-sm
+                        font-semibold
+                        text-slate-800
+                    "
+                >
+                    {{ $lote->origen ?: 'No especificado' }}
+                </p>
+
+            </div>
+
+
+            {{-- PROVEEDOR --}}
+            <div class="bg-white px-6 py-4">
+
+                <p
+                    class="
+                        text-xs
+                        font-bold
+                        uppercase
+                        tracking-wide
+                        text-slate-500
+                    "
+                >
+                    Proveedor
+                </p>
+
+                <p
+                    class="
+                        mt-2
+                        text-sm
+                        font-semibold
+                        text-slate-800
+                    "
+                >
+                    {{ $lote->proveedor?->nombre ?? 'Sin proveedor' }}
+                </p>
+
+            </div>
+
+        </div>
 
     </section>
 
 
-
-   @include('importaciones.partials.detalles-lote')
-
-
-@include('importaciones.partials.equipos-registrados')
-@include(
-'importaciones.partials.costos-lote'
-)
-@include('importaciones.partials.resumen-financiero')
-@include('importaciones.partials.modal-costo')
-@include('importaciones.partials.modal-editar-costo')
-@include('importaciones.partials.modal-producto')
+    {{-- COMPOSICIÓN DEL LOTE --}}
+    @include('importaciones.partials.detalles-lote')
 
 
-@include('importaciones.partials.modal-registrar-equipo')
+    {{-- EQUIPOS REGISTRADOS --}}
+    @include('importaciones.partials.equipos-registrados')
+
+
+    {{-- COSTOS --}}
+    @include('importaciones.partials.costos-lote')
+
+
+    {{-- RESUMEN FINANCIERO --}}
+    @include('importaciones.partials.resumen-financiero')
+
+
+    {{-- MODALES --}}
+    @include('importaciones.partials.modal-costo')
+
+    @include('importaciones.partials.modal-editar-costo')
+
+    @include('importaciones.partials.modal-producto')
+
+    @include('importaciones.partials.modal-registrar-equipo')
 
 </div>
 
-</div>
-
-
-</x-app-layout>
+</x-layouts.oneshop>

@@ -1214,16 +1214,14 @@
                                         "
                                     >
 
-                                        <span
-                                            class="
-                                                font-bold
-                                                text-slate-700
-                                            "
-                                        >
-                                            {{ $recibidas }}
-                                            /
-                                            {{ $esperadas }}
-                                        </span>
+                                       <span
+    class="
+        font-bold
+        text-slate-700
+    "
+>
+    {{ $recibidas }} / {{ $esperadas }}
+</span>
 
                                         <span
                                             class="

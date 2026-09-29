@@ -266,7 +266,70 @@ class ImportacionWebTest extends TestCase
             ->assertOk()
             ->assertSeeText('1 / 2');
     }
+    public function test_puede_guardar_equipo_y_continuar_registrando_el_mismo_producto(): void
+{
+    $usuario = $this->usuarioConRol('ADMIN_OPERATIVO');
 
+    $lote = Lote::query()->create([
+        'codigo' => 'IMP-CONTINUAR-001',
+        'estado' => 'ABIERTO',
+    ]);
+
+    $detalle = DetalleLote::query()->create([
+        'lote_id' => $lote->id,
+        'producto_id' => $this->crearProducto('CONTINUAR-001')->id,
+        'cantidad_esperada' => 2,
+        'cantidad_recibida' => 0,
+    ]);
+
+    $respuesta = $this
+        ->actingAs($usuario)
+        ->post(
+            route('importaciones.unidades.store', $lote),
+            [
+                'detalle_lote_id' => $detalle->id,
+                'cantidad' => 1,
+                'procesador' => 'Intel Core i5',
+                'grado_recibido' => 'B',
+                'tiene_cargador' => 1,
+                'serial_fabricante' => 'TEST-CONTINUAR-001',
+                'continuar_registro' => 1,
+            ]
+        );
+
+    $respuesta
+        ->assertRedirect(
+            route(
+                'importaciones.show',
+                [
+                    'lote' => $lote,
+                    'registrar_equipo' => 1,
+                    'detalle_lote_id' => $detalle->id,
+                ]
+            )
+        )
+        ->assertSessionHas(
+            'success',
+            'Equipo registrado. Puedes continuar con la siguiente unidad.'
+        );
+
+    $this->assertDatabaseHas(
+        'unidades_adquiridas',
+        [
+            'detalle_lote_id' => $detalle->id,
+            'serial_fabricante' => 'TEST-CONTINUAR-001',
+            'grado_recibido' => 'B',
+        ]
+    );
+
+    $this->assertDatabaseHas(
+        'lotes',
+        [
+            'id' => $lote->id,
+            'estado' => 'RECEPCION_PARCIAL',
+        ]
+    );
+}
     public function test_recepcion_exige_procesador_si_compra_no_tiene_especificacion_esperada(): void
     {
         $usuario = $this->usuarioConRol('ADMIN_OPERATIVO');

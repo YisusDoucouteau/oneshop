@@ -396,193 +396,322 @@ class ImportacionController extends Controller
      * Solo UnidadAdquirida.
      */
     public function storeUnidad(
-        Request $request,
-        Lote $lote,
-        UnidadAdquiridaService $service
-    ): RedirectResponse {
+    Request $request,
+    Lote $lote,
+    UnidadAdquiridaService $service
+): RedirectResponse {
 
-        $datos = $request->validate([
+    $datos = $request->validate([
 
-            'detalle_lote_id' => [
-                'required',
-                'exists:detalles_lotes,id',
-            ],
+        'detalle_lote_id' => [
+            'required',
+            'exists:detalles_lotes,id',
+        ],
 
-            'cantidad' => [
-                'required',
-                'integer',
-                'in:1',
-            ],
+        'cantidad' => [
+            'required',
+            'integer',
+            'in:1',
+        ],
 
-            // HARDWARE
+        'continuar_registro' => [
+            'nullable',
+            'boolean',
+        ],
 
-            'procesador' => [
-                'nullable',
-                'string',
-                'max:150',
-            ],
+        // HARDWARE
 
-            'generacion_procesador' => [
-                'nullable',
-                'string',
-                'max:80',
-            ],
+        'procesador' => [
+            'nullable',
+            'string',
+            'max:150',
+        ],
 
-            'ram_gb' => [
-                'nullable',
-                'integer',
-                'min:0',
-                'max:65535',
-            ],
+        'generacion_procesador' => [
+            'nullable',
+            'string',
+            'max:80',
+        ],
 
-            'almacenamiento_gb' => [
-                'nullable',
-                'integer',
-                'min:0',
-            ],
+        'ram_gb' => [
+            'nullable',
+            'integer',
+            'min:0',
+            'max:65535',
+        ],
 
-            'tipo_almacenamiento' => [
-                'nullable',
-                'string',
-                'max:50',
-            ],
+        'almacenamiento_gb' => [
+            'nullable',
+            'integer',
+            'min:0',
+        ],
 
-            'tarjeta_grafica' => [
-                'nullable',
-                'string',
-                'max:150',
-            ],
+        'tipo_almacenamiento' => [
+            'nullable',
+            'string',
+            'max:50',
+        ],
 
-            'serial_fabricante' => [
-                'nullable',
-                'string',
-                'max:150',
-            ],
+        'tarjeta_grafica' => [
+            'nullable',
+            'string',
+            'max:150',
+        ],
 
-            'grado_recibido' => [
-                'required',
-                'in:A,B,C',
-            ],
+        'serial_fabricante' => [
+            'nullable',
+            'string',
+            'max:150',
+        ],
 
-            'tiene_cargador' => [
-                'required',
-                'boolean',
-            ],
+        'grado_recibido' => [
+            'required',
+            'in:A,B,C',
+        ],
 
-            // DATOS EXTRA
+        'tiene_cargador' => [
+            'required',
+            'boolean',
+        ],
 
-            'sistema_operativo' => [
-                'nullable',
-                'string',
-                'max:100',
-            ],
+        // DATOS EXTRA
 
-            'resolucion' => [
-                'nullable',
-                'string',
-                'max:50',
-            ],
+        'sistema_operativo' => [
+            'nullable',
+            'string',
+            'max:100',
+        ],
 
-            'pantalla_pulgadas' => [
-                'nullable',
-                'numeric',
-                'min:0',
-            ],
+        'resolucion' => [
+            'nullable',
+            'string',
+            'max:50',
+        ],
 
-            'servicio_requerido' => [
-                'nullable',
-                'string',
-                'max:255',
-            ],
+        'pantalla_pulgadas' => [
+            'nullable',
+            'numeric',
+            'min:0',
+        ],
 
-            'observacion' => [
-                'nullable',
-                'string',
-                'max:1000',
-            ],
+        'servicio_requerido' => [
+            'nullable',
+            'string',
+            'max:255',
+        ],
 
-        ]);
+        'observacion' => [
+            'nullable',
+            'string',
+            'max:1000',
+        ],
 
-        $detalle = $lote->detalles()
-            ->with('especificacionEsperada')
-            ->find($datos['detalle_lote_id']);
+    ]);
 
-        if (! $detalle) {
-            abort(404);
+
+    /*
+    |--------------------------------------------------------------------------
+    | VALIDAR QUE EL DETALLE PERTENEZCA AL LOTE
+    |--------------------------------------------------------------------------
+    */
+
+    $detalle = $lote
+        ->detalles()
+        ->with('especificacionEsperada')
+        ->find($datos['detalle_lote_id']);
+
+
+    if (! $detalle) {
+        abort(404);
+    }
+
+
+    /*
+    |--------------------------------------------------------------------------
+    | HEREDAR ESPECIFICACIÓN ESPERADA
+    |--------------------------------------------------------------------------
+    |
+    | Si algún dato técnico no fue indicado durante la recepción física,
+    | se utiliza como respaldo la especificación declarada originalmente
+    | en la composición del lote.
+    |
+    */
+
+    $especificacionEsperada =
+        $detalle->especificacionEsperada;
+
+
+    foreach ([
+        'procesador',
+        'generacion_procesador',
+        'ram_gb',
+        'almacenamiento_gb',
+        'tipo_almacenamiento',
+        'tarjeta_grafica',
+        'sistema_operativo',
+        'resolucion',
+        'pantalla_pulgadas',
+    ] as $campo) {
+
+        if (($datos[$campo] ?? null) === null) {
+            $datos[$campo] =
+                $especificacionEsperada?->{$campo};
         }
+    }
 
-        $especificacionEsperada = $detalle->especificacionEsperada;
 
-        foreach ([
-            'procesador',
-            'generacion_procesador',
-            'ram_gb',
-            'almacenamiento_gb',
-            'tipo_almacenamiento',
-            'tarjeta_grafica',
-            'sistema_operativo',
-            'resolucion',
-            'pantalla_pulgadas',
-        ] as $campo) {
-            if (($datos[$campo] ?? null) === null) {
-                $datos[$campo] = $especificacionEsperada?->{$campo};
-            }
-        }
+    /*
+    |--------------------------------------------------------------------------
+    | PROCESADOR OBLIGATORIO
+    |--------------------------------------------------------------------------
+    |
+    | Puede venir escrito físicamente por Hugo o heredarse desde la
+    | especificación esperada del lote.
+    |
+    */
 
-        if (blank($datos['procesador'] ?? null)) {
-            return back()
-                ->withErrors([
-                    'procesador' => 'Debe registrar o confirmar el procesador del equipo recibido.',
-                ])
-                ->withInput();
-        }
+    if (blank($datos['procesador'] ?? null)) {
 
-        if (empty($datos['cantidad'])) {
+        return back()
+            ->withErrors([
+                'procesador' =>
+                    'Debe registrar o confirmar el procesador del equipo recibido.',
+            ])
+            ->withInput();
+    }
 
-            return back()
-                ->withErrors([
-                    'cantidad' => 'Cantidad inválida',
-                ]);
-        }
 
-        try {
-            $service->registrarLlegadaCochabamba(
-                $request->user()->id,
-                $datos['detalle_lote_id'],
-                $datos['cantidad'],
-                null,
-                $datos['observacion'] ?? null,
-                [
-                    'procesador' => $datos['procesador'] ?? null,
-                    'generacion_procesador' => $datos['generacion_procesador'] ?? null,
-                    'ram_gb' => $datos['ram_gb'] ?? null,
-                    'almacenamiento_gb' => $datos['almacenamiento_gb'] ?? null,
-                    'tipo_almacenamiento' => $datos['tipo_almacenamiento'] ?? null,
-                    'tarjeta_grafica' => $datos['tarjeta_grafica'] ?? null,
-                    'serial_fabricante' => $datos['serial_fabricante'] ?? null,
-                    'grado_recibido' => $datos['grado_recibido'],
-                    'tiene_cargador' => $datos['tiene_cargador'],
-                    'sistema_operativo' => $datos['sistema_operativo'] ?? null,
-                    'resolucion' => $datos['resolucion'] ?? null,
-                    'pantalla_pulgadas' => $datos['pantalla_pulgadas'] ?? null,
-                    'servicio_requerido' => $datos['servicio_requerido'] ?? null,
-                ]
-            );
-        } catch (ReglaNegocioException $e) {
-            return back()
-                ->withInput()
-                ->withErrors([
-                    'recepcion' => $e->getMessage(),
-                ]);
-        }
+    /*
+    |--------------------------------------------------------------------------
+    | CANTIDAD
+    |--------------------------------------------------------------------------
+    |
+    | La recepción física trabaja una unidad por registro.
+    |
+    */
+
+    if (empty($datos['cantidad'])) {
+
+        return back()
+            ->withErrors([
+                'cantidad' => 'Cantidad inválida',
+            ])
+            ->withInput();
+    }
+
+
+    /*
+    |--------------------------------------------------------------------------
+    | REGISTRAR LLEGADA A COCHABAMBA
+    |--------------------------------------------------------------------------
+    */
+
+    try {
+
+        $service->registrarLlegadaCochabamba(
+            $request->user()->id,
+            $datos['detalle_lote_id'],
+            $datos['cantidad'],
+            null,
+            $datos['observacion'] ?? null,
+            [
+                'procesador' =>
+                    $datos['procesador'] ?? null,
+
+                'generacion_procesador' =>
+                    $datos['generacion_procesador'] ?? null,
+
+                'ram_gb' =>
+                    $datos['ram_gb'] ?? null,
+
+                'almacenamiento_gb' =>
+                    $datos['almacenamiento_gb'] ?? null,
+
+                'tipo_almacenamiento' =>
+                    $datos['tipo_almacenamiento'] ?? null,
+
+                'tarjeta_grafica' =>
+                    $datos['tarjeta_grafica'] ?? null,
+
+                'serial_fabricante' =>
+                    $datos['serial_fabricante'] ?? null,
+
+                'grado_recibido' =>
+                    $datos['grado_recibido'],
+
+                'tiene_cargador' =>
+                    $datos['tiene_cargador'],
+
+                'sistema_operativo' =>
+                    $datos['sistema_operativo'] ?? null,
+
+                'resolucion' =>
+                    $datos['resolucion'] ?? null,
+
+                'pantalla_pulgadas' =>
+                    $datos['pantalla_pulgadas'] ?? null,
+
+                'servicio_requerido' =>
+                    $datos['servicio_requerido'] ?? null,
+            ]
+        );
+
+    } catch (ReglaNegocioException $e) {
+
+        return back()
+            ->withInput()
+            ->withErrors([
+                'recepcion' =>
+                    $e->getMessage(),
+            ]);
+    }
+
+
+    /*
+    |--------------------------------------------------------------------------
+    | GUARDAR Y REGISTRAR OTRA UNIDAD
+    |--------------------------------------------------------------------------
+    |
+    | Regresa al mismo lote y solicita que el modal vuelva a abrirse
+    | conservando como referencia el mismo producto.
+    |
+    */
+
+    if ($request->boolean('continuar_registro')) {
 
         return redirect()
-            ->route('importaciones.show', $lote)
+            ->route(
+                'importaciones.show',
+                [
+                    'lote' => $lote,
+                    'registrar_equipo' => 1,
+                    'detalle_lote_id' =>
+                        $datos['detalle_lote_id'],
+                ]
+            )
             ->with(
                 'success',
-                'Equipo recibido registrado correctamente.'
+                'Equipo registrado. Puedes continuar con la siguiente unidad.'
             );
     }
+
+
+    /*
+    |--------------------------------------------------------------------------
+    | REGISTRO NORMAL
+    |--------------------------------------------------------------------------
+    */
+
+    return redirect()
+        ->route(
+            'importaciones.show',
+            $lote
+        )
+        ->with(
+            'success',
+            'Equipo recibido registrado correctamente.'
+        );
+}
 
     public function anularUnidad(
         Request $request,

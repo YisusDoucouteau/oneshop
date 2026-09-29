@@ -684,9 +684,14 @@ shadow-sm
             {{ $slot }}
         </main>
 
-    </div>
+       </div>
 
 </div>
+
+
+{{-- Scripts agregados por las vistas y partials --}}
+@stack('scripts')
+
 
 </body>
 

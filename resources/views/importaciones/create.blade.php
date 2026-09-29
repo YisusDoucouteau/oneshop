@@ -360,7 +360,7 @@
                             text-slate-500
                         "
                     >
-                        Código sugerido automáticamente. Puedes modificarlo.
+                        Generado automáticamente. Puedes modificarlo si tu documentación utiliza otro código.
                     </p>
 
                 </div>
