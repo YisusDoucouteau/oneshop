@@ -19,18 +19,14 @@ class PreparacionUnidadAdquiridaWebTest extends TestCase
 {
     use RefreshDatabase;
 
-    /**
-     * Sembrar catálogos y seguridad una sola vez durante migrate:fresh.
-     * Evita ejecutar db:seed dentro de la transacción de cada test.
-     */
-    protected $seed = true;
-
     private User $usuarioOperativo;
     private UnidadAdquirida $unidad;
 
     protected function setUp(): void
     {
         parent::setUp();
+
+        $this->seed();
 
         $this->usuarioOperativo = User::factory()->create([
             'activo' => true,
