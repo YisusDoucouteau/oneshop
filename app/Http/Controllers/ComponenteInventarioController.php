@@ -9,6 +9,7 @@ use App\Models\Marca;
 use App\Models\Moneda;
 use App\Models\MovimientoInventario;
 use App\Models\Producto;
+use App\Models\RegularizacionValoracionInventario;
 use App\Services\CompraComponenteStockService;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\RedirectResponse;
@@ -325,6 +326,22 @@ class ComponenteInventarioController extends Controller
             ->limit(12)
             ->get();
 
+        $regularizacionesRecientes =
+            RegularizacionValoracionInventario::query()
+                ->with([
+                    'producto.marca',
+                    'usuario',
+                ])
+                ->where(
+                    'almacen_id',
+                    $almacenId
+                )
+                ->latest(
+                    'fecha_regularizacion'
+                )
+                ->limit(10)
+                ->get();
+
         return view(
             'inventario.componentes.index',
             compact(
@@ -338,6 +355,7 @@ class ComponenteInventarioController extends Controller
                 'categoriaComponenteId',
                 'marcas',
                 'movimientosRecientes',
+                'regularizacionesRecientes',
                 'resumen',
                 'busqueda',
                 'estado'

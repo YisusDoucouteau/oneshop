@@ -6,8 +6,10 @@
         x-data="{
             compraAbierta:
                 {{
-                    request()->boolean('compra')
-                    || $errors->has('compra_componente')
+                    old('formulario') !== 'regularizacion'
+                    && (
+                        request()->boolean('compra')
+                        || $errors->has('compra_componente')
                     || $errors->has('producto_id')
                     || $errors->has('cantidad')
                     || $errors->has('moneda_id')
@@ -18,7 +20,8 @@
                     || $errors->has('categoria_producto_id')
                     || $errors->has('marca_id')
                     || $errors->has('modelo')
-                    || $errors->has('descripcion')
+                        || $errors->has('descripcion')
+                    )
                     ? 'true'
                     : 'false'
                 }},
@@ -34,6 +37,76 @@
                     ? 'true'
                     : 'false'
                 }},
+
+            regularizacionAbierta:
+                {{
+                    old('formulario') === 'regularizacion'
+                    || $errors->has('regularizacion')
+                    ? 'true'
+                    : 'false'
+                }},
+
+            regularizacion: {
+                productoId:
+                    @js((int) old('producto_id', 0)),
+
+                almacenId:
+                    @js(
+                        (int) old(
+                            'almacen_id',
+                            $almacenSeleccionado->id
+                        )
+                    ),
+
+                nombre:
+                    @js(
+                        old(
+                            'regularizacion_nombre',
+                            ''
+                        )
+                    ),
+
+                disponible:
+                    @js(
+                        (int) old(
+                            'regularizacion_disponible',
+                            0
+                        )
+                    ),
+
+                reservado:
+                    @js(
+                        (int) old(
+                            'regularizacion_reservado',
+                            0
+                        )
+                    ),
+
+                costo:
+                    @js(
+                        old(
+                            'costo_unitario_bob',
+                            ''
+                        )
+                    ),
+
+                referencia:
+                    @js(
+                        old(
+                            'referencia',
+                            'INVENTARIO-INICIAL-'
+                            .now()->format('Y')
+                        )
+                    ),
+
+                motivo:
+                    @js(
+                        old(
+                            'motivo',
+                            ''
+                        )
+                    ),
+            },
 
             monedaCodigo:
                 @js(
@@ -94,6 +167,72 @@
 
             cerrarComponente() {
                 this.componenteAbierto = false;
+            },
+
+            abrirRegularizacion(datos) {
+                this.regularizacion = {
+                    productoId:
+                        Number(datos.productoId),
+
+                    almacenId:
+                        Number(datos.almacenId),
+
+                    nombre:
+                        datos.nombre,
+
+                    disponible:
+                        Number(datos.disponible),
+
+                    reservado:
+                        Number(datos.reservado),
+
+                    costo:
+                        '',
+
+                    referencia:
+                        `INVENTARIO-INICIAL-${new Date().getFullYear()}`,
+
+                    motivo:
+                        '',
+                };
+
+                this.regularizacionAbierta = true;
+            },
+
+            cerrarRegularizacion() {
+                this.regularizacionAbierta = false;
+            },
+
+            stockFisicoRegularizacion() {
+                return (
+                    Number(
+                        this.regularizacion.disponible
+                    )
+                    +
+                    Number(
+                        this.regularizacion.reservado
+                    )
+                );
+            },
+
+            valorRegularizacion() {
+                const costo =
+                    Number(
+                        this.regularizacion.costo
+                    );
+
+                const stock =
+                    this.stockFisicoRegularizacion();
+
+                if (
+                    !costo
+                    || costo <= 0
+                    || stock <= 0
+                ) {
+                    return null;
+                }
+
+                return costo * stock;
             },
 
             cambiarMoneda(codigo) {
@@ -734,6 +873,83 @@
             </div>
         </div>
 
+        @php
+            $puedeRegularizar =
+                auth()
+                    ->user()
+                    ->tienePermiso(
+                        'inventario.registrar'
+                    );
+        @endphp
+
+        @if(
+            $resumen->sin_valorar > 0
+            && $puedeRegularizar
+        )
+            <div class="
+                flex
+                flex-col
+                gap-3
+                rounded-2xl
+                border
+                border-amber-200
+                bg-amber-50
+                px-5
+                py-4
+                sm:flex-row
+                sm:items-center
+                sm:justify-between
+            ">
+                <div>
+                    <p class="
+                        font-semibold
+                        text-amber-900
+                    ">
+                        Hay stock físico pendiente de valoración
+                    </p>
+
+                    <p class="
+                        mt-1
+                        text-sm
+                        text-amber-800
+                    ">
+                        Regulariza su costo inicial antes de comprar más unidades o consumirlas desde preparación.
+                    </p>
+                </div>
+
+                <a
+                    href="{{ route(
+                        'inventario.componentes.index',
+                        [
+                            'almacen' =>
+                                $almacenSeleccionado->id,
+                            'estado' =>
+                                'SIN_VALORAR',
+                        ]
+                    ) }}"
+                    class="
+                        inline-flex
+                        shrink-0
+                        items-center
+                        justify-center
+                        rounded-xl
+                        border
+                        border-amber-300
+                        bg-white
+                        px-4
+                        py-2.5
+                        text-sm
+                        font-semibold
+                        text-amber-900
+                        transition
+                        hover:bg-amber-100
+                    "
+                >
+                    Ver pendientes
+                </a>
+            </div>
+        @endif
+
         {{-- Existencias --}}
         <section class="
             overflow-hidden
@@ -855,6 +1071,21 @@
                             ">
                                 Estado
                             </th>
+
+                            @if($puedeRegularizar)
+                                <th class="
+                                    px-5
+                                    py-3
+                                    text-right
+                                    text-xs
+                                    font-semibold
+                                    uppercase
+                                    tracking-wider
+                                    text-slate-500
+                                ">
+                                    Acción
+                                </th>
+                            @endif
                         </tr>
                     </thead>
 
@@ -1059,11 +1290,59 @@
                                         </span>
                                     @endif
                                 </td>
+
+                                @if($puedeRegularizar)
+                                    <td class="
+                                        whitespace-nowrap
+                                        px-5
+                                        py-4
+                                        text-right
+                                    ">
+                                        @if(
+                                            $fisico > 0
+                                            && $promedio === null
+                                        )
+                                            <button
+                                                type="button"
+                                                data-regularizar-producto="{{ $componente->id }}"
+                                                @click="abrirRegularizacion({
+                                                    productoId: {{ $componente->id }},
+                                                    almacenId: {{ $almacenSeleccionado->id }},
+                                                    nombre: @js($componente->nombre),
+                                                    disponible: {{ $disponible }},
+                                                    reservado: {{ $reservado }}
+                                                })"
+                                                class="
+                                                    inline-flex
+                                                    items-center
+                                                    justify-center
+                                                    rounded-xl
+                                                    border
+                                                    border-amber-300
+                                                    bg-amber-50
+                                                    px-3
+                                                    py-2
+                                                    text-xs
+                                                    font-semibold
+                                                    text-amber-900
+                                                    transition
+                                                    hover:bg-amber-100
+                                                "
+                                            >
+                                                Regularizar valoración
+                                            </button>
+                                        @else
+                                            <span class="text-slate-300">
+                                                —
+                                            </span>
+                                        @endif
+                                    </td>
+                                @endif
                             </tr>
                         @empty
                             <tr>
                                 <td
-                                    colspan="6"
+                                    colspan="{{ $puedeRegularizar ? 7 : 6 }}"
                                     class="
                                         px-5
                                         py-14
@@ -1333,6 +1612,822 @@
                 </table>
             </div>
         </section>
+
+        {{-- Regularizaciones recientes --}}
+        @if($regularizacionesRecientes->isNotEmpty())
+            <section class="
+                overflow-hidden
+                rounded-2xl
+                border
+                border-slate-200
+                bg-white
+                shadow-sm
+            ">
+                <div class="
+                    border-b
+                    border-slate-200
+                    px-5
+                    py-4
+                ">
+                    <h2 class="
+                        font-semibold
+                        text-slate-950
+                    ">
+                        Regularizaciones recientes
+                    </h2>
+
+                    <p class="
+                        mt-1
+                        text-sm
+                        text-slate-500
+                    ">
+                        Historial de valoraciones iniciales asignadas a stock físico legacy. Estas operaciones no modifican cantidades.
+                    </p>
+                </div>
+
+                <div class="overflow-x-auto">
+                    <table class="
+                        min-w-full
+                        divide-y
+                        divide-slate-200
+                    ">
+                        <thead class="bg-slate-50">
+                            <tr>
+                                <th class="
+                                    px-5
+                                    py-3
+                                    text-left
+                                    text-xs
+                                    font-semibold
+                                    uppercase
+                                    tracking-wider
+                                    text-slate-500
+                                ">
+                                    Fecha
+                                </th>
+
+                                <th class="
+                                    px-5
+                                    py-3
+                                    text-left
+                                    text-xs
+                                    font-semibold
+                                    uppercase
+                                    tracking-wider
+                                    text-slate-500
+                                ">
+                                    Componente
+                                </th>
+
+                                <th class="
+                                    px-5
+                                    py-3
+                                    text-right
+                                    text-xs
+                                    font-semibold
+                                    uppercase
+                                    tracking-wider
+                                    text-slate-500
+                                ">
+                                    Stock físico
+                                </th>
+
+                                <th class="
+                                    px-5
+                                    py-3
+                                    text-right
+                                    text-xs
+                                    font-semibold
+                                    uppercase
+                                    tracking-wider
+                                    text-slate-500
+                                ">
+                                    Costo inicial
+                                </th>
+
+                                <th class="
+                                    px-5
+                                    py-3
+                                    text-right
+                                    text-xs
+                                    font-semibold
+                                    uppercase
+                                    tracking-wider
+                                    text-slate-500
+                                ">
+                                    Valor reconocido
+                                </th>
+
+                                <th class="
+                                    px-5
+                                    py-3
+                                    text-left
+                                    text-xs
+                                    font-semibold
+                                    uppercase
+                                    tracking-wider
+                                    text-slate-500
+                                ">
+                                    Referencia
+                                </th>
+                            </tr>
+                        </thead>
+
+                        <tbody class="
+                            divide-y
+                            divide-slate-100
+                            bg-white
+                        ">
+                            @foreach(
+                                $regularizacionesRecientes
+                                as $regularizacionItem
+                            )
+                                <tr class="hover:bg-slate-50">
+                                    <td class="
+                                        whitespace-nowrap
+                                        px-5
+                                        py-4
+                                        text-sm
+                                        text-slate-600
+                                    ">
+                                        {{ $regularizacionItem
+                                            ->fecha_regularizacion
+                                            ?->format('d/m/Y H:i')
+                                        }}
+                                    </td>
+
+                                    <td class="px-5 py-4">
+                                        <p class="
+                                            font-semibold
+                                            text-slate-900
+                                        ">
+                                            {{ $regularizacionItem
+                                                ->producto
+                                                ?->nombre
+                                            }}
+                                        </p>
+
+                                        <p class="
+                                            mt-1
+                                            text-xs
+                                            text-slate-500
+                                        ">
+                                            {{ $regularizacionItem
+                                                ->producto
+                                                ?->codigo
+                                            }}
+
+                                            @if(
+                                                $regularizacionItem
+                                                    ->usuario
+                                            )
+                                                ·
+                                                {{ $regularizacionItem
+                                                    ->usuario
+                                                    ->name
+                                                }}
+                                            @endif
+                                        </p>
+                                    </td>
+
+                                    <td class="
+                                        whitespace-nowrap
+                                        px-5
+                                        py-4
+                                        text-right
+                                        text-sm
+                                        font-semibold
+                                        text-slate-900
+                                    ">
+                                        {{ number_format(
+                                            $regularizacionItem
+                                                ->stock_fisico_snapshot
+                                        ) }}
+                                    </td>
+
+                                    <td class="
+                                        whitespace-nowrap
+                                        px-5
+                                        py-4
+                                        text-right
+                                        text-sm
+                                        font-semibold
+                                        text-slate-900
+                                    ">
+                                        Bs {{ number_format(
+                                            (float)
+                                            $regularizacionItem
+                                                ->costo_promedio_resultante_bob,
+                                            2
+                                        ) }}
+                                    </td>
+
+                                    <td class="
+                                        whitespace-nowrap
+                                        px-5
+                                        py-4
+                                        text-right
+                                        text-sm
+                                        font-semibold
+                                        text-slate-900
+                                    ">
+                                        Bs {{ number_format(
+                                            (float)
+                                            $regularizacionItem
+                                                ->valor_total_bob,
+                                            2
+                                        ) }}
+                                    </td>
+
+                                    <td class="
+                                        px-5
+                                        py-4
+                                        text-sm
+                                        text-slate-600
+                                    ">
+                                        <p class="
+                                            font-medium
+                                            text-slate-800
+                                        ">
+                                            {{ $regularizacionItem
+                                                ->referencia
+                                            }}
+                                        </p>
+
+                                        <p
+                                            class="
+                                                mt-1
+                                                max-w-sm
+                                                text-xs
+                                                text-slate-500
+                                            "
+                                            title="{{ $regularizacionItem->motivo }}"
+                                        >
+                                            {{ \Illuminate\Support\Str::limit(
+                                                $regularizacionItem
+                                                    ->motivo,
+                                                90
+                                            ) }}
+                                        </p>
+                                    </td>
+                                </tr>
+                            @endforeach
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+        @endif
+
+        {{-- Modal: regularización de valoración --}}
+        @if($puedeRegularizar)
+            <div
+                x-cloak
+                x-show="regularizacionAbierta"
+                x-transition.opacity
+                @keydown.escape.window="cerrarRegularizacion()"
+                @click.self="cerrarRegularizacion()"
+                class="
+                    fixed
+                    inset-0
+                    z-[55]
+                    flex
+                    items-center
+                    justify-center
+                    bg-slate-950/40
+                    p-4
+                "
+            >
+                <div
+                    @click.stop
+                    class="
+                        max-h-[92vh]
+                        w-full
+                        max-w-2xl
+                        overflow-y-auto
+                        rounded-2xl
+                        border
+                        border-slate-200
+                        bg-white
+                        shadow-xl
+                    "
+                >
+                    <div class="
+                        flex
+                        items-start
+                        justify-between
+                        gap-4
+                        border-b
+                        border-slate-200
+                        px-6
+                        py-5
+                    ">
+                        <div>
+                            <p class="
+                                text-xs
+                                font-semibold
+                                uppercase
+                                tracking-wider
+                                text-amber-700
+                            ">
+                                Valoración inicial · Stock legacy
+                            </p>
+
+                            <h2 class="
+                                mt-1
+                                text-xl
+                                font-bold
+                                text-slate-950
+                            ">
+                                Regularizar valoración inicial
+                            </h2>
+
+                            <p class="
+                                mt-1
+                                text-sm
+                                text-slate-500
+                            ">
+                                Asigna un costo al stock físico existente sin registrar una compra ni modificar cantidades.
+                            </p>
+                        </div>
+
+                        <button
+                            type="button"
+                            @click="cerrarRegularizacion()"
+                            class="
+                                rounded-xl
+                                border
+                                border-slate-200
+                                bg-white
+                                px-3
+                                py-2
+                                text-sm
+                                font-semibold
+                                text-slate-600
+                                transition
+                                hover:bg-slate-50
+                            "
+                        >
+                            Cerrar
+                        </button>
+                    </div>
+
+                    <form
+                        method="POST"
+                        action="{{ route(
+                            'inventario.componentes.regularizaciones.store'
+                        ) }}"
+                        class="p-6"
+                    >
+                        @csrf
+
+                        <input
+                            type="hidden"
+                            name="formulario"
+                            value="regularizacion"
+                        >
+
+                        <input
+                            type="hidden"
+                            name="producto_id"
+                            :value="regularizacion.productoId"
+                        >
+
+                        <input
+                            type="hidden"
+                            name="almacen_id"
+                            :value="regularizacion.almacenId"
+                        >
+
+                        <input
+                            type="hidden"
+                            name="regularizacion_nombre"
+                            :value="regularizacion.nombre"
+                        >
+
+                        <input
+                            type="hidden"
+                            name="regularizacion_disponible"
+                            :value="regularizacion.disponible"
+                        >
+
+                        <input
+                            type="hidden"
+                            name="regularizacion_reservado"
+                            :value="regularizacion.reservado"
+                        >
+
+                        @if(
+                            old('formulario') === 'regularizacion'
+                            && $errors->any()
+                        )
+                            <div class="
+                                mb-5
+                                rounded-xl
+                                border
+                                border-rose-200
+                                bg-rose-50
+                                px-4
+                                py-3
+                                text-sm
+                                text-rose-800
+                            ">
+                                {{ $errors->first() }}
+                            </div>
+                        @endif
+
+                        <div class="
+                            mb-5
+                            rounded-xl
+                            border
+                            border-amber-200
+                            bg-amber-50
+                            p-4
+                        ">
+                            <p class="
+                                text-sm
+                                font-semibold
+                                text-amber-950
+                            ">
+                                Esta operación solo reconoce valor económico.
+                            </p>
+
+                            <p class="
+                                mt-1
+                                text-sm
+                                text-amber-800
+                            ">
+                                Disponible y reservado permanecerán exactamente iguales. La valoración inicial solo puede registrarse una vez para esta existencia.
+                            </p>
+                        </div>
+
+                        <div class="
+                            grid
+                            gap-4
+                            rounded-xl
+                            border
+                            border-slate-200
+                            bg-slate-50
+                            p-4
+                            sm:grid-cols-3
+                        ">
+                            <div class="sm:col-span-3">
+                                <p class="
+                                    text-xs
+                                    font-semibold
+                                    uppercase
+                                    tracking-wide
+                                    text-slate-500
+                                ">
+                                    Componente
+                                </p>
+
+                                <p
+                                    class="
+                                        mt-1
+                                        font-semibold
+                                        text-slate-950
+                                    "
+                                    x-text="
+                                        regularizacion.nombre
+                                        || 'Componente seleccionado'
+                                    "
+                                ></p>
+                            </div>
+
+                            <div>
+                                <p class="
+                                    text-xs
+                                    font-semibold
+                                    uppercase
+                                    tracking-wide
+                                    text-slate-500
+                                ">
+                                    Disponible
+                                </p>
+
+                                <p
+                                    class="
+                                        mt-1
+                                        text-lg
+                                        font-bold
+                                        text-slate-950
+                                    "
+                                    x-text="
+                                        formatoMonto(
+                                            regularizacion.disponible
+                                        ).replace(',00', '')
+                                    "
+                                ></p>
+                            </div>
+
+                            <div>
+                                <p class="
+                                    text-xs
+                                    font-semibold
+                                    uppercase
+                                    tracking-wide
+                                    text-slate-500
+                                ">
+                                    Reservado
+                                </p>
+
+                                <p
+                                    class="
+                                        mt-1
+                                        text-lg
+                                        font-bold
+                                        text-slate-950
+                                    "
+                                    x-text="
+                                        formatoMonto(
+                                            regularizacion.reservado
+                                        ).replace(',00', '')
+                                    "
+                                ></p>
+                            </div>
+
+                            <div>
+                                <p class="
+                                    text-xs
+                                    font-semibold
+                                    uppercase
+                                    tracking-wide
+                                    text-slate-500
+                                ">
+                                    Stock físico
+                                </p>
+
+                                <p
+                                    class="
+                                        mt-1
+                                        text-lg
+                                        font-bold
+                                        text-slate-950
+                                    "
+                                    x-text="
+                                        formatoMonto(
+                                            stockFisicoRegularizacion()
+                                        ).replace(',00', '')
+                                    "
+                                ></p>
+                            </div>
+                        </div>
+
+                        <div class="
+                            mt-5
+                            grid
+                            gap-5
+                            sm:grid-cols-2
+                        ">
+                            <div>
+                                <label
+                                    for="regularizacion_costo_unitario_bob"
+                                    class="
+                                        mb-1.5
+                                        block
+                                        text-sm
+                                        font-semibold
+                                        text-slate-700
+                                    "
+                                >
+                                    Costo unitario inicial (BOB)
+                                </label>
+
+                                <div class="relative">
+                                    <span class="
+                                        pointer-events-none
+                                        absolute
+                                        inset-y-0
+                                        left-0
+                                        flex
+                                        items-center
+                                        pl-3
+                                        text-sm
+                                        font-semibold
+                                        text-slate-500
+                                    ">
+                                        Bs
+                                    </span>
+
+                                    <input
+                                        id="regularizacion_costo_unitario_bob"
+                                        name="costo_unitario_bob"
+                                        type="number"
+                                        min="0.000001"
+                                        step="0.000001"
+                                        x-model="regularizacion.costo"
+                                        required
+                                        class="
+                                            w-full
+                                            rounded-xl
+                                            border-slate-300
+                                            pl-10
+                                            text-sm
+                                            focus:border-oneshop-primary
+                                            focus:ring-oneshop-primary
+                                        "
+                                    >
+                                </div>
+
+                                @error('costo_unitario_bob')
+                                    @if(old('formulario') === 'regularizacion')
+                                        <p class="
+                                            mt-1
+                                            text-xs
+                                            text-rose-700
+                                        ">
+                                            {{ $message }}
+                                        </p>
+                                    @endif
+                                @enderror
+                            </div>
+
+                            <div class="
+                                rounded-xl
+                                border
+                                border-blue-200
+                                bg-oneshop-soft
+                                p-4
+                            ">
+                                <p class="
+                                    text-xs
+                                    font-semibold
+                                    uppercase
+                                    tracking-wide
+                                    text-slate-500
+                                ">
+                                    Valor reconocido
+                                </p>
+
+                                <p class="
+                                    mt-2
+                                    text-2xl
+                                    font-black
+                                    text-oneshop-dark
+                                ">
+                                    Bs
+                                    <span
+                                        x-text="
+                                            formatoMonto(
+                                                valorRegularizacion()
+                                            )
+                                        "
+                                    ></span>
+                                </p>
+
+                                <p class="
+                                    mt-1
+                                    text-xs
+                                    text-slate-500
+                                ">
+                                    Stock físico × costo unitario inicial
+                                </p>
+                            </div>
+
+                            <div class="sm:col-span-2">
+                                <label
+                                    for="regularizacion_referencia"
+                                    class="
+                                        mb-1.5
+                                        block
+                                        text-sm
+                                        font-semibold
+                                        text-slate-700
+                                    "
+                                >
+                                    Referencia
+                                </label>
+
+                                <input
+                                    id="regularizacion_referencia"
+                                    name="referencia"
+                                    type="text"
+                                    maxlength="120"
+                                    x-model="regularizacion.referencia"
+                                    required
+                                    class="
+                                        w-full
+                                        rounded-xl
+                                        border-slate-300
+                                        text-sm
+                                        focus:border-oneshop-primary
+                                        focus:ring-oneshop-primary
+                                    "
+                                >
+
+                                @error('referencia')
+                                    @if(old('formulario') === 'regularizacion')
+                                        <p class="
+                                            mt-1
+                                            text-xs
+                                            text-rose-700
+                                        ">
+                                            {{ $message }}
+                                        </p>
+                                    @endif
+                                @enderror
+                            </div>
+
+                            <div class="sm:col-span-2">
+                                <label
+                                    for="regularizacion_motivo"
+                                    class="
+                                        mb-1.5
+                                        block
+                                        text-sm
+                                        font-semibold
+                                        text-slate-700
+                                    "
+                                >
+                                    Motivo
+                                </label>
+
+                                <textarea
+                                    id="regularizacion_motivo"
+                                    name="motivo"
+                                    rows="3"
+                                    maxlength="2000"
+                                    x-model="regularizacion.motivo"
+                                    placeholder="Ej. Stock existente previo a la implementación del módulo de costeo."
+                                    required
+                                    class="
+                                        w-full
+                                        rounded-xl
+                                        border-slate-300
+                                        text-sm
+                                        focus:border-oneshop-primary
+                                        focus:ring-oneshop-primary
+                                    "
+                                ></textarea>
+
+                                @error('motivo')
+                                    @if(old('formulario') === 'regularizacion')
+                                        <p class="
+                                            mt-1
+                                            text-xs
+                                            text-rose-700
+                                        ">
+                                            {{ $message }}
+                                        </p>
+                                    @endif
+                                @enderror
+                            </div>
+                        </div>
+
+                        <div class="
+                            mt-6
+                            flex
+                            flex-col-reverse
+                            gap-3
+                            border-t
+                            border-slate-200
+                            pt-5
+                            sm:flex-row
+                            sm:justify-end
+                        ">
+                            <button
+                                type="button"
+                                @click="cerrarRegularizacion()"
+                                class="
+                                    rounded-xl
+                                    border
+                                    border-slate-300
+                                    bg-white
+                                    px-4
+                                    py-2.5
+                                    text-sm
+                                    font-semibold
+                                    text-slate-600
+                                    transition
+                                    hover:bg-slate-50
+                                "
+                            >
+                                Cancelar
+                            </button>
+
+                            <button
+                                type="submit"
+                                class="
+                                    rounded-xl
+                                    border
+                                    border-oneshop-primary
+                                    bg-oneshop-light
+                                    px-5
+                                    py-2.5
+                                    text-sm
+                                    font-semibold
+                                    text-oneshop-dark
+                                    transition
+                                    hover:bg-blue-100
+                                "
+                            >
+                                Registrar valoración
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        @endif
 
         {{-- Modal: registrar compra --}}
         <div

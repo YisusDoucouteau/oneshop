@@ -550,6 +550,284 @@ class ComponenteInventarioWebTest extends TestCase
         );
     }
 
+    public function test_pantalla_expone_accion_de_regularizacion_para_stock_legacy_autorizado(): void
+    {
+        $this->crearExistencia(
+            disponible: 4,
+            reservado: 1,
+            promedioBob: null
+        );
+
+        $this
+            ->actingAs(
+                $this->usuario
+            )
+            ->get(
+                route(
+                    'inventario.componentes.index'
+                )
+            )
+            ->assertOk()
+            ->assertSee(
+                'data-regularizar-producto="'.$this->componente->id.'"',
+                false
+            )
+            ->assertSee(
+                'Regularizar valoración'
+            )
+            ->assertSee(
+                'name="costo_unitario_bob"',
+                false
+            )
+            ->assertSee(
+                'name="referencia"',
+                false
+            )
+            ->assertSee(
+                'name="motivo"',
+                false
+            );
+    }
+
+    public function test_usuario_autorizado_regulariza_stock_legacy_desde_la_web_sin_cambiar_cantidades(): void
+    {
+        $this->crearExistencia(
+            disponible: 4,
+            reservado: 1,
+            promedioBob: null
+        );
+
+        $response =
+            $this
+                ->actingAs(
+                    $this->usuario
+                )
+                ->post(
+                    route(
+                        'inventario.componentes.regularizaciones.store'
+                    ),
+                    [
+                        'formulario' =>
+                            'regularizacion',
+
+                        'producto_id' =>
+                            $this->componente->id,
+
+                        'almacen_id' =>
+                            $this->cochabamba->id,
+
+                        'costo_unitario_bob' =>
+                            75,
+
+                        'referencia' =>
+                            'INVENTARIO-INICIAL-WEB-2026',
+
+                        'motivo' =>
+                            'Stock físico previo al módulo de valoración.',
+                    ]
+                );
+
+        $response
+            ->assertRedirect(
+                route(
+                    'inventario.componentes.index',
+                    [
+                        'almacen' =>
+                            $this->cochabamba->id,
+
+                        'estado' =>
+                            'todos',
+                    ]
+                )
+            )
+            ->assertSessionHas(
+                'success'
+            );
+
+        $this->assertDatabaseHas(
+            'existencias_productos',
+            [
+                'producto_id' =>
+                    $this->componente->id,
+
+                'almacen_id' =>
+                    $this->cochabamba->id,
+
+                'cantidad_disponible' =>
+                    4,
+
+                'cantidad_reservada' =>
+                    1,
+
+                'costo_promedio_bob' =>
+                    75.000000,
+            ]
+        );
+
+        $this->assertDatabaseHas(
+            'regularizaciones_valoracion_inventario',
+            [
+                'producto_id' =>
+                    $this->componente->id,
+
+                'almacen_id' =>
+                    $this->cochabamba->id,
+
+                'stock_fisico_snapshot' =>
+                    5,
+
+                'costo_promedio_resultante_bob' =>
+                    75.000000,
+
+                'valor_total_bob' =>
+                    375.00,
+
+                'referencia' =>
+                    'INVENTARIO-INICIAL-WEB-2026',
+            ]
+        );
+
+        $this
+            ->actingAs(
+                $this->usuario
+            )
+            ->get(
+                route(
+                    'inventario.componentes.index',
+                    [
+                        'almacen' =>
+                            $this->cochabamba->id,
+                    ]
+                )
+            )
+            ->assertOk()
+            ->assertSee(
+                'Regularizaciones recientes'
+            )
+            ->assertSee(
+                'INVENTARIO-INICIAL-WEB-2026'
+            )
+            ->assertSee(
+                'Bs 375.00'
+            )
+            ->assertDontSee(
+                'data-regularizar-producto="'.$this->componente->id.'"',
+                false
+            );
+    }
+
+    public function test_componente_ya_valorizado_no_muestra_accion_de_regularizacion(): void
+    {
+        $this->crearExistencia(
+            disponible: 3,
+            reservado: 0,
+            promedioBob: 50
+        );
+
+        $this
+            ->actingAs(
+                $this->usuario
+            )
+            ->get(
+                route(
+                    'inventario.componentes.index'
+                )
+            )
+            ->assertOk()
+            ->assertDontSee(
+                'data-regularizar-producto="'.$this->componente->id.'"',
+                false
+            );
+    }
+
+    public function test_vendedor_no_puede_regularizar_valoracion(): void
+    {
+        $this->crearExistencia(
+            disponible: 3,
+            reservado: 0,
+            promedioBob: null
+        );
+
+        $vendedor =
+            User::factory()->create([
+                'activo' =>
+                    true,
+
+                'almacen_operativo_id' =>
+                    $this->cochabamba->id,
+            ]);
+
+        $rolVendedor =
+            Rol::query()
+                ->where(
+                    'codigo',
+                    'VENDEDOR'
+                )
+                ->firstOrFail();
+
+        $vendedor
+            ->roles()
+            ->attach(
+                $rolVendedor->id
+            );
+
+        $this
+            ->actingAs(
+                $vendedor
+            )
+            ->get(
+                route(
+                    'inventario.componentes.index'
+                )
+            )
+            ->assertOk()
+            ->assertDontSee(
+                'data-regularizar-producto="'.$this->componente->id.'"',
+                false
+            )
+            ->assertDontSee(
+                'Regularizar valoración inicial'
+            );
+
+        $this
+            ->actingAs(
+                $vendedor
+            )
+            ->post(
+                route(
+                    'inventario.componentes.regularizaciones.store'
+                ),
+                [
+                    'producto_id' =>
+                        $this->componente->id,
+
+                    'almacen_id' =>
+                        $this->cochabamba->id,
+
+                    'costo_unitario_bob' =>
+                        75,
+
+                    'referencia' =>
+                        'NO-AUTORIZADO',
+
+                    'motivo' =>
+                        'Intento sin permiso.',
+                ]
+            )
+            ->assertForbidden();
+
+        $this->assertDatabaseMissing(
+            'regularizaciones_valoracion_inventario',
+            [
+                'producto_id' =>
+                    $this->componente->id,
+
+                'almacen_id' =>
+                    $this->cochabamba->id,
+            ]
+        );
+    }
+
     private function crearExistencia(
         int $disponible,
         int $reservado,

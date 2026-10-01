@@ -17,6 +17,7 @@ use App\Http\Controllers\PrecioEquipoController;
 use App\Http\Controllers\ReservaController;
 use App\Http\Controllers\VentaController;
 use App\Http\Controllers\PagoVentaController;
+use App\Http\Controllers\RegularizacionValoracionInventarioController;
 use App\Http\Controllers\CostoLoteController;
 use App\Http\Controllers\CasoGarantiaController;
 use App\Http\Controllers\IntervencionUnidadAdquiridaController;
@@ -858,6 +859,15 @@ Route::post(
 | Evaluación AJAX de precio
 |--------------------------------------------------------------------------
 */
+Route::post(
+    '/inventario/componentes/regularizaciones',
+    [
+        RegularizacionValoracionInventarioController::class,
+        'store',
+    ]
+)
+->middleware('permiso:inventario.registrar')
+->name('inventario.componentes.regularizaciones.store');
 
 Route::post(
     '/inventario/{equipo:codigo_interno}/precio/evaluar-json',
