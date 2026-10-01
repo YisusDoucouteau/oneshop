@@ -4,7 +4,15 @@
 >
 
 @php
+
+    /*
+    |--------------------------------------------------------------------------
+    | ESTADO VISUAL
+    |--------------------------------------------------------------------------
+    */
+
     $statusStyles = [
+
         'ABIERTO' => [
             'label' => 'Abierto',
             'bg' => 'bg-blue-50',
@@ -41,27 +49,102 @@
         ],
     ];
 
+
     $status =
         $statusStyles[$lote->estado]
         ?? [
             'label' => ucfirst(
                 strtolower(
-                    str_replace('_', ' ', $lote->estado)
+                    str_replace(
+                        '_',
+                        ' ',
+                        $lote->estado
+                    )
                 )
             ),
+
             'bg' => 'bg-slate-100',
             'text' => 'text-slate-700',
             'border' => 'border-slate-200',
         ];
+
+
+    /*
+    |--------------------------------------------------------------------------
+    | RESUMEN OPERATIVO
+    |--------------------------------------------------------------------------
+    */
+
+    $totalEsperadas =
+        $lote
+            ->detalles
+            ->sum(
+                fn ($detalle) =>
+                    (int) $detalle->cantidad_esperada
+            );
+
+
+    $totalRecibidas =
+        $lote
+            ->detalles
+            ->sum(
+                fn ($detalle) =>
+                    $detalle
+                        ->unidadesAdquiridas
+                        ->where(
+                            'estado',
+                            '!=',
+                            \App\Models\UnidadAdquirida::ESTADO_ANULADA
+                        )
+                        ->count()
+            );
+
+
+    $totalPendientes =
+        max(
+            0,
+            $totalEsperadas - $totalRecibidas
+        );
+
+
+    $porcentajeRecepcion =
+        $totalEsperadas > 0
+
+            ? min(
+                100,
+                (int) round(
+                    (
+                        $totalRecibidas
+                        / $totalEsperadas
+                    )
+                    * 100
+                )
+            )
+
+            : 0;
+
+
+    $puedeGestionar =
+        auth()
+            ->user()
+            ->tienePermiso(
+                'importacion.gestionar'
+            );
+
 @endphp
 
 
 <div class="space-y-6">
 
-    {{-- NAVEGACIÓN --}}
+    {{-- ================================================================ --}}
+    {{-- VOLVER --}}
+    {{-- ================================================================ --}}
+
     <div>
+
         <a
             href="{{ route('importaciones.index') }}"
+
             class="
                 inline-flex
                 items-center
@@ -83,7 +166,6 @@
                 shadow-sm
 
                 transition
-                duration-200
 
                 hover:border-blue-200
                 hover:bg-oneshop-light
@@ -94,22 +176,144 @@
                 focus:ring-blue-100
             "
         >
+
             <span
                 class="
                     font-bold
                     text-oneshop-primary
                 "
-                aria-hidden="true"
             >
                 ←
             </span>
 
             Volver a importaciones
+
         </a>
+
     </div>
 
 
+    {{-- ================================================================ --}}
+    {{-- MENSAJES --}}
+    {{-- ================================================================ --}}
+
+    @if(
+        session('success')
+        && ! request()->boolean('registrar_equipo')
+    )
+
+        <div
+            class="
+                rounded-xl
+                border
+                border-emerald-200
+                bg-emerald-50
+                px-4
+                py-3
+            "
+        >
+
+            <div
+                class="
+                    flex
+                    items-center
+                    gap-3
+                "
+            >
+
+                <div
+                    class="
+                        flex
+                        h-8
+                        w-8
+                        shrink-0
+                        items-center
+                        justify-center
+
+                        rounded-lg
+
+                        bg-white
+                        text-emerald-700
+                    "
+                >
+                    <x-ui.icon
+                        name="check"
+                        size="15"
+                    />
+                </div>
+
+                <p
+                    class="
+                        text-sm
+                        font-semibold
+                        text-emerald-900
+                    "
+                >
+                    {{ session('success') }}
+                </p>
+
+            </div>
+
+        </div>
+
+    @endif
+
+
+    @if(
+        $errors->any()
+        && old('_form_context')
+            !== 'recepcion_unidad'
+    )
+
+        <div
+            class="
+                rounded-xl
+                border
+                border-red-200
+                bg-red-50
+                p-4
+            "
+        >
+
+            <p
+                class="
+                    text-sm
+                    font-bold
+                    text-red-900
+                "
+            >
+                Revisa la operación solicitada
+            </p>
+
+            <ul
+                class="
+                    mt-2
+                    list-inside
+                    list-disc
+                    space-y-1
+
+                    text-sm
+                    text-red-800
+                "
+            >
+                @foreach($errors->all() as $error)
+
+                    <li>
+                        {{ $error }}
+                    </li>
+
+                @endforeach
+            </ul>
+
+        </div>
+
+    @endif
+
+
+    {{-- ================================================================ --}}
     {{-- CABECERA DEL LOTE --}}
+    {{-- ================================================================ --}}
+
     <section
         class="
             overflow-hidden
@@ -124,7 +328,6 @@
         "
     >
 
-        {{-- FRANJA SUPERIOR --}}
         <div
             class="
                 flex
@@ -197,9 +400,11 @@
                         Lote de importación
                     </p>
 
+
                     <div
                         class="
                             mt-1
+
                             flex
                             flex-wrap
                             items-center
@@ -217,6 +422,7 @@
                         >
                             {{ $lote->codigo }}
                         </h1>
+
 
                         <span
                             class="
@@ -242,11 +448,13 @@
 
                     </div>
 
+
                     <p
                         class="
                             mt-1
                             text-sm
-                            text-slate-500
+                            font-medium
+                            text-slate-600
                         "
                     >
                         {{ $lote->proveedor?->nombre ?? 'Sin proveedor definido' }}
@@ -256,10 +464,79 @@
 
             </div>
 
+
+            {{-- PROGRESO COMPACTO --}}
+            <div
+                class="
+                    w-full
+
+                    lg:w-64
+                "
+            >
+
+                <div
+                    class="
+                        mb-2
+
+                        flex
+                        items-center
+                        justify-between
+
+                        text-xs
+                    "
+                >
+
+                    <span
+                        class="
+                            font-semibold
+                            text-slate-500
+                        "
+                    >
+                        Recepción física
+                    </span>
+
+                    <span
+                        class="
+                            font-bold
+                            text-slate-800
+                        "
+                    >
+                        {{ $porcentajeRecepcion }}%
+                    </span>
+
+                </div>
+
+
+                <div
+                    class="
+                        h-2
+                        overflow-hidden
+                        rounded-full
+                        bg-blue-100
+                    "
+                >
+
+                    <div
+                        class="
+                            h-full
+                            rounded-full
+                            bg-oneshop-primary
+                        "
+
+                        style="
+                            width:
+                            {{ $porcentajeRecepcion }}%
+                        "
+                    ></div>
+
+                </div>
+
+            </div>
+
         </div>
 
 
-        {{-- DATOS PRINCIPALES --}}
+        {{-- DATOS DEL LOTE --}}
         <div
             class="
                 grid
@@ -272,7 +549,6 @@
             "
         >
 
-            {{-- FECHA --}}
             <div class="bg-white px-6 py-4">
 
                 <p
@@ -287,38 +563,20 @@
                     Fecha de compra
                 </p>
 
-                <div
+                <p
                     class="
                         mt-2
-                        flex
-                        items-center
-                        gap-2
+                        text-sm
+                        font-semibold
+                        text-slate-800
                     "
                 >
-
-                    <span class="text-oneshop-primary">
-                        <x-ui.icon
-                            name="calendar"
-                            size="16"
-                        />
-                    </span>
-
-                    <p
-                        class="
-                            text-sm
-                            font-semibold
-                            text-slate-800
-                        "
-                    >
-                        {{ $lote->fecha_compra?->format('d/m/Y') ?? 'No registrada' }}
-                    </p>
-
-                </div>
+                    {{ $lote->fecha_compra?->format('d/m/Y') ?? 'No registrada' }}
+                </p>
 
             </div>
 
 
-            {{-- REFERENCIA --}}
             <div class="bg-white px-6 py-4">
 
                 <p
@@ -347,7 +605,6 @@
             </div>
 
 
-            {{-- ORIGEN --}}
             <div class="bg-white px-6 py-4">
 
                 <p
@@ -376,7 +633,6 @@
             </div>
 
 
-            {{-- PROVEEDOR --}}
             <div class="bg-white px-6 py-4">
 
                 <p
@@ -409,30 +665,638 @@
     </section>
 
 
-    {{-- COMPOSICIÓN DEL LOTE --}}
-    @include('importaciones.partials.detalles-lote')
+    {{-- ================================================================ --}}
+    {{-- RESUMEN OPERATIVO --}}
+    {{-- ================================================================ --}}
+
+    <div
+        class="
+            grid
+            gap-4
+
+            md:grid-cols-3
+        "
+    >
+
+        {{-- ESPERADAS --}}
+        <div
+            class="
+                rounded-2xl
+                border
+                border-slate-200
+
+                bg-white
+
+                p-5
+
+                shadow-sm
+            "
+        >
+
+            <p
+                class="
+                    text-xs
+                    font-bold
+                    uppercase
+                    tracking-wide
+                    text-slate-500
+                "
+            >
+                Unidades esperadas
+            </p>
+
+            <p
+                class="
+                    mt-2
+                    text-3xl
+                    font-bold
+                    text-slate-950
+                "
+            >
+                {{ $totalEsperadas }}
+            </p>
+
+            <p
+                class="
+                    mt-1
+                    text-xs
+                    text-slate-500
+                "
+            >
+                Según composición del lote
+            </p>
+
+        </div>
 
 
-    {{-- EQUIPOS REGISTRADOS --}}
-    @include('importaciones.partials.equipos-registrados')
+        {{-- RECIBIDAS --}}
+        <div
+            class="
+                rounded-2xl
+                border
+                border-emerald-200
+
+                bg-emerald-50
+
+                p-5
+
+                shadow-sm
+            "
+        >
+
+            <p
+                class="
+                    text-xs
+                    font-bold
+                    uppercase
+                    tracking-wide
+                    text-emerald-700
+                "
+            >
+                Unidades recibidas
+            </p>
+
+            <p
+                class="
+                    mt-2
+                    text-3xl
+                    font-bold
+                    text-emerald-900
+                "
+            >
+                {{ $totalRecibidas }}
+            </p>
+
+            <p
+                class="
+                    mt-1
+                    text-xs
+                    text-emerald-700
+                "
+            >
+                Recepción física activa
+            </p>
+
+        </div>
 
 
-    {{-- COSTOS --}}
-    @include('importaciones.partials.costos-lote')
+        {{-- PENDIENTES --}}
+        <div
+            class="
+                rounded-2xl
+                border
+
+                {{ $totalPendientes > 0
+                    ? 'border-amber-200 bg-amber-50'
+                    : 'border-emerald-200 bg-emerald-50'
+                }}
+
+                p-5
+
+                shadow-sm
+            "
+        >
+
+            <p
+                class="
+                    text-xs
+                    font-bold
+                    uppercase
+                    tracking-wide
+
+                    {{ $totalPendientes > 0
+                        ? 'text-amber-700'
+                        : 'text-emerald-700'
+                    }}
+                "
+            >
+                Pendientes
+            </p>
+
+            <p
+                class="
+                    mt-2
+                    text-3xl
+                    font-bold
+
+                    {{ $totalPendientes > 0
+                        ? 'text-amber-900'
+                        : 'text-emerald-900'
+                    }}
+                "
+            >
+                {{ $totalPendientes }}
+            </p>
+
+            <p
+                class="
+                    mt-1
+                    text-xs
+
+                    {{ $totalPendientes > 0
+                        ? 'text-amber-700'
+                        : 'text-emerald-700'
+                    }}
+                "
+            >
+                {{ $totalPendientes > 0
+                    ? 'Unidades aún por recibir'
+                    : 'Recepción física completa'
+                }}
+            </p>
+
+        </div>
+
+    </div>
 
 
-    {{-- RESUMEN FINANCIERO --}}
-    @include('importaciones.partials.resumen-financiero')
+    {{-- ================================================================ --}}
+    {{-- BARRA OPERATIVA --}}
+    {{-- ================================================================ --}}
+
+    @if($puedeGestionar)
+
+        <section
+            class="
+                rounded-2xl
+                border
+                border-blue-100
+
+                bg-gradient-to-r
+                from-blue-50
+                via-oneshop-soft
+                to-white
+
+                p-4
+
+                shadow-sm
+            "
+        >
+
+            <div
+                class="
+                    flex
+                    flex-col
+                    gap-4
+
+                    lg:flex-row
+                    lg:items-center
+                    lg:justify-between
+                "
+            >
+
+                <div>
+
+                    <p
+                        class="
+                            text-xs
+                            font-bold
+                            uppercase
+                            tracking-[0.14em]
+                            text-oneshop-primary
+                        "
+                    >
+                        Acciones del lote
+                    </p>
+
+                    <p
+                        class="
+                            mt-1
+                            text-sm
+                            text-slate-600
+                        "
+                    >
+                        Registra la operación que necesitas realizar.
+                    </p>
+
+                </div>
 
 
+                <div
+                    class="
+                        flex
+                        flex-col
+                        gap-2
+
+                        sm:flex-row
+                        sm:flex-wrap
+                    "
+                >
+
+                    {{-- REGISTRAR EQUIPO --}}
+                    <button
+                        type="button"
+
+                        @if($totalPendientes > 0)
+                            onclick="abrirModalEquipo()"
+                        @endif
+
+                        @disabled($totalPendientes <= 0)
+
+                        class="
+                            inline-flex
+                            items-center
+                            justify-center
+                            gap-2
+
+                            rounded-xl
+                            border
+
+                            px-4
+                            py-2.5
+
+                            text-sm
+                            font-bold
+
+                            transition
+
+                            focus:outline-none
+                            focus:ring-4
+                            focus:ring-blue-100
+
+                            {{ $totalPendientes > 0
+                                ? '
+                                    border-oneshop-primary
+                                    bg-oneshop-light
+                                    text-oneshop-dark
+                                    shadow-sm
+                                    hover:bg-blue-100
+                                '
+                                : '
+                                    cursor-not-allowed
+                                    border-slate-200
+                                    bg-slate-100
+                                    text-slate-400
+                                '
+                            }}
+                        "
+                    >
+
+                        <x-ui.icon
+                            name="plus"
+                            size="16"
+                        />
+
+                        {{ $totalPendientes > 0
+                            ? 'Registrar equipo recibido'
+                            : 'Recepción completa'
+                        }}
+
+                    </button>
+
+
+                    {{-- AGREGAR PRODUCTO --}}
+                    <button
+                        type="button"
+
+                        onclick="
+                            abrirModalAgregarProductoLote()
+                        "
+
+                        class="
+                            inline-flex
+                            items-center
+                            justify-center
+                            gap-2
+
+                            rounded-xl
+                            border
+                            border-blue-200
+
+                            bg-white
+
+                            px-4
+                            py-2.5
+
+                            text-sm
+                            font-bold
+                            text-oneshop-dark
+
+                            shadow-sm
+
+                            transition
+
+                            hover:bg-blue-50
+
+                            focus:outline-none
+                            focus:ring-4
+                            focus:ring-blue-100
+                        "
+                    >
+
+                        <x-ui.icon
+                            name="plus"
+                            size="16"
+                        />
+
+                        Agregar producto
+
+                    </button>
+
+
+                    {{-- REGISTRAR COSTO --}}
+                    <button
+                        type="button"
+
+                        onclick="
+                            abrirModalCosto()
+                        "
+
+                        class="
+                            inline-flex
+                            items-center
+                            justify-center
+                            gap-2
+
+                            rounded-xl
+                            border
+                            border-slate-300
+
+                            bg-white
+
+                            px-4
+                            py-2.5
+
+                            text-sm
+                            font-bold
+                            text-slate-700
+
+                            shadow-sm
+
+                            transition
+
+                            hover:border-blue-200
+                            hover:bg-blue-50
+                            hover:text-oneshop-dark
+
+                            focus:outline-none
+                            focus:ring-4
+                            focus:ring-blue-100
+                        "
+                    >
+
+                        <x-ui.icon
+                            name="plus"
+                            size="16"
+                        />
+
+                        Registrar costo
+
+                    </button>
+
+                </div>
+
+            </div>
+
+        </section>
+
+    @endif
+
+
+    {{-- ================================================================ --}}
+    {{-- NAVEGACIÓN INTERNA --}}
+    {{-- ================================================================ --}}
+
+    <nav
+        class="
+            flex
+            gap-2
+            overflow-x-auto
+
+            rounded-xl
+            border
+            border-slate-200
+
+            bg-white
+
+            p-2
+
+            shadow-sm
+        "
+        aria-label="Secciones del lote"
+    >
+
+        <a
+            href="#equipos-recibidos"
+
+            class="
+                whitespace-nowrap
+
+                rounded-lg
+
+                px-3
+                py-2
+
+                text-sm
+                font-semibold
+                text-slate-700
+
+                transition
+
+                hover:bg-blue-50
+                hover:text-oneshop-dark
+            "
+        >
+            Equipos recibidos
+        </a>
+
+
+        <a
+            href="#composicion-lote"
+
+            class="
+                whitespace-nowrap
+
+                rounded-lg
+
+                px-3
+                py-2
+
+                text-sm
+                font-semibold
+                text-slate-700
+
+                transition
+
+                hover:bg-blue-50
+                hover:text-oneshop-dark
+            "
+        >
+            Composición
+        </a>
+
+
+        <a
+            href="#costos-lote"
+
+            class="
+                whitespace-nowrap
+
+                rounded-lg
+
+                px-3
+                py-2
+
+                text-sm
+                font-semibold
+                text-slate-700
+
+                transition
+
+                hover:bg-blue-50
+                hover:text-oneshop-dark
+            "
+        >
+            Costos
+        </a>
+
+
+        <a
+            href="#resumen-financiero"
+
+            class="
+                whitespace-nowrap
+
+                rounded-lg
+
+                px-3
+                py-2
+
+                text-sm
+                font-semibold
+                text-slate-700
+
+                transition
+
+                hover:bg-blue-50
+                hover:text-oneshop-dark
+            "
+        >
+            Resumen financiero
+        </a>
+
+    </nav>
+
+
+    {{-- ================================================================ --}}
+    {{-- 1. EQUIPOS RECIBIDOS --}}
+    {{-- ================================================================ --}}
+
+    <div
+        id="equipos-recibidos"
+        class="scroll-mt-6"
+    >
+        @include(
+            'importaciones.partials.equipos-registrados'
+        )
+    </div>
+
+
+    {{-- ================================================================ --}}
+    {{-- 2. COMPOSICIÓN --}}
+    {{-- ================================================================ --}}
+
+    <div
+        id="composicion-lote"
+        class="scroll-mt-6"
+    >
+        @include(
+            'importaciones.partials.detalles-lote'
+        )
+    </div>
+
+
+    {{-- ================================================================ --}}
+    {{-- 3. COSTOS --}}
+    {{-- ================================================================ --}}
+
+    <div
+        id="costos-lote"
+        class="scroll-mt-6"
+    >
+        @include(
+            'importaciones.partials.costos-lote'
+        )
+    </div>
+
+
+    {{-- ================================================================ --}}
+    {{-- 4. RESUMEN FINANCIERO --}}
+    {{-- ================================================================ --}}
+
+    <div
+        id="resumen-financiero"
+        class="scroll-mt-6"
+    >
+        @include(
+            'importaciones.partials.resumen-financiero'
+        )
+    </div>
+
+
+    {{-- ================================================================ --}}
     {{-- MODALES --}}
-    @include('importaciones.partials.modal-costo')
+    {{-- ================================================================ --}}
 
-    @include('importaciones.partials.modal-editar-costo')
+    @include(
+        'importaciones.partials.modal-agregar-producto-lote'
+    )
 
-    @include('importaciones.partials.modal-producto')
+    @include(
+        'importaciones.partials.modal-producto'
+    )
 
-    @include('importaciones.partials.modal-registrar-equipo')
+    @include(
+        'importaciones.partials.modal-costo'
+    )
+
+    @include(
+        'importaciones.partials.modal-editar-costo'
+    )
+
+    @include(
+        'importaciones.partials.modal-registrar-equipo'
+    )
 
 </div>
 

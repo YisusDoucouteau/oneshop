@@ -169,7 +169,28 @@ Route::post(
 ->middleware('permiso:importacion.gestionar')
 ->name('importaciones.detalles.store');
 
+Route::post(
+    '/importaciones/{lote}/detalles',
+    [ImportacionController::class, 'storeDetalle']
+)
+->middleware('permiso:importacion.gestionar')
+->name('importaciones.detalles.store');
 
+
+Route::patch(
+    '/importaciones/{lote}/detalles/{detalle}',
+    [ImportacionController::class, 'updateDetalle']
+)
+->middleware('permiso:importacion.gestionar')
+->name('importaciones.detalles.update');
+
+
+Route::delete(
+    '/importaciones/{lote}/detalles/{detalle}',
+    [ImportacionController::class, 'destroyDetalle']
+)
+->middleware('permiso:importacion.gestionar')
+->name('importaciones.detalles.destroy');
 /*
 |--------------------------------------------------------------------------
 | REGISTRO DE EQUIPOS RECIBIDOS POR HUGO

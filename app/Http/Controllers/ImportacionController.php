@@ -8,11 +8,13 @@ use App\Models\Lote;
 use App\Models\Marca;
 use App\Models\Moneda;
 use App\Models\Producto;
+use App\Models\DetalleLote;
 use App\Models\Proveedor;
 use App\Models\UnidadAdquirida;
 use App\Services\LoteService;
 use App\Services\TipoCambioService;
 use App\Services\UnidadAdquiridaService;
+use Illuminate\Validation\ValidationException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -388,7 +390,121 @@ class ImportacionController extends Controller
             ], 422);
         }
     }
+    public function updateDetalle(
+        Request $request,
+        Lote $lote,
+        DetalleLote $detalle,
+        LoteService $loteService
+    ): JsonResponse {
+        if (
+            (int) $detalle->lote_id
+            !==
+            (int) $lote->id
+        ) {
+            abort(404);
+        }
 
+        try {
+            $detalle = $loteService->actualizarDetalle(
+                $request->user()->id,
+                $lote->id,
+                $detalle->id,
+                $request->all()
+            );
+
+            return response()->json([
+                'ok' => true,
+
+                'message' =>
+                    'Datos de la línea actualizados correctamente.',
+
+                'detalle' => [
+                    'id' =>
+                        $detalle->id,
+
+                    'cantidad_esperada' =>
+                        $detalle->cantidad_esperada,
+
+                    'cantidad_recibida' =>
+                        $detalle
+                            ->unidadesActivas()
+                            ->count(),
+                ],
+            ]);
+        } catch (ValidationException $e) {
+            return response()->json([
+                'ok' => false,
+
+                'message' =>
+                    collect(
+                        $e->errors()
+                    )
+                        ->flatten()
+                        ->first()
+                    ??
+                    'Los datos enviados no son válidos.',
+
+                'errors' =>
+                    $e->errors(),
+            ], 422);
+        } catch (ReglaNegocioException $e) {
+            return response()->json([
+                'ok' => false,
+                'message' => $e->getMessage(),
+            ], 422);
+        } catch (\Throwable $e) {
+            report($e);
+
+            return response()->json([
+                'ok' => false,
+                'message' =>
+                    'No fue posible actualizar la línea del lote.',
+            ], 500);
+        }
+    }
+
+
+    public function destroyDetalle(
+        Request $request,
+        Lote $lote,
+        DetalleLote $detalle,
+        LoteService $loteService
+    ): JsonResponse {
+        if (
+            (int) $detalle->lote_id
+            !==
+            (int) $lote->id
+        ) {
+            abort(404);
+        }
+
+        try {
+            $loteService->eliminarDetalle(
+                $request->user()->id,
+                $lote->id,
+                $detalle->id
+            );
+
+            return response()->json([
+                'ok' => true,
+                'message' =>
+                    'Producto quitado del lote correctamente.',
+            ]);
+        } catch (ReglaNegocioException $e) {
+            return response()->json([
+                'ok' => false,
+                'message' => $e->getMessage(),
+            ], 422);
+        } catch (\Throwable $e) {
+            report($e);
+
+            return response()->json([
+                'ok' => false,
+                'message' =>
+                    'No fue posible quitar el producto del lote.',
+            ], 500);
+        }
+    }
     /**
      * Registro rápido de equipos recibidos por Hugo.
      *

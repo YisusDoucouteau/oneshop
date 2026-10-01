@@ -18,575 +18,1247 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
 class ImportacionWebTest extends TestCase
+
 {
-    use RefreshDatabase;
 
-    protected function setUp(): void
-    {
-        parent::setUp();
+  use RefreshDatabase;
 
-        $this->seed();
-    }
+  protected function setUp(): void
 
-    public function test_administrador_operativo_recibe_codigo_sugerido_para_nuevo_lote(): void
-    {
-        $usuario = $this->usuarioConRol('ADMIN_OPERATIVO');
+  {
 
-        $respuesta = $this
-            ->actingAs($usuario)
-            ->get(route('importaciones.create'));
+    parent::setUp();
 
-        $respuesta
-            ->assertOk()
-            ->assertSee('Registrar lote de importación')
-            ->assertSee('Generado automáticamente')
-            ->assertSee('name="fecha_compra"', false)
-            ->assertSee('IMP-'.now()->format('Y').'-001');
-    }
+    $this->seed();
 
-    public function test_vendedor_no_puede_crear_lotes(): void
-    {
-        $vendedor = $this->usuarioConRol('VENDEDOR');
+  }
 
-        $this
-            ->actingAs($vendedor)
-            ->get(route('importaciones.create'))
-            ->assertForbidden();
-    }
+  public function test_administrador_operativo_recibe_codigo_sugerido_para_nuevo_lote(): void
 
-    public function test_formulario_del_lote_expone_datos_de_compra_y_caracteristicas_esperadas(): void
-    {
-        $usuario = $this->usuarioConRol('ADMIN_OPERATIVO');
-        $lote = Lote::query()->create([
-            'codigo' => 'IMP-WEB-001',
-            'estado' => 'ABIERTO',
-        ]);
+  {
 
-        $this
-            ->actingAs($usuario)
-            ->get(route('importaciones.show', $lote))
-            ->assertOk()
-            ->assertSee('Costo unitario')
-            ->assertSee('Características y accesorios esperados')
-            ->assertSee('name="moneda_id"', false)
-            ->assertSee('name="tipo_cambio_aplicado"', false)
-            ->assertSee('name="especificacion_esperada[procesador]"', false)
-            ->assertSee('id="agregarComponenteEsperado"', false)
-            ->assertSee('Se mantienen separados')
-            ->assertDontSee('Distribuir costos');
-    }
+    $usuario = $this->usuarioConRol('ADMIN_OPERATIVO');
 
-    public function test_nuevo_lote_conserva_fecha_real_de_compra(): void
-    {
-        $usuario = $this->usuarioConRol('ADMIN_OPERATIVO');
+    $respuesta = $this
 
-        $this
-            ->actingAs($usuario)
-            ->post(route('importaciones.store'), [
-                'codigo' => 'IMP-FECHA-001',
-                'fecha_compra' => '2026-09-10',
-                'origen' => 'Estados Unidos',
-            ])
-            ->assertRedirect();
+      ->actingAs($usuario)
 
-        $this->assertDatabaseHas('lotes', [
-            'codigo' => 'IMP-FECHA-001',
-            'fecha_compra' => '2026-09-10',
-        ]);
-    }
+      ->get(route('importaciones.create'));
 
-    public function test_recepcion_hereda_compra_y_permite_corregir_lo_observado_fisicamente(): void
-    {
-        $usuario = $this->usuarioConRol('ADMIN_OPERATIVO');
-        $lote = Lote::query()->create([
-            'codigo' => 'IMP-RECEPCION-001',
-            'fecha_compra' => '2026-09-05',
-            'referencia_compra' => 'SUBASTA-7788',
-            'estado' => 'ABIERTO',
-        ]);
-        $producto = $this->crearProducto('RECEPCION-001');
-        $usd = Moneda::query()->where('codigo', 'USD')->firstOrFail();
-        $bob = Moneda::query()->where('codigo', 'BOB')->firstOrFail();
+    $respuesta
 
-        $tipoCambioCompra = TipoCambio::query()->create([
-            'moneda_origen_id' => $usd->id,
-            'moneda_destino_id' => $bob->id,
-            'valor' => 10.500000,
-            'fecha_vigencia' => '2026-09-05 12:00:00',
-            'fuente' => 'COMPRA_REAL',
-            'registrado_por_id' => $usuario->id,
-        ]);
+      ->assertOk()
 
-        $detalle = DetalleLote::query()->create([
-            'lote_id' => $lote->id,
-            'producto_id' => $producto->id,
-            'moneda_id' => $usd->id,
-            'tipo_cambio_compra_id' => $tipoCambioCompra->id,
-            'cantidad_esperada' => 1,
-            'cantidad_recibida' => 0,
-            'costo_unitario_origen' => 300,
-            'costo_unitario_bob' => 3150,
-        ]);
+      ->assertSee('Registrar lote de importación')
 
-        EspecificacionEsperadaDetalleLote::query()->create([
-            'detalle_lote_id' => $detalle->id,
-            'procesador' => 'Intel Core i5',
-            'ram_gb' => 16,
-            'almacenamiento_gb' => 512,
-        ]);
+      ->assertSee('Generado automáticamente')
 
-        $cantidadTiposCambioAntes = TipoCambio::query()->count();
+      ->assertSee('name="fecha_compra"', false)
 
-        $this
-            ->actingAs($usuario)
-            ->post(route('importaciones.unidades.store', $lote), [
-                'detalle_lote_id' => $detalle->id,
-                'cantidad' => 1,
-                'ram_gb' => 8,
-                'grado_recibido' => 'B',
-                'tiene_cargador' => 0,
-                'servicio_requerido' => 'Instalar RAM faltante',
+      ->assertSee('IMP-'.now()->format('Y').'-001');
 
-                // Aunque un cliente manipule el formulario, la recepción no puede
-                // redefinir la compra ya registrada en la línea del lote.
-                'precio_compra' => 9999,
-                'moneda_id' => $bob->id,
-                'tipo_cambio_compra' => 1,
-                'fecha_compra' => '2026-09-18',
-            ])
-            ->assertRedirect(route('importaciones.show', $lote));
+  }
 
-        $this->assertDatabaseHas('unidades_adquiridas', [
-            'detalle_lote_id' => $detalle->id,
-            'precio_compra' => 300,
-            'moneda_id' => $usd->id,
-            'tipo_cambio_compra_id' => $tipoCambioCompra->id,
-            'precio_compra_bob' => 3150,
-            'fecha_compra' => '2026-09-05',
-            'referencia_compra' => 'SUBASTA-7788',
-            'procesador' => 'Intel Core i5',
-            'ram_gb' => 8,
-            'grado_recibido' => 'B',
-            'almacenamiento_gb' => 512,
-            'tiene_cargador' => 0,
-            'requiere_servicio' => 1,
-            'servicio_requerido' => 'Instalar RAM faltante',
-        ]);
+  public function test_vendedor_no_puede_crear_lotes(): void
 
-        $this->assertSame(
-            $cantidadTiposCambioAntes,
-            TipoCambio::query()->count(),
-            'La recepción no debe registrar un nuevo tipo de cambio.'
-        );
+  {
 
-        $this->assertDatabaseHas('lotes', [
-            'id' => $lote->id,
-            'estado' => 'RECIBIDO',
-        ]);
+    $vendedor = $this->usuarioConRol('VENDEDOR');
 
-        $this->assertDatabaseHas('detalles_lotes', [
-            'id' => $detalle->id,
-            'cantidad_recibida' => 0,
-        ]);
-    }
+    $this
 
-    public function test_anular_la_unica_recepcion_reabre_el_lote_sin_tocar_cantidad_recibida(): void
-    {
-        $usuario = $this->usuarioConRol('ADMIN_OPERATIVO');
-        [$lote, $unidad] = $this->crearUnidadParaEdicion(
-            $usuario,
-            UnidadAdquirida::ESTADO_RECIBIDA_ORIGEN,
-            'ANULAR-001'
-        );
+      ->actingAs($vendedor)
 
-        $lote->update(['estado' => 'RECIBIDO']);
+      ->get(route('importaciones.create'))
 
-        $this
-            ->actingAs($usuario)
-            ->from(route('importaciones.show', $lote))
-            ->patch(route('importaciones.unidades.anular', $unidad), [
-                'motivo_anulacion' => 'Registro físico duplicado',
-            ])
-            ->assertRedirect(route('importaciones.show', $lote));
+      ->assertForbidden();
 
-        $this->assertDatabaseHas('unidades_adquiridas', [
-            'id' => $unidad->id,
-            'estado' => UnidadAdquirida::ESTADO_ANULADA,
-        ]);
+  }
 
-        $this->assertDatabaseHas('lotes', [
-            'id' => $lote->id,
-            'estado' => 'ABIERTO',
-        ]);
+  public function test_formulario_del_lote_expone_datos_de_compra_y_caracteristicas_esperadas(): void
 
-        $this->assertDatabaseHas('detalles_lotes', [
-            'id' => $unidad->detalle_lote_id,
-            'cantidad_recibida' => 0,
-        ]);
-    }
+  {
 
-    public function test_recepcion_parcial_del_lote_se_calcula_con_unidades_fisicas_activas(): void
-    {
-        $usuario = $this->usuarioConRol('ADMIN_OPERATIVO');
-        $lote = Lote::query()->create([
-            'codigo' => 'IMP-PARCIAL-001',
-            'estado' => 'ABIERTO',
-        ]);
-        $detalle = DetalleLote::query()->create([
-            'lote_id' => $lote->id,
-            'producto_id' => $this->crearProducto('PARCIAL-001')->id,
-            'cantidad_esperada' => 2,
-            'cantidad_recibida' => 0,
-        ]);
-
-        $this
-            ->actingAs($usuario)
-            ->post(route('importaciones.unidades.store', $lote), [
-                'detalle_lote_id' => $detalle->id,
-                'cantidad' => 1,
-                'procesador' => 'Intel Core i5',
-                'grado_recibido' => 'B',
-                'tiene_cargador' => 1,
-            ])
-            ->assertRedirect(route('importaciones.show', $lote));
-
-        $this->assertDatabaseHas('lotes', [
-            'id' => $lote->id,
-            'estado' => 'RECEPCION_PARCIAL',
-        ]);
-
-        $this->assertDatabaseHas('detalles_lotes', [
-            'id' => $detalle->id,
-            'cantidad_recibida' => 0,
-        ]);
-
-        $this
-            ->actingAs($usuario)
-            ->get(route('importaciones.index'))
-            ->assertOk()
-            ->assertSeeText('1 / 2');
-    }
-    public function test_puede_guardar_equipo_y_continuar_registrando_el_mismo_producto(): void
-{
     $usuario = $this->usuarioConRol('ADMIN_OPERATIVO');
 
     $lote = Lote::query()->create([
-        'codigo' => 'IMP-CONTINUAR-001',
-        'estado' => 'ABIERTO',
+
+      'codigo' => 'IMP-WEB-001',
+
+      'estado' => 'ABIERTO',
+
+    ]);
+
+    $this
+
+      ->actingAs($usuario)
+
+      ->get(route('importaciones.show', $lote))
+
+      ->assertOk()
+
+      ->assertSee('Costo unitario')
+
+      ->assertSee('Características y accesorios esperados')
+
+      ->assertSee('name="moneda_id"', false)
+
+      ->assertSee('name="tipo_cambio_aplicado"', false)
+
+      ->assertSee('name="especificacion_esperada[procesador]"', false)
+
+      ->assertSee('id="agregarComponenteEsperado"', false)
+
+      ->assertSee('Se mantienen separados')
+
+      ->assertDontSee('Distribuir costos');
+
+  }
+
+  public function test_nuevo_lote_conserva_fecha_real_de_compra(): void
+
+  {
+
+    $usuario = $this->usuarioConRol('ADMIN_OPERATIVO');
+
+    $this
+
+      ->actingAs($usuario)
+
+      ->post(route('importaciones.store'), [
+
+        'codigo' => 'IMP-FECHA-001',
+
+        'fecha_compra' => '2026-09-10',
+
+        'origen' => 'Estados Unidos',
+
+      ])
+
+      ->assertRedirect();
+
+    $this->assertDatabaseHas('lotes', [
+
+      'codigo' => 'IMP-FECHA-001',
+
+      'fecha_compra' => '2026-09-10',
+
+    ]);
+
+  }
+
+  public function test_recepcion_hereda_compra_y_permite_corregir_lo_observado_fisicamente(): void
+
+  {
+
+    $usuario = $this->usuarioConRol('ADMIN_OPERATIVO');
+
+    $lote = Lote::query()->create([
+
+      'codigo' => 'IMP-RECEPCION-001',
+
+      'fecha_compra' => '2026-09-05',
+
+      'referencia_compra' => 'SUBASTA-7788',
+
+      'estado' => 'ABIERTO',
+
+    ]);
+
+    $producto = $this->crearProducto('RECEPCION-001');
+
+    $usd = Moneda::query()->where('codigo', 'USD')->firstOrFail();
+
+    $bob = Moneda::query()->where('codigo', 'BOB')->firstOrFail();
+
+    $tipoCambioCompra = TipoCambio::query()->create([
+
+      'moneda_origen_id' => $usd->id,
+
+      'moneda_destino_id' => $bob->id,
+
+      'valor' => 10.500000,
+
+      'fecha_vigencia' => '2026-09-05 12:00:00',
+
+      'fuente' => 'COMPRA_REAL',
+
+      'registrado_por_id' => $usuario->id,
+
     ]);
 
     $detalle = DetalleLote::query()->create([
-        'lote_id' => $lote->id,
-        'producto_id' => $this->crearProducto('CONTINUAR-001')->id,
-        'cantidad_esperada' => 2,
-        'cantidad_recibida' => 0,
+
+      'lote_id' => $lote->id,
+
+      'producto_id' => $producto->id,
+
+      'moneda_id' => $usd->id,
+
+      'tipo_cambio_compra_id' => $tipoCambioCompra->id,
+
+      'cantidad_esperada' => 1,
+
+      'cantidad_recibida' => 0,
+
+      'costo_unitario_origen' => 300,
+
+      'costo_unitario_bob' => 3150,
+
     ]);
 
-    $respuesta = $this
-        ->actingAs($usuario)
-        ->post(
-            route('importaciones.unidades.store', $lote),
-            [
-                'detalle_lote_id' => $detalle->id,
-                'cantidad' => 1,
-                'procesador' => 'Intel Core i5',
-                'grado_recibido' => 'B',
-                'tiene_cargador' => 1,
-                'serial_fabricante' => 'TEST-CONTINUAR-001',
-                'continuar_registro' => 1,
-            ]
-        );
+    EspecificacionEsperadaDetalleLote::query()->create([
 
-    $respuesta
-        ->assertRedirect(
-            route(
-                'importaciones.show',
-                [
-                    'lote' => $lote,
-                    'registrar_equipo' => 1,
-                    'detalle_lote_id' => $detalle->id,
-                ]
-            )
-        )
-        ->assertSessionHas(
-            'success',
-            'Equipo registrado. Puedes continuar con la siguiente unidad.'
-        );
+      'detalle_lote_id' => $detalle->id,
 
-    $this->assertDatabaseHas(
-        'unidades_adquiridas',
-        [
-            'detalle_lote_id' => $detalle->id,
-            'serial_fabricante' => 'TEST-CONTINUAR-001',
-            'grado_recibido' => 'B',
-        ]
+      'procesador' => 'Intel Core i5',
+
+      'ram_gb' => 16,
+
+      'almacenamiento_gb' => 512,
+
+    ]);
+
+    $cantidadTiposCambioAntes = TipoCambio::query()->count();
+
+    $this
+
+      ->actingAs($usuario)
+
+      ->post(route('importaciones.unidades.store', $lote), [
+
+        'detalle_lote_id' => $detalle->id,
+
+        'cantidad' => 1,
+
+        'ram_gb' => 8,
+
+        'grado_recibido' => 'B',
+
+        'tiene_cargador' => 0,
+
+        'servicio_requerido' => 'Instalar RAM faltante',
+
+        // Aunque un cliente manipule el formulario, la recepción no puede
+
+        // redefinir la compra ya registrada en la línea del lote.
+
+        'precio_compra' => 9999,
+
+        'moneda_id' => $bob->id,
+
+        'tipo_cambio_compra' => 1,
+
+        'fecha_compra' => '2026-09-18',
+
+      ])
+
+      ->assertRedirect(route('importaciones.show', $lote));
+
+    $this->assertDatabaseHas('unidades_adquiridas', [
+
+      'detalle_lote_id' => $detalle->id,
+
+      'precio_compra' => 300,
+
+      'moneda_id' => $usd->id,
+
+      'tipo_cambio_compra_id' => $tipoCambioCompra->id,
+
+      'precio_compra_bob' => 3150,
+
+      'fecha_compra' => '2026-09-05',
+
+      'referencia_compra' => 'SUBASTA-7788',
+
+      'procesador' => 'Intel Core i5',
+
+      'ram_gb' => 8,
+
+      'grado_recibido' => 'B',
+
+      'almacenamiento_gb' => 512,
+
+      'tiene_cargador' => 0,
+
+      'requiere_servicio' => 1,
+
+      'servicio_requerido' => 'Instalar RAM faltante',
+
+    ]);
+
+    $this->assertSame(
+
+      $cantidadTiposCambioAntes,
+
+      TipoCambio::query()->count(),
+
+      'La recepción no debe registrar un nuevo tipo de cambio.'
+
     );
 
-    $this->assertDatabaseHas(
-        'lotes',
-        [
-            'id' => $lote->id,
-            'estado' => 'RECEPCION_PARCIAL',
-        ]
+    $this->assertDatabaseHas('lotes', [
+
+      'id' => $lote->id,
+
+      'estado' => 'RECIBIDO',
+
+    ]);
+
+    $this->assertDatabaseHas('detalles_lotes', [
+
+      'id' => $detalle->id,
+
+      'cantidad_recibida' => 0,
+
+    ]);
+
+  }
+
+  public function test_anular_la_unica_recepcion_reabre_el_lote_sin_tocar_cantidad_recibida(): void
+
+  {
+
+    $usuario = $this->usuarioConRol('ADMIN_OPERATIVO');
+
+    [$lote, $unidad] = $this->crearUnidadParaEdicion(
+
+      $usuario,
+
+      UnidadAdquirida::ESTADO_RECIBIDA_ORIGEN,
+
+      'ANULAR-001'
+
     );
+
+    $lote->update(['estado' => 'RECIBIDO']);
+
+    $this
+
+      ->actingAs($usuario)
+
+      ->from(route('importaciones.show', $lote))
+
+      ->patch(route('importaciones.unidades.anular', $unidad), [
+
+        'motivo_anulacion' => 'Registro físico duplicado',
+
+      ])
+
+      ->assertRedirect(route('importaciones.show', $lote));
+
+    $this->assertDatabaseHas('unidades_adquiridas', [
+
+      'id' => $unidad->id,
+
+      'estado' => UnidadAdquirida::ESTADO_ANULADA,
+
+    ]);
+
+    $this->assertDatabaseHas('lotes', [
+
+      'id' => $lote->id,
+
+      'estado' => 'ABIERTO',
+
+    ]);
+
+    $this->assertDatabaseHas('detalles_lotes', [
+
+      'id' => $unidad->detalle_lote_id,
+
+      'cantidad_recibida' => 0,
+
+    ]);
+
+  }
+
+  public function test_recepcion_parcial_del_lote_se_calcula_con_unidades_fisicas_activas(): void
+
+  {
+
+    $usuario = $this->usuarioConRol('ADMIN_OPERATIVO');
+
+    $lote = Lote::query()->create([
+
+      'codigo' => 'IMP-PARCIAL-001',
+
+      'estado' => 'ABIERTO',
+
+    ]);
+
+    $detalle = DetalleLote::query()->create([
+
+      'lote_id' => $lote->id,
+
+      'producto_id' => $this->crearProducto('PARCIAL-001')->id,
+
+      'cantidad_esperada' => 2,
+
+      'cantidad_recibida' => 0,
+
+    ]);
+
+    $this
+
+      ->actingAs($usuario)
+
+      ->post(route('importaciones.unidades.store', $lote), [
+
+        'detalle_lote_id' => $detalle->id,
+
+        'cantidad' => 1,
+
+        'procesador' => 'Intel Core i5',
+
+        'grado_recibido' => 'B',
+
+        'tiene_cargador' => 1,
+
+      ])
+
+      ->assertRedirect(route('importaciones.show', $lote));
+
+    $this->assertDatabaseHas('lotes', [
+
+      'id' => $lote->id,
+
+      'estado' => 'RECEPCION_PARCIAL',
+
+    ]);
+
+    $this->assertDatabaseHas('detalles_lotes', [
+
+      'id' => $detalle->id,
+
+      'cantidad_recibida' => 0,
+
+    ]);
+
+    $this
+
+      ->actingAs($usuario)
+
+      ->get(route('importaciones.index'))
+
+      ->assertOk()
+
+      ->assertSeeText('1 / 2');
+
+  }
+
+  public function test_puede_guardar_equipo_y_continuar_registrando_el_mismo_producto(): void
+
+{
+
+  $usuario = $this->usuarioConRol('ADMIN_OPERATIVO');
+
+  $lote = Lote::query()->create([
+
+    'codigo' => 'IMP-CONTINUAR-001',
+
+    'estado' => 'ABIERTO',
+
+  ]);
+
+  $detalle = DetalleLote::query()->create([
+
+    'lote_id' => $lote->id,
+
+    'producto_id' => $this->crearProducto('CONTINUAR-001')->id,
+
+    'cantidad_esperada' => 2,
+
+    'cantidad_recibida' => 0,
+
+  ]);
+
+  $respuesta = $this
+
+    ->actingAs($usuario)
+
+    ->post(
+
+      route('importaciones.unidades.store', $lote),
+
+      [
+
+        'detalle_lote_id' => $detalle->id,
+
+        'cantidad' => 1,
+
+        'procesador' => 'Intel Core i5',
+
+        'grado_recibido' => 'B',
+
+        'tiene_cargador' => 1,
+
+        'serial_fabricante' => 'TEST-CONTINUAR-001',
+
+        'continuar_registro' => 1,
+
+      ]
+
+    );
+
+  $respuesta
+
+    ->assertRedirect(
+
+      route(
+
+        'importaciones.show',
+
+        [
+
+          'lote' => $lote,
+
+          'registrar_equipo' => 1,
+
+          'detalle_lote_id' => $detalle->id,
+
+        ]
+
+      )
+
+    )
+
+    ->assertSessionHas(
+
+      'success',
+
+      'Equipo registrado. Puedes continuar con la siguiente unidad.'
+
+    );
+
+  $this->assertDatabaseHas(
+
+    'unidades_adquiridas',
+
+    [
+
+      'detalle_lote_id' => $detalle->id,
+
+      'serial_fabricante' => 'TEST-CONTINUAR-001',
+
+      'grado_recibido' => 'B',
+
+    ]
+
+  );
+
+  $this->assertDatabaseHas(
+
+    'lotes',
+
+    [
+
+      'id' => $lote->id,
+
+      'estado' => 'RECEPCION_PARCIAL',
+
+    ]
+
+  );
+
 }
-    public function test_recepcion_exige_procesador_si_compra_no_tiene_especificacion_esperada(): void
-    {
-        $usuario = $this->usuarioConRol('ADMIN_OPERATIVO');
-        $lote = Lote::query()->create([
-            'codigo' => 'IMP-RECEPCION-SIN-CPU',
-            'estado' => 'ABIERTO',
-        ]);
-        $detalle = DetalleLote::query()->create([
-            'lote_id' => $lote->id,
-            'producto_id' => $this->crearProducto('RECEPCION-SIN-CPU')->id,
-            'cantidad_esperada' => 1,
-            'cantidad_recibida' => 0,
-        ]);
 
-        $this
-            ->actingAs($usuario)
-            ->from(route('importaciones.show', $lote))
-            ->post(route('importaciones.unidades.store', $lote), [
-                'detalle_lote_id' => $detalle->id,
-                'cantidad' => 1,
-                'grado_recibido' => 'A',
-                'tiene_cargador' => 1,
-            ])
-            ->assertRedirect(route('importaciones.show', $lote))
-            ->assertSessionHasErrors('procesador');
+  public function test_recepcion_exige_procesador_si_compra_no_tiene_especificacion_esperada(): void
 
-        $this->assertDatabaseCount('unidades_adquiridas', 0);
-    }
+  {
 
-    public function test_pantalla_recepcion_muestra_compra_como_solo_lectura(): void
-    {
-        $usuario = $this->usuarioConRol('ADMIN_OPERATIVO');
-        $lote = Lote::query()->create([
-            'codigo' => 'IMP-LECTURA-001',
-            'fecha_compra' => '2026-09-01',
-            'estado' => 'ABIERTO',
-        ]);
-        $bob = Moneda::query()->where('codigo', 'BOB')->firstOrFail();
-        DetalleLote::query()->create([
-            'lote_id' => $lote->id,
-            'producto_id' => $this->crearProducto('LECTURA-001')->id,
-            'moneda_id' => $bob->id,
-            'cantidad_esperada' => 1,
-            'cantidad_recibida' => 0,
-            'costo_unitario_origen' => 2500,
-            'costo_unitario_bob' => 2500,
-        ]);
+    $usuario = $this->usuarioConRol('ADMIN_OPERATIVO');
 
-        $this
-            ->actingAs($usuario)
-            ->get(route('importaciones.show', $lote))
-            ->assertOk()
-            ->assertSee('Origen de compra')
-            ->assertSee('En recepción no se modifica el precio, la moneda ni el tipo de cambio.')
-            ->assertDontSee('name="precio_compra"', false)
-            ->assertDontSee('name="tipo_cambio_compra"', false);
-    }
+    $lote = Lote::query()->create([
 
-    public function test_recepcion_muestra_regla_de_negocio_en_formulario_en_lugar_de_error_500(): void
-    {
-        $usuario = $this->usuarioConRol('ADMIN_OPERATIVO');
-        $lote = Lote::query()->create([
-            'codigo' => 'IMP-CERRADO-001',
-            'estado' => 'CERRADO',
-        ]);
-        $detalle = DetalleLote::query()->create([
-            'lote_id' => $lote->id,
-            'producto_id' => $this->crearProducto('CERRADO-001')->id,
-            'cantidad_esperada' => 1,
-            'cantidad_recibida' => 0,
-        ]);
+      'codigo' => 'IMP-RECEPCION-SIN-CPU',
 
-        $this
-            ->actingAs($usuario)
-            ->from(route('importaciones.show', $lote))
-            ->post(route('importaciones.unidades.store', $lote), [
-                'detalle_lote_id' => $detalle->id,
-                'cantidad' => 1,
-                'procesador' => 'Intel Core i5',
-                'grado_recibido' => 'A',
-                'tiene_cargador' => 1,
-            ])
-            ->assertRedirect(route('importaciones.show', $lote))
-            ->assertSessionHasErrors('recepcion');
+      'estado' => 'ABIERTO',
 
-        $this->assertDatabaseCount('unidades_adquiridas', 0);
-    }
+    ]);
 
-    public function test_edicion_de_recepcion_actualiza_datos_fisicos_y_servicio_requerido(): void
-    {
-        $usuario = $this->usuarioConRol('ADMIN_OPERATIVO');
-        [$lote, $unidad] = $this->crearUnidadParaEdicion(
-            $usuario,
-            UnidadAdquirida::ESTADO_RECIBIDA_ORIGEN,
-            'EDITAR-001'
-        );
+    $detalle = DetalleLote::query()->create([
 
-        $this
-            ->actingAs($usuario)
-            ->patch(route('importaciones.unidades.actualizar', $unidad), [
-                'procesador' => 'Intel Core i5-10310U',
-                'generacion_procesador' => '10th',
-                'ram_gb' => 0,
-                'almacenamiento_gb' => 0,
-                'tipo_almacenamiento' => null,
-                'grado_recibido' => 'C',
-                'tiene_cargador' => 0,
-                'servicio_requerido' => 'Instalar RAM, SSD y cargador',
-                'observacion_revision' => 'Llegó sin RAM ni almacenamiento.',
-            ])
-            ->assertRedirect(route('importaciones.show', $lote));
+      'lote_id' => $lote->id,
 
-        $this->assertDatabaseHas('unidades_adquiridas', [
-            'id' => $unidad->id,
-            'ram_gb' => 0,
-            'grado_recibido' => 'C',
-            'almacenamiento_gb' => 0,
-            'tiene_cargador' => 0,
-            'requiere_servicio' => 1,
-            'servicio_requerido' => 'Instalar RAM, SSD y cargador',
-            'observacion_revision' => 'Llegó sin RAM ni almacenamiento.',
-        ]);
-    }
+      'producto_id' => $this->crearProducto('RECEPCION-SIN-CPU')->id,
 
-    public function test_recepcion_no_puede_editarse_ni_anularse_despues_de_cerrar_la_etapa(): void
-    {
-        $usuario = $this->usuarioConRol('ADMIN_OPERATIVO');
-        [$lote, $unidad] = $this->crearUnidadParaEdicion(
-            $usuario,
-            UnidadAdquirida::ESTADO_LISTA_ENVIO,
-            'CERRADA-001'
-        );
+      'cantidad_esperada' => 1,
 
-        $this
-            ->actingAs($usuario)
-            ->get(route('importaciones.unidades.editar', $unidad))
-            ->assertRedirect(route('importaciones.show', $lote))
-            ->assertSessionHasErrors('edicion');
+      'cantidad_recibida' => 0,
 
-        $this
-            ->actingAs($usuario)
-            ->from(route('importaciones.show', $lote))
-            ->patch(route('importaciones.unidades.actualizar', $unidad), [
-                'procesador' => 'Procesador manipulado',
-                'tiene_cargador' => 0,
-            ])
-            ->assertRedirect(route('importaciones.show', $lote))
-            ->assertSessionHasErrors('edicion');
+    ]);
 
-        $this
-            ->actingAs($usuario)
-            ->from(route('importaciones.show', $lote))
-            ->patch(route('importaciones.unidades.anular', $unidad), [
-                'motivo_anulacion' => 'Intento fuera de etapa',
-            ])
-            ->assertRedirect(route('importaciones.show', $lote))
-            ->assertSessionHasErrors('unidad');
+    $this
 
-        $unidad->refresh();
+      ->actingAs($usuario)
 
-        $this->assertSame(UnidadAdquirida::ESTADO_LISTA_ENVIO, $unidad->estado);
-        $this->assertSame('Intel Core i5', $unidad->procesador);
-        $this->assertNull($unidad->motivo_anulacion);
-    }
+      ->from(route('importaciones.show', $lote))
 
-    public function test_recepcion_rechaza_detalle_que_pertenece_a_otro_lote(): void
-    {
-        $usuario = $this->usuarioConRol('ADMIN_OPERATIVO');
-        $loteSolicitado = Lote::query()->create(['codigo' => 'IMP-A', 'estado' => 'ABIERTO']);
-        $otroLote = Lote::query()->create(['codigo' => 'IMP-B', 'estado' => 'ABIERTO']);
-        $detalleAjeno = DetalleLote::query()->create([
-            'lote_id' => $otroLote->id,
-            'producto_id' => $this->crearProducto('RECEPCION-002')->id,
-            'cantidad_esperada' => 1,
-            'cantidad_recibida' => 0,
-        ]);
+      ->post(route('importaciones.unidades.store', $lote), [
 
-        $this
-            ->actingAs($usuario)
-            ->post(route('importaciones.unidades.store', $loteSolicitado), [
-                'detalle_lote_id' => $detalleAjeno->id,
-                'cantidad' => 1,
-                'grado_recibido' => 'A',
-                'tiene_cargador' => 1,
-            ])
-            ->assertNotFound();
+        'detalle_lote_id' => $detalle->id,
 
-        $this->assertDatabaseCount('unidades_adquiridas', 0);
-    }
+        'cantidad' => 1,
 
-    private function usuarioConRol(string $codigoRol): User
-    {
-        $usuario = User::factory()->create([
-            'activo' => true,
-        ]);
+        'grado_recibido' => 'A',
 
-        $rol = Rol::query()
-            ->where('codigo', $codigoRol)
-            ->firstOrFail();
+        'tiene_cargador' => 1,
 
-        $usuario->roles()->attach($rol->id);
+      ])
 
-        return $usuario;
-    }
+      ->assertRedirect(route('importaciones.show', $lote))
 
-    private function crearUnidadParaEdicion(
-        User $usuario,
-        string $estado,
-        string $codigo
-    ): array {
-        $lote = Lote::query()->create([
-            'codigo' => 'IMP-'.$codigo,
-            'estado' => 'ABIERTO',
-        ]);
-        $producto = $this->crearProducto($codigo);
-        $detalle = DetalleLote::query()->create([
-            'lote_id' => $lote->id,
-            'producto_id' => $producto->id,
-            'cantidad_esperada' => 1,
-            'cantidad_recibida' => 0,
-        ]);
-        $cochabamba = Almacen::query()
-            ->where('codigo', 'COCHABAMBA')
-            ->firstOrFail();
+      ->assertSessionHasErrors('procesador');
 
-        $unidad = UnidadAdquirida::query()->create([
-            'detalle_lote_id' => $detalle->id,
-            'producto_id' => $producto->id,
-            'almacen_actual_id' => $cochabamba->id,
-            'estado' => $estado,
-            'codigo_trazabilidad' => 'OS-TEST-'.$codigo,
-            'procesador' => 'Intel Core i5',
-            'grado_recibido' => 'B',
-            'tiene_cargador' => true,
-            'registrado_por_id' => $usuario->id,
-        ]);
+    $this->assertDatabaseCount('unidades_adquiridas', 0);
 
-        return [$lote, $unidad];
-    }
+  }
 
-    private function crearProducto(string $codigo): Producto
-    {
-        $categoria = CategoriaProducto::query()->where('codigo', 'LAPTOP')->firstOrFail();
-        $marca = Marca::query()->create([
-            'nombre' => 'Marca '.$codigo,
-            'activo' => true,
-        ]);
+  public function test_pantalla_recepcion_muestra_compra_como_solo_lectura(): void
 
-        return Producto::query()->create([
-            'categoria_producto_id' => $categoria->id,
-            'marca_id' => $marca->id,
-            'codigo' => $codigo,
-            'nombre' => 'Laptop de prueba',
-            'modelo' => $codigo,
-            'es_serializado' => true,
-            'activo' => true,
-        ]);
-    }
+  {
+
+    $usuario = $this->usuarioConRol('ADMIN_OPERATIVO');
+
+    $lote = Lote::query()->create([
+
+      'codigo' => 'IMP-LECTURA-001',
+
+      'fecha_compra' => '2026-09-01',
+
+      'estado' => 'ABIERTO',
+
+    ]);
+
+    $bob = Moneda::query()->where('codigo', 'BOB')->firstOrFail();
+
+    DetalleLote::query()->create([
+
+      'lote_id' => $lote->id,
+
+      'producto_id' => $this->crearProducto('LECTURA-001')->id,
+
+      'moneda_id' => $bob->id,
+
+      'cantidad_esperada' => 1,
+
+      'cantidad_recibida' => 0,
+
+      'costo_unitario_origen' => 2500,
+
+      'costo_unitario_bob' => 2500,
+
+    ]);
+
+    $this
+
+      ->actingAs($usuario)
+
+      ->get(route('importaciones.show', $lote))
+
+      ->assertOk()
+
+      ->assertSee('Origen de compra')
+
+      ->assertSee('En recepción no se modifica el precio, la moneda ni el tipo de cambio.')
+
+      ->assertDontSee('name="precio_compra"', false)
+
+      ->assertDontSee('name="tipo_cambio_compra"', false);
+
+  }
+
+  public function test_recepcion_muestra_regla_de_negocio_en_formulario_en_lugar_de_error_500(): void
+
+  {
+
+    $usuario = $this->usuarioConRol('ADMIN_OPERATIVO');
+
+    $lote = Lote::query()->create([
+
+      'codigo' => 'IMP-CERRADO-001',
+
+      'estado' => 'CERRADO',
+
+    ]);
+
+    $detalle = DetalleLote::query()->create([
+
+      'lote_id' => $lote->id,
+
+      'producto_id' => $this->crearProducto('CERRADO-001')->id,
+
+      'cantidad_esperada' => 1,
+
+      'cantidad_recibida' => 0,
+
+    ]);
+
+    $this
+
+      ->actingAs($usuario)
+
+      ->from(route('importaciones.show', $lote))
+
+      ->post(route('importaciones.unidades.store', $lote), [
+
+        'detalle_lote_id' => $detalle->id,
+
+        'cantidad' => 1,
+
+        'procesador' => 'Intel Core i5',
+
+        'grado_recibido' => 'A',
+
+        'tiene_cargador' => 1,
+
+      ])
+
+      ->assertRedirect(route('importaciones.show', $lote))
+
+      ->assertSessionHasErrors('recepcion');
+
+    $this->assertDatabaseCount('unidades_adquiridas', 0);
+
+  }
+
+  public function test_edicion_de_recepcion_actualiza_datos_fisicos_y_servicio_requerido(): void
+
+  {
+
+    $usuario = $this->usuarioConRol('ADMIN_OPERATIVO');
+
+    [$lote, $unidad] = $this->crearUnidadParaEdicion(
+
+      $usuario,
+
+      UnidadAdquirida::ESTADO_RECIBIDA_ORIGEN,
+
+      'EDITAR-001'
+
+    );
+
+    $this
+
+      ->actingAs($usuario)
+
+      ->patch(route('importaciones.unidades.actualizar', $unidad), [
+
+        'procesador' => 'Intel Core i5-10310U',
+
+        'generacion_procesador' => '10th',
+
+        'ram_gb' => 0,
+
+        'almacenamiento_gb' => 0,
+
+        'tipo_almacenamiento' => null,
+
+        'grado_recibido' => 'C',
+
+        'tiene_cargador' => 0,
+
+        'servicio_requerido' => 'Instalar RAM, SSD y cargador',
+
+        'observacion_revision' => 'Llegó sin RAM ni almacenamiento.',
+
+      ])
+
+      ->assertRedirect(route('importaciones.show', $lote));
+
+    $this->assertDatabaseHas('unidades_adquiridas', [
+
+      'id' => $unidad->id,
+
+      'ram_gb' => 0,
+
+      'grado_recibido' => 'C',
+
+      'almacenamiento_gb' => 0,
+
+      'tiene_cargador' => 0,
+
+      'requiere_servicio' => 1,
+
+      'servicio_requerido' => 'Instalar RAM, SSD y cargador',
+
+      'observacion_revision' => 'Llegó sin RAM ni almacenamiento.',
+
+    ]);
+
+  }
+
+  public function test_recepcion_no_puede_editarse_ni_anularse_despues_de_cerrar_la_etapa(): void
+
+  {
+
+    $usuario = $this->usuarioConRol('ADMIN_OPERATIVO');
+
+    [$lote, $unidad] = $this->crearUnidadParaEdicion(
+
+      $usuario,
+
+      UnidadAdquirida::ESTADO_LISTA_ENVIO,
+
+      'CERRADA-001'
+
+    );
+
+    $this
+
+      ->actingAs($usuario)
+
+      ->get(route('importaciones.unidades.editar', $unidad))
+
+      ->assertRedirect(route('importaciones.show', $lote))
+
+      ->assertSessionHasErrors('edicion');
+
+    $this
+
+      ->actingAs($usuario)
+
+      ->from(route('importaciones.show', $lote))
+
+      ->patch(route('importaciones.unidades.actualizar', $unidad), [
+
+        'procesador' => 'Procesador manipulado',
+
+        'tiene_cargador' => 0,
+
+      ])
+
+      ->assertRedirect(route('importaciones.show', $lote))
+
+      ->assertSessionHasErrors('edicion');
+
+    $this
+
+      ->actingAs($usuario)
+
+      ->from(route('importaciones.show', $lote))
+
+      ->patch(route('importaciones.unidades.anular', $unidad), [
+
+        'motivo_anulacion' => 'Intento fuera de etapa',
+
+      ])
+
+      ->assertRedirect(route('importaciones.show', $lote))
+
+      ->assertSessionHasErrors('unidad');
+
+    $unidad->refresh();
+
+    $this->assertSame(UnidadAdquirida::ESTADO_LISTA_ENVIO, $unidad->estado);
+
+    $this->assertSame('Intel Core i5', $unidad->procesador);
+
+    $this->assertNull($unidad->motivo_anulacion);
+
+  }
+
+  public function test_recepcion_rechaza_detalle_que_pertenece_a_otro_lote(): void
+
+  {
+
+    $usuario = $this->usuarioConRol('ADMIN_OPERATIVO');
+
+    $loteSolicitado = Lote::query()->create(['codigo' => 'IMP-A', 'estado' => 'ABIERTO']);
+
+    $otroLote = Lote::query()->create(['codigo' => 'IMP-B', 'estado' => 'ABIERTO']);
+
+    $detalleAjeno = DetalleLote::query()->create([
+
+      'lote_id' => $otroLote->id,
+
+      'producto_id' => $this->crearProducto('RECEPCION-002')->id,
+
+      'cantidad_esperada' => 1,
+
+      'cantidad_recibida' => 0,
+
+    ]);
+
+    $this
+
+      ->actingAs($usuario)
+
+      ->post(route('importaciones.unidades.store', $loteSolicitado), [
+
+        'detalle_lote_id' => $detalleAjeno->id,
+
+        'cantidad' => 1,
+
+        'grado_recibido' => 'A',
+
+        'tiene_cargador' => 1,
+
+      ])
+
+      ->assertNotFound();
+
+    $this->assertDatabaseCount('unidades_adquiridas', 0);
+
+  }
+
+  public function test_puede_editar_detalle_del_lote_antes_de_iniciar_recepcion(): void
+  {
+    $usuario = $this->usuarioConRol('ADMIN_OPERATIVO');
+
+    $lote = Lote::query()->create([
+      'codigo' => 'IMP-DET-EDIT-001',
+      'estado' => 'ABIERTO',
+    ]);
+
+    $detalle = DetalleLote::query()->create([
+      'lote_id' => $lote->id,
+      'producto_id' => $this->crearProducto('DET-EDIT-001')->id,
+      'cantidad_esperada' => 2,
+      'cantidad_recibida' => 0,
+    ]);
+
+    $this
+      ->actingAs($usuario)
+      ->patchJson(
+        route(
+          'importaciones.detalles.update',
+          [
+            'lote' => $lote,
+            'detalle' => $detalle,
+          ]
+        ),
+        [
+          'cantidad_esperada' => 3,
+          'observacion' => 'Cantidad corregida por Hugo.',
+        ]
+      )
+      ->assertOk()
+      ->assertJsonPath('ok', true);
+
+    $this->assertDatabaseHas('detalles_lotes', [
+      'id' => $detalle->id,
+      'cantidad_esperada' => 3,
+      'observacion' => 'Cantidad corregida por Hugo.',
+    ]);
+  }
+
+  public function test_puede_quitar_detalle_sin_unidades_registradas(): void
+  {
+    $usuario = $this->usuarioConRol('ADMIN_OPERATIVO');
+
+    $lote = Lote::query()->create([
+      'codigo' => 'IMP-DET-DELETE-001',
+      'estado' => 'ABIERTO',
+    ]);
+
+    $detalle = DetalleLote::query()->create([
+      'lote_id' => $lote->id,
+      'producto_id' => $this->crearProducto('DET-DELETE-001')->id,
+      'cantidad_esperada' => 2,
+      'cantidad_recibida' => 0,
+    ]);
+
+    $this
+      ->actingAs($usuario)
+      ->deleteJson(
+        route(
+          'importaciones.detalles.destroy',
+          [
+            'lote' => $lote,
+            'detalle' => $detalle,
+          ]
+        )
+      )
+      ->assertOk()
+      ->assertJsonPath('ok', true);
+
+    $this->assertDatabaseMissing('detalles_lotes', [
+      'id' => $detalle->id,
+    ]);
+  }
+
+  public function test_no_puede_quitar_detalle_si_ya_existe_historial_de_recepcion(): void
+  {
+    $usuario = $this->usuarioConRol('ADMIN_OPERATIVO');
+
+    $lote = Lote::query()->create([
+      'codigo' => 'IMP-DET-HIST-001',
+      'estado' => 'ABIERTO',
+    ]);
+
+    $detalle = DetalleLote::query()->create([
+      'lote_id' => $lote->id,
+      'producto_id' => $this->crearProducto('DET-HIST-001')->id,
+      'cantidad_esperada' => 2,
+      'cantidad_recibida' => 0,
+    ]);
+
+    $this
+      ->actingAs($usuario)
+      ->post(
+        route(
+          'importaciones.unidades.store',
+          $lote
+        ),
+        [
+          'detalle_lote_id' => $detalle->id,
+          'cantidad' => 1,
+          'procesador' => 'Intel Core i5',
+          'grado_recibido' => 'B',
+          'tiene_cargador' => 1,
+        ]
+      )
+      ->assertRedirect(
+        route(
+          'importaciones.show',
+          $lote
+        )
+      );
+
+    $this
+      ->actingAs($usuario)
+      ->deleteJson(
+        route(
+          'importaciones.detalles.destroy',
+          [
+            'lote' => $lote,
+            'detalle' => $detalle,
+          ]
+        )
+      )
+      ->assertStatus(422)
+      ->assertJsonPath('ok', false);
+
+    $this->assertDatabaseHas('detalles_lotes', [
+      'id' => $detalle->id,
+    ]);
+  }
+
+  public function test_con_recepcion_iniciada_solo_permite_corregir_cantidad_esperada(): void
+  {
+    $usuario = $this->usuarioConRol('ADMIN_OPERATIVO');
+
+    $lote = Lote::query()->create([
+      'codigo' => 'IMP-DET-BLOQUEO-001',
+      'estado' => 'ABIERTO',
+    ]);
+
+    $detalle = DetalleLote::query()->create([
+      'lote_id' => $lote->id,
+      'producto_id' => $this->crearProducto('DET-BLOQUEO-001')->id,
+      'cantidad_esperada' => 2,
+      'cantidad_recibida' => 0,
+    ]);
+
+    $this
+      ->actingAs($usuario)
+      ->post(
+        route(
+          'importaciones.unidades.store',
+          $lote
+        ),
+        [
+          'detalle_lote_id' => $detalle->id,
+          'cantidad' => 1,
+          'procesador' => 'Intel Core i5',
+          'grado_recibido' => 'B',
+          'tiene_cargador' => 1,
+        ]
+      )
+      ->assertRedirect(
+        route(
+          'importaciones.show',
+          $lote
+        )
+      );
+
+    /*
+     * Precio bloqueado después de iniciar recepción.
+     */
+    $this
+      ->actingAs($usuario)
+      ->patchJson(
+        route(
+          'importaciones.detalles.update',
+          [
+            'lote' => $lote,
+            'detalle' => $detalle,
+          ]
+        ),
+        [
+          'cantidad_esperada' => 2,
+          'costo_unitario_origen' => 999,
+        ]
+      )
+      ->assertStatus(422)
+      ->assertJsonPath('ok', false);
+
+    /*
+     * Cantidad esperada sí puede corregirse.
+     */
+    $this
+      ->actingAs($usuario)
+      ->patchJson(
+        route(
+          'importaciones.detalles.update',
+          [
+            'lote' => $lote,
+            'detalle' => $detalle,
+          ]
+        ),
+        [
+          'cantidad_esperada' => 3,
+        ]
+      )
+      ->assertOk()
+      ->assertJsonPath('ok', true);
+
+    $this->assertDatabaseHas('detalles_lotes', [
+      'id' => $detalle->id,
+      'cantidad_esperada' => 3,
+    ]);
+
+    /*
+     * Tampoco puede quedar por debajo de lo ya recibido.
+     */
+    $this
+      ->actingAs($usuario)
+      ->patchJson(
+        route(
+          'importaciones.detalles.update',
+          [
+            'lote' => $lote,
+            'detalle' => $detalle,
+          ]
+        ),
+        [
+          'cantidad_esperada' => 0,
+        ]
+      )
+      ->assertStatus(422)
+      ->assertJsonPath('ok', false);
+  }
+
+  private function usuarioConRol(string $codigoRol): User
+
+  {
+
+    $usuario = User::factory()->create([
+
+      'activo' => true,
+
+    ]);
+
+    $rol = Rol::query()
+
+      ->where('codigo', $codigoRol)
+
+      ->firstOrFail();
+
+    $usuario->roles()->attach($rol->id);
+
+    return $usuario;
+
+  }
+
+  private function crearUnidadParaEdicion(
+
+    User $usuario,
+
+    string $estado,
+
+    string $codigo
+
+  ): array {
+
+    $lote = Lote::query()->create([
+
+      'codigo' => 'IMP-'.$codigo,
+
+      'estado' => 'ABIERTO',
+
+    ]);
+
+    $producto = $this->crearProducto($codigo);
+
+    $detalle = DetalleLote::query()->create([
+
+      'lote_id' => $lote->id,
+
+      'producto_id' => $producto->id,
+
+      'cantidad_esperada' => 1,
+
+      'cantidad_recibida' => 0,
+
+    ]);
+
+    $cochabamba = Almacen::query()
+
+      ->where('codigo', 'COCHABAMBA')
+
+      ->firstOrFail();
+
+    $unidad = UnidadAdquirida::query()->create([
+
+      'detalle_lote_id' => $detalle->id,
+
+      'producto_id' => $producto->id,
+
+      'almacen_actual_id' => $cochabamba->id,
+
+      'estado' => $estado,
+
+      'codigo_trazabilidad' => 'OS-TEST-'.$codigo,
+
+      'procesador' => 'Intel Core i5',
+
+      'grado_recibido' => 'B',
+
+      'tiene_cargador' => true,
+
+      'registrado_por_id' => $usuario->id,
+
+    ]);
+
+    return [$lote, $unidad];
+
+  }
+
+  private function crearProducto(string $codigo): Producto
+
+  {
+
+    $categoria = CategoriaProducto::query()->where('codigo', 'LAPTOP')->firstOrFail();
+
+    $marca = Marca::query()->create([
+
+      'nombre' => 'Marca '.$codigo,
+
+      'activo' => true,
+
+    ]);
+
+    return Producto::query()->create([
+
+      'categoria_producto_id' => $categoria->id,
+
+      'marca_id' => $marca->id,
+
+      'codigo' => $codigo,
+
+      'nombre' => 'Laptop de prueba',
+
+      'modelo' => $codigo,
+
+      'es_serializado' => true,
+
+      'activo' => true,
+
+    ]);
+
+  }
 
 }
