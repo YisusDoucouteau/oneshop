@@ -60,9 +60,10 @@ class Producto extends Model
         'almacen_id'
     )
         ->withPivot([
-            'cantidad_disponible',
-            'cantidad_reservada',
-        ])
+    'cantidad_disponible',
+    'cantidad_reservada',
+    'costo_promedio_bob',
+])
         ->withTimestamps();
 }
 
