@@ -10,6 +10,7 @@ use App\Http\Controllers\RecepcionLoteController;
 use App\Http\Controllers\EnvioImportacionController;
 use App\Models\Producto;
 use App\Models\Moneda;
+use App\Http\Controllers\ComponenteInventarioController;
 use App\Http\Controllers\AjusteGarantiaController;
 use App\Http\Controllers\AnulacionVentaController;
 use App\Http\Controllers\PrecioEquipoController;
@@ -925,6 +926,27 @@ Route::get(
 )
 ->middleware('permiso:inventario.ver')
 ->name('inventario.show');
+/*
+|--------------------------------------------------------------------------
+| INVENTARIO DE COMPONENTES
+|--------------------------------------------------------------------------
+|
+| IMPORTANTE:
+| Mantener estas rutas ANTES de:
+| /inventario/{equipo:codigo_interno}
+|
+*/
+
+Route::post(
+    '/inventario/componentes/compras',
+    [
+        ComponenteInventarioController::class,
+        'storeCompra',
+    ]
+)
+->middleware('permiso:inventario.registrar')
+->name('inventario.componentes.compras.store');
+
 /*
 |--------------------------------------------------------------------------
 | Ajuste económico por cambio de garantía
