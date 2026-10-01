@@ -14,6 +14,7 @@ class DatabaseSeeder extends Seeder
 
             CatalogoSeeder::class,
 
+            ComponentesCatalogoSeeder::class,
             TipoEventoLogisticoSeeder::class,
 
             ImportacionSeeder::class,

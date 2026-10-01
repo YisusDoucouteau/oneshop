@@ -355,7 +355,7 @@ Route::post(
 ->middleware('permiso:importacion.gestionar')
 ->name(
     'unidades-adquiridas.intervenciones.servicio'
-); 
+);
 /*
 |--------------------------------------------------------------------------
 | INVENTARIO
@@ -911,6 +911,47 @@ Route::post(
 
 /*
 |--------------------------------------------------------------------------
+| INVENTARIO DE COMPONENTES
+|--------------------------------------------------------------------------
+|
+| Estas rutas específicas deben mantenerse antes de la ruta dinámica
+| /inventario/{equipo:codigo_interno}.
+|
+*/
+
+Route::get(
+    '/inventario/componentes',
+    [
+        ComponenteInventarioController::class,
+        'index',
+    ]
+)
+->middleware('permiso:inventario.ver')
+->name('inventario.componentes.index');
+
+Route::post(
+    '/inventario/componentes/catalogo',
+    [
+        ComponenteInventarioController::class,
+        'storeComponente',
+    ]
+)
+->middleware('permiso:inventario.registrar')
+->name('inventario.componentes.catalogo.store');
+
+Route::post(
+    '/inventario/componentes/compras',
+    [
+        ComponenteInventarioController::class,
+        'storeCompra',
+    ]
+)
+->middleware('permiso:inventario.registrar')
+->name('inventario.componentes.compras.store');
+
+
+/*
+|--------------------------------------------------------------------------
 | INVENTARIO - DETALLE
 |--------------------------------------------------------------------------
 |
@@ -926,27 +967,6 @@ Route::get(
 )
 ->middleware('permiso:inventario.ver')
 ->name('inventario.show');
-/*
-|--------------------------------------------------------------------------
-| INVENTARIO DE COMPONENTES
-|--------------------------------------------------------------------------
-|
-| IMPORTANTE:
-| Mantener estas rutas ANTES de:
-| /inventario/{equipo:codigo_interno}
-|
-*/
-
-Route::post(
-    '/inventario/componentes/compras',
-    [
-        ComponenteInventarioController::class,
-        'storeCompra',
-    ]
-)
-->middleware('permiso:inventario.registrar')
-->name('inventario.componentes.compras.store');
-
 /*
 |--------------------------------------------------------------------------
 | Ajuste económico por cambio de garantía

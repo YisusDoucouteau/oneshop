@@ -39,29 +39,63 @@
 
 
 
-        @if(auth()->user()->tienePermiso('inventario.registrar'))
+   <div class="flex flex-wrap gap-2">
 
-        <a href="{{ route('inventario.create') }}" class="
+    <a
+        href="{{ route('inventario.componentes.index') }}"
+        class="
+            inline-flex
+            items-center
+            justify-center
+            gap-2
+            rounded-xl
+            border
+            border-slate-300
+            bg-white
+            px-4
+            py-2.5
+            text-sm
+            font-semibold
+            text-slate-700
+            transition
+            hover:bg-slate-50
+        "
+    >
+        <x-ui.icon
+            name="settings"
+            size="18"
+        />
+
+        Componentes
+    </a>
+
+    @if(auth()->user()->tienePermiso('inventario.registrar'))
+
+        <a
+            href="{{ route('inventario.create') }}"
+            class="
                 inline-flex
                 items-center
                 justify-center
                 rounded-xl
-                bg-slate-950
+                border
+                border-oneshop-primary
+                bg-oneshop-light
                 px-4
                 py-2.5
                 text-sm
                 font-semibold
-                text-white
+                text-oneshop-dark
                 transition
-                hover:bg-slate-800
-                ">
-
+                hover:bg-blue-100
+            "
+        >
             + Registrar equipo
-
         </a>
 
-        @endif
+    @endif
 
+</div>
 
     </div>
 
