@@ -28,22 +28,36 @@ class EnvioImportacionController extends Controller
 
     public function index(Request $request): View
     {
-        $envios =
-            EnvioImportacion::query()
-                ->with([
-                    'almacenOrigen',
-                    'almacenDestino',
-                    'preparadoPor',
-                    'despachadoPor',
-                    'recibidoPor',
-                    'verificadoRecepcionPor',
-                ])
-                ->withCount(
-                    'unidadesEnvio'
-                )
-                ->latest()
-                ->paginate(15);
+        /*
+         * El listado se carga completo una sola vez y el filtrado se realiza
+         * en cliente con Alpine. En el entorno Windows + Docker evita una
+         * petición completa a Laravel por cada búsqueda o cambio de estado.
+         */
+        $envios = EnvioImportacion::query()
+            ->with([
+                'almacenOrigen',
+                'almacenDestino',
+                'preparadoPor',
+                'despachadoPor',
+                'recibidoPor',
+                'verificadoRecepcionPor',
+            ])
+            ->withCount('unidadesEnvio')
+            ->latest()
+            ->get();
 
+        $resumen = [
+            'total' => $envios->count(),
+            'borradores' => $envios
+                ->where('estado', EnvioImportacion::ESTADO_BORRADOR)
+                ->count(),
+            'preparados' => $envios
+                ->where('estado', EnvioImportacion::ESTADO_PREPARADO)
+                ->count(),
+            'en_transito' => $envios
+                ->where('estado', EnvioImportacion::ESTADO_DESPACHADO)
+                ->count(),
+        ];
 
         $origenCochabamba = Almacen::query()
             ->where('codigo', 'COCHABAMBA')
@@ -64,28 +78,20 @@ class EnvioImportacionController extends Controller
                     'producto.marca',
                     'almacenActual',
                 ])
-                ->where(
-                    'estado',
-                    UnidadAdquirida::ESTADO_LISTA_ENVIO
-                )
-                ->where(
-                    'almacen_actual_id',
-                    $origenCochabamba->id
-                )
-                ->whereDoesntHave(
-                    'envioImportacionUnidad'
-                )
+                ->where('estado', UnidadAdquirida::ESTADO_LISTA_ENVIO)
+                ->where('almacen_actual_id', $origenCochabamba->id)
+                ->whereDoesntHave('envioImportacionUnidad')
                 ->latest()
                 ->get()
             : collect();
-
 
         return view(
             'envios_importacion.index',
             compact(
                 'envios',
                 'unidadesDisponibles',
-                'puedeCrearEnvio'
+                'puedeCrearEnvio',
+                'resumen'
             )
         );
     }
@@ -158,6 +164,50 @@ class EnvioImportacionController extends Controller
                 'success',
                 $mensaje
             );
+    }
+
+
+    /*
+    |--------------------------------------------------------------------------
+    | Actualizar manifiesto en borrador
+    |--------------------------------------------------------------------------
+    */
+
+    public function update(
+        Request $request,
+        EnvioImportacion $envio
+    ): JsonResponse|RedirectResponse {
+        $envioActualizado = $this->envioService->actualizarBorrador(
+            $request->user()->id,
+            $envio->id,
+            $request->only([
+                'transportista',
+                'numero_guia',
+                'cantidad_bultos',
+                'cantidad_cargadores',
+                'cantidad_accesorios',
+                'detalle_accesorios',
+                'observacion',
+            ])
+        );
+
+        $mensaje = 'El manifiesto del envío fue actualizado.';
+
+        if ($request->expectsJson()) {
+            return response()->json([
+                'ok' => true,
+                'message' => $mensaje,
+                'envio' => [
+                    'id' => $envioActualizado->id,
+                    'codigo' => $envioActualizado->codigo,
+                    'estado' => $envioActualizado->estado,
+                ],
+            ]);
+        }
+
+        return redirect()
+            ->route('envios-importacion.show', $envioActualizado)
+            ->with('success', $mensaje);
     }
 
 

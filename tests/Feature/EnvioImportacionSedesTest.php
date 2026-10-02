@@ -18,8 +18,6 @@ class EnvioImportacionSedesTest extends TestCase
 {
     use RefreshDatabase;
 
-    protected bool $seed = true;
-
     private EnvioImportacionService $servicio;
     private Almacen $cochabamba;
     private Almacen $oruro;
@@ -29,6 +27,8 @@ class EnvioImportacionSedesTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
+
+        $this->seed();
 
         $this->servicio = app(EnvioImportacionService::class);
         $this->cochabamba = Almacen::where('codigo', 'COCHABAMBA')->firstOrFail();
@@ -58,6 +58,37 @@ class EnvioImportacionSedesTest extends TestCase
         $this->assertSame(
             UnidadAdquirida::ESTADO_ENVIADA,
             $unidad->fresh()->estado
+        );
+    }
+
+    public function test_solo_origen_puede_editar_manifiesto_en_borrador(): void
+    {
+        [$envio] = $this->crearEnvioConUnidad($this->hugo);
+
+        $this->actingAs($this->hugo->fresh())
+            ->get(route('envios-importacion.show', $envio))
+            ->assertOk()
+            ->assertSeeHtml('data-testid="accion-editar-manifiesto"');
+
+        $this->actingAs($this->daniel->fresh())
+            ->get(route('envios-importacion.show', $envio))
+            ->assertOk()
+            ->assertDontSeeHtml('data-testid="accion-editar-manifiesto"');
+
+        $this->expectException(ReglaNegocioException::class);
+
+        $this->servicio->actualizarBorrador(
+            $this->daniel->id,
+            $envio->id,
+            [
+                'transportista' => 'No autorizado',
+                'numero_guia' => null,
+                'cantidad_bultos' => 1,
+                'cantidad_cargadores' => 0,
+                'cantidad_accesorios' => 0,
+                'detalle_accesorios' => null,
+                'observacion' => null,
+            ]
         );
     }
 

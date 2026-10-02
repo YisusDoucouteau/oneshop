@@ -15,13 +15,13 @@ class EnvioImportacionFase4WebTest extends TestCase
 {
     use RefreshDatabase;
 
-    protected bool $seed = true;
-
     private User $usuario;
 
     protected function setUp(): void
     {
         parent::setUp();
+
+        $this->seed();
 
         $permiso = Permiso::where('codigo', 'importacion.gestionar')->firstOrFail();
         $rol = Rol::where('codigo', 'ADMINISTRADOR')->firstOrFail();
@@ -81,4 +81,88 @@ class EnvioImportacionFase4WebTest extends TestCase
             ->assertSee('Cajas')
             ->assertSee('Cargadores');
     }
+    public function test_borrador_muestra_edicion_de_manifiesto_y_endpoint_actualiza_datos(): void
+    {
+        $envio = app(EnvioImportacionService::class)->crearBorrador(
+            $this->usuario->id,
+            [
+                'transportista' => 'Inicial',
+                'cantidad_bultos' => 1,
+                'cantidad_cargadores' => 0,
+                'cantidad_accesorios' => 0,
+            ]
+        );
+
+        $this->actingAs($this->usuario)
+            ->get(route('envios-importacion.show', $envio))
+            ->assertOk()
+            ->assertSeeHtml('data-testid="accion-editar-manifiesto"')
+            ->assertSee('Editar manifiesto de salida');
+
+        $this->actingAs($this->usuario)
+            ->patchJson(
+                route('envios-importacion.update', $envio),
+                [
+                    'transportista' => 'Trans Copacabana',
+                    'numero_guia' => 'G-2026-0042',
+                    'cantidad_bultos' => 4,
+                    'cantidad_cargadores' => 2,
+                    'cantidad_accesorios' => 3,
+                    'detalle_accesorios' => 'Mouse, cables y adaptador',
+                    'observacion' => 'Salida consolidada.',
+                ]
+            )
+            ->assertOk()
+            ->assertJsonPath('ok', true)
+            ->assertJsonPath('envio.estado', EnvioImportacion::ESTADO_BORRADOR);
+
+        $this->assertDatabaseHas('envios_importacion', [
+            'id' => $envio->id,
+            'transportista' => 'Trans Copacabana',
+            'numero_guia' => 'G-2026-0042',
+            'cantidad_bultos' => 4,
+            'cantidad_cargadores' => 2,
+            'cantidad_accesorios' => 3,
+            'detalle_accesorios' => 'Mouse, cables y adaptador',
+            'observacion' => 'Salida consolidada.',
+        ]);
+    }
+
+    public function test_listado_expone_filtrado_instantaneo_en_cliente(): void
+    {
+        $servicio = app(EnvioImportacionService::class);
+
+        $primero = $servicio->crearBorrador(
+            $this->usuario->id,
+            [
+                'transportista' => 'Transportista Uno',
+                'cantidad_bultos' => 1,
+            ]
+        );
+
+        $segundo = $servicio->crearBorrador(
+            $this->usuario->id,
+            [
+                'transportista' => 'Transportista Dos',
+                'cantidad_bultos' => 1,
+            ]
+        );
+
+        $segundo->update([
+            'estado' => EnvioImportacion::ESTADO_CANCELADO,
+        ]);
+
+        $this->actingAs($this->usuario)
+            ->get(route('envios-importacion.index'))
+            ->assertOk()
+            ->assertSee($primero->codigo)
+            ->assertSee($segundo->codigo)
+            ->assertSeeHtml('data-testid="filtro-envios-busqueda"')
+            ->assertSeeHtml('data-testid="filtro-envios-estado"')
+            ->assertSeeHtml('x-model.debounce.150ms="filtros.q"')
+            ->assertSeeHtml('x-model="filtros.estado"')
+            ->assertSee('Filtrado instantáneo');
+    }
+
+
 }

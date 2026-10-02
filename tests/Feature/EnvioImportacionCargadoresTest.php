@@ -16,14 +16,14 @@ class EnvioImportacionCargadoresTest extends TestCase
 {
     use RefreshDatabase;
 
-    protected bool $seed = true;
-
     private User $usuario;
     private EnvioImportacionService $servicio;
 
     protected function setUp(): void
     {
         parent::setUp();
+
+        $this->seed();
 
         $this->usuario = User::factory()->create([
             'activo' => true,

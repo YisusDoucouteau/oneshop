@@ -17,7 +17,7 @@
     $nombreEstado = match ($envio->estado) {
         'BORRADOR' => 'Borrador',
         'PREPARADO' => 'Preparado',
-        'DESPACHADO' => 'Despachado',
+        'DESPACHADO' => 'En tránsito',
         'RECIBIDO_PARCIAL' => 'Recibido con diferencias',
         'RECIBIDO' => 'Recibido completo',
         'CANCELADO' => 'Cancelado',
@@ -60,6 +60,18 @@
         errorGeneral: '',
 
         modalDespacho: false,
+
+        modalManifiesto: false,
+        erroresManifiesto: {},
+        manifiesto: {
+            transportista: @js($envio->transportista ?? ''),
+            numero_guia: @js($envio->numero_guia ?? ''),
+            cantidad_bultos: @js((int) ($envio->cantidad_bultos ?? 1)),
+            cantidad_cargadores: @js((int) ($envio->cantidad_cargadores ?? 0)),
+            cantidad_accesorios: @js((int) ($envio->cantidad_accesorios ?? 0)),
+            detalle_accesorios: @js($envio->detalle_accesorios ?? ''),
+            observacion: @js($envio->observacion ?? '')
+        },
 
         modalGestion: false,
         tipoGestion: '',
@@ -117,6 +129,19 @@
                             }
                         );
 
+                } else if (metodo === 'patch') {
+
+                    respuesta =
+                        await window.axios.patch(
+                            url,
+                            datos,
+                            {
+                                headers: {
+                                    'Accept': 'application/json'
+                                }
+                            }
+                        );
+
                 } else {
 
                     respuesta =
@@ -145,6 +170,10 @@
 
             } catch (error) {
 
+                if (metodo === 'patch' && error.response?.status === 422) {
+                    this.erroresManifiesto = error.response.data.errors ?? {};
+                }
+
                 this.errorGeneral =
                     error.response?.data?.message
                     ??
@@ -154,6 +183,23 @@
 
                 this.procesando = false;
             }
+        },
+
+
+        abrirManifiesto() {
+            this.errorGeneral = '';
+            this.erroresManifiesto = {};
+            this.modalManifiesto = true;
+        },
+
+        async guardarManifiesto() {
+            this.erroresManifiesto = {};
+
+            await this.ejecutar(
+                @js(route('envios-importacion.update', $envio)),
+                'patch',
+                this.manifiesto
+            );
         },
 
 
@@ -589,6 +635,21 @@
 
     </div>
 
+    <div class="grid grid-cols-1 gap-4 lg:grid-cols-2">
+        <div class="rounded-xl border border-blue-200 bg-blue-50 p-4">
+            <p class="text-sm font-semibold text-blue-900">Control físico del traslado</p>
+            <p class="mt-1 text-sm text-blue-700">
+                Un despacho pasa las unidades a tránsito, pero no las incorpora al inventario formal de Oruro. La ubicación cambia recién al registrar la recepción física.
+            </p>
+        </div>
+
+        <div class="rounded-xl border border-slate-200 bg-slate-50 p-4">
+            <p class="text-sm font-semibold text-slate-800">Observación del manifiesto</p>
+            <p class="mt-1 text-sm text-slate-600">
+                {{ $envio->observacion ?: 'Sin observaciones registradas para este traslado.' }}
+            </p>
+        </div>
+    </div>
 
 
     {{-- ============================================================
@@ -617,9 +678,9 @@
 
                     <p class="mt-1 text-sm text-slate-500">
 
-                        @if(($puedeOperarOrigen ?? false) && $envio->estaEnBorrador())
+                        @if($envio->estaEnBorrador())
 
-                            Agregue las unidades y luego confirme que el envío está preparado.
+                            El manifiesto está en borrador. En Cochabamba pueden ajustar sus datos y composición antes de prepararlo.
 
                         @elseif($envio->estaPreparado())
 
@@ -627,7 +688,7 @@
 
                         @elseif($envio->estaDespachado())
 
-                            Las unidades se encuentran en traslado hacia Oruro.
+                            El envío está en tránsito. Las unidades continúan fuera del inventario formal de Oruro hasta registrar su recepción física.
 
                         @elseif(
                             $envio->estado ===
@@ -660,8 +721,23 @@
                 <div class="flex flex-wrap gap-2">
 
 
+                    {{-- EDITAR MANIFIESTO --}}
+                    @if(($puedeOperarOrigen ?? false) && $envio->estaEnBorrador())
+                        <button
+                            type="button"
+                            data-testid="accion-editar-manifiesto"
+                            @click="abrirManifiesto()"
+                            :disabled="procesando"
+                            class="btn-secondary"
+                        >
+                            <x-ui.icon name="edit" size="16" />
+                            Editar manifiesto
+                        </button>
+                    @endif
+
+
                     {{-- PREPARAR --}}
-                    @if($envio->estaEnBorrador())
+                    @if(($puedeOperarOrigen ?? false) && $envio->estaEnBorrador())
 
                         <button
                             type="button"
@@ -681,13 +757,15 @@
                                 items-center
                                 gap-2
                                 rounded-xl
-                                bg-oneshop-primary
+                                border
+                                border-oneshop-primary
+                                bg-oneshop-light
                                 px-4
                                 py-2.5
                                 text-sm
                                 font-semibold
-                                text-white
-                                hover:bg-oneshop-dark
+                                text-oneshop-dark
+                                hover:bg-oneshop-soft
                                 disabled:opacity-50
                             "
                         >
@@ -738,13 +816,15 @@
                                 items-center
                                 gap-2
                                 rounded-xl
-                                bg-oneshop-primary
+                                border
+                                border-oneshop-primary
+                                bg-oneshop-light
                                 px-4
                                 py-2.5
                                 text-sm
                                 font-semibold
-                                text-white
-                                hover:bg-oneshop-dark
+                                text-oneshop-dark
+                                hover:bg-oneshop-soft
                             "
                         >
                             <x-ui.icon
@@ -843,13 +923,15 @@
                                 items-center
                                 gap-2
                                 rounded-xl
-                                bg-green-600
+                                border
+                                border-green-300
+                                bg-green-50
                                 px-4
                                 py-2.5
                                 text-sm
                                 font-semibold
-                                text-white
-                                hover:bg-green-700
+                                text-green-800
+                                hover:bg-green-100
                                 disabled:opacity-50
                             "
                         >
@@ -1180,7 +1262,7 @@
                     data-testid="accion-verificar-recepcion"
                     @click="guardarVerificacionRecepcion()"
                     :disabled="procesando"
-                    class="rounded-xl bg-oneshop-primary px-5 py-2.5 text-sm font-semibold text-white hover:bg-oneshop-dark disabled:opacity-50"
+                    class="rounded-xl border border-oneshop-primary bg-oneshop-light px-5 py-2.5 text-sm font-semibold text-oneshop-dark hover:bg-oneshop-soft disabled:opacity-50"
                 >
                     {{ $envio->fecha_verificacion_recepcion ? 'Actualizar verificación' : 'Registrar verificación' }}
                 </button>
@@ -1585,13 +1667,15 @@
                                             "
                                             class="
                                                 rounded-lg
-                                                bg-green-600
+                                                border
+                                                border-green-300
+                                                bg-green-50
                                                 px-3
                                                 py-2
                                                 text-xs
                                                 font-semibold
-                                                text-white
-                                                hover:bg-green-700
+                                                text-green-800
+                                                hover:bg-green-100
                                             "
                                         >
                                             Recibir
@@ -1712,13 +1796,15 @@
                                             "
                                             class="
                                                 rounded-lg
-                                                bg-green-600
+                                                border
+                                                border-green-300
+                                                bg-green-50
                                                 px-3
                                                 py-2
                                                 text-xs
                                                 font-semibold
-                                                text-white
-                                                hover:bg-green-700
+                                                text-green-800
+                                                hover:bg-green-100
                                             "
                                         >
                                             Recibir ahora
@@ -1981,6 +2067,7 @@
     @php
         $eventosGestion = $envio->auditorias
             ->whereIn('accion', [
+                'ACTUALIZAR_ENVIO_IMPORTACION',
                 'REABRIR_ENVIO_IMPORTACION',
                 'CANCELAR_ENVIO_IMPORTACION',
             ]);
@@ -1999,13 +2086,20 @@
                             <div>
                                 <p class="font-semibold text-slate-900">
                                     {{
-                                        $evento->accion === 'CANCELAR_ENVIO_IMPORTACION'
-                                            ? 'Envío cancelado'
-                                            : 'Envío reabierto para corrección'
+                                        match ($evento->accion) {
+                                            'CANCELAR_ENVIO_IMPORTACION' => 'Envío cancelado',
+                                            'REABRIR_ENVIO_IMPORTACION' => 'Envío reabierto para corrección',
+                                            'ACTUALIZAR_ENVIO_IMPORTACION' => 'Manifiesto actualizado',
+                                            default => 'Actualización del envío',
+                                        }
                                     }}
                                 </p>
                                 <p class="mt-1 text-sm text-slate-600">
-                                    {{ $evento->datos_nuevos['motivo'] ?? 'Sin motivo registrado.' }}
+                                    @if($evento->accion === 'ACTUALIZAR_ENVIO_IMPORTACION')
+                                        Se actualizaron los datos logísticos del borrador antes de su preparación.
+                                    @else
+                                        {{ $evento->datos_nuevos['motivo'] ?? 'Sin motivo registrado.' }}
+                                    @endif
                                 </p>
                             </div>
 
@@ -2020,6 +2114,129 @@
                 @endforeach
             </div>
         </x-ui.card>
+    @endif
+
+
+    {{-- ============================================================
+        MODAL EDITAR MANIFIESTO
+    ============================================================ --}}
+    @if(($puedeOperarOrigen ?? false) && $envio->estaEnBorrador())
+        <div
+            x-cloak
+            x-show="modalManifiesto"
+            class="fixed inset-0 z-[115] flex items-center justify-center p-4"
+        >
+            <div
+                class="absolute inset-0 bg-slate-950/70 backdrop-blur-sm"
+                @click="!procesando && (modalManifiesto = false)"
+            ></div>
+
+            <div class="relative z-10 max-h-[92vh] w-full max-w-2xl overflow-y-auto rounded-2xl border border-slate-200 bg-white shadow-2xl">
+                <div class="flex items-start justify-between border-b border-slate-200 px-6 py-5">
+                    <div>
+                        <p class="text-xs font-semibold uppercase tracking-wide text-oneshop-primary">Borrador editable</p>
+                        <h3 class="mt-1 text-lg font-bold text-slate-900">Editar manifiesto de salida</h3>
+                        <p class="mt-1 text-sm text-slate-500">
+                            Ajusta transporte, bultos y accesorios antes de marcar el envío como preparado.
+                        </p>
+                    </div>
+
+                    <button
+                        type="button"
+                        @click="modalManifiesto = false"
+                        :disabled="procesando"
+                        class="rounded-lg p-2 text-slate-400 transition hover:bg-slate-100 hover:text-slate-700"
+                    >
+                        <x-ui.icon name="x" size="20" />
+                    </button>
+                </div>
+
+                <div class="space-y-5 p-6">
+                    <div class="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">
+                        Al preparar el envío, estos datos quedan congelados. Para corregirlos después será necesario reabrirlo con un motivo.
+                    </div>
+
+                    <div class="grid grid-cols-1 gap-5 sm:grid-cols-2">
+                        <div>
+                            <label class="mb-2 block text-sm font-semibold text-slate-700">Transportista</label>
+                            <input type="text" x-model="manifiesto.transportista" class="input-oneshop w-full" placeholder="Empresa o persona">
+                            <p x-show="erroresManifiesto.transportista" x-text="erroresManifiesto.transportista?.[0]" class="mt-1 text-xs text-red-600"></p>
+                        </div>
+
+                        <div>
+                            <label class="mb-2 block text-sm font-semibold text-slate-700">Número de guía</label>
+                            <input type="text" x-model="manifiesto.numero_guia" class="input-oneshop w-full" placeholder="Opcional">
+                            <p x-show="erroresManifiesto.numero_guia" x-text="erroresManifiesto.numero_guia?.[0]" class="mt-1 text-xs text-red-600"></p>
+                        </div>
+                    </div>
+
+                    <div class="grid grid-cols-1 gap-5 sm:grid-cols-3">
+                        <div>
+                            <label class="mb-2 block text-sm font-semibold text-slate-700">Cajas / bultos</label>
+                            <input type="number" min="1" x-model.number="manifiesto.cantidad_bultos" class="input-oneshop w-full">
+                            <p x-show="erroresManifiesto.cantidad_bultos" x-text="erroresManifiesto.cantidad_bultos?.[0]" class="mt-1 text-xs text-red-600"></p>
+                        </div>
+
+                        <div>
+                            <label class="mb-2 block text-sm font-semibold text-slate-700">Cargadores adicionales</label>
+                            <input type="number" min="0" x-model.number="manifiesto.cantidad_cargadores" class="input-oneshop w-full">
+                            <p x-show="erroresManifiesto.cantidad_cargadores" x-text="erroresManifiesto.cantidad_cargadores?.[0]" class="mt-1 text-xs text-red-600"></p>
+                            <p class="mt-1 text-xs text-slate-500">Sueltos, fuera de los asociados a equipos.</p>
+                        </div>
+
+                        <div>
+                            <label class="mb-2 block text-sm font-semibold text-slate-700">Otros accesorios</label>
+                            <input type="number" min="0" x-model.number="manifiesto.cantidad_accesorios" class="input-oneshop w-full">
+                            <p x-show="erroresManifiesto.cantidad_accesorios" x-text="erroresManifiesto.cantidad_accesorios?.[0]" class="mt-1 text-xs text-red-600"></p>
+                        </div>
+                    </div>
+
+                    <div>
+                        <label class="mb-2 block text-sm font-semibold text-slate-700">Detalle de accesorios</label>
+                        <input
+                            type="text"
+                            x-model="manifiesto.detalle_accesorios"
+                            class="input-oneshop w-full"
+                            placeholder="Ej.: 1 mouse, 2 cables de poder"
+                        >
+                        <p x-show="erroresManifiesto.detalle_accesorios" x-text="erroresManifiesto.detalle_accesorios?.[0]" class="mt-1 text-xs text-red-600"></p>
+                    </div>
+
+                    <div>
+                        <label class="mb-2 block text-sm font-semibold text-slate-700">Observación del envío</label>
+                        <textarea
+                            x-model="manifiesto.observacion"
+                            rows="3"
+                            class="input-oneshop w-full"
+                            placeholder="Información adicional del traslado"
+                        ></textarea>
+                        <p x-show="erroresManifiesto.observacion" x-text="erroresManifiesto.observacion?.[0]" class="mt-1 text-xs text-red-600"></p>
+                    </div>
+
+                    <div
+                        x-show="errorGeneral"
+                        x-text="errorGeneral"
+                        class="rounded-xl border border-red-200 bg-red-50 p-3 text-sm font-medium text-red-700"
+                    ></div>
+
+                    <div class="flex flex-col-reverse gap-3 border-t border-slate-200 pt-5 sm:flex-row sm:justify-end">
+                        <button type="button" @click="modalManifiesto = false" :disabled="procesando" class="btn-secondary">
+                            Cancelar
+                        </button>
+
+                        <button
+                            type="button"
+                            @click="guardarManifiesto()"
+                            :disabled="procesando"
+                            class="inline-flex items-center justify-center gap-2 rounded-xl border border-oneshop-primary bg-oneshop-light px-5 py-2.5 text-sm font-semibold text-oneshop-dark transition hover:bg-oneshop-soft disabled:opacity-50"
+                        >
+                            <x-ui.icon name="check" size="17" />
+                            Guardar manifiesto
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
     @endif
 
 
@@ -2080,7 +2297,7 @@
                     type="button"
                     @click="guardarGestion()"
                     :disabled="procesando"
-                    class="rounded-xl bg-oneshop-primary px-5 py-2.5 text-sm font-semibold text-white hover:bg-oneshop-dark disabled:opacity-50"
+                    class="rounded-xl border border-oneshop-primary bg-oneshop-light px-5 py-2.5 text-sm font-semibold text-oneshop-dark hover:bg-oneshop-soft disabled:opacity-50"
                 >
                     Confirmar
                 </button>
@@ -2203,13 +2420,15 @@
                         items-center
                         gap-2
                         rounded-xl
-                        bg-oneshop-primary
+                        border
+                        border-oneshop-primary
+                        bg-oneshop-light
                         px-5
                         py-2.5
                         text-sm
                         font-semibold
-                        text-white
-                        hover:bg-oneshop-dark
+                        text-oneshop-dark
+                        hover:bg-oneshop-soft
                         disabled:opacity-50
                     "
                 >
@@ -2396,13 +2615,15 @@
                     :disabled="procesando"
                     class="
                         rounded-xl
-                        bg-oneshop-primary
+                        border
+                        border-oneshop-primary
+                        bg-oneshop-light
                         px-5
                         py-2.5
                         text-sm
                         font-semibold
-                        text-white
-                        hover:bg-oneshop-dark
+                        text-oneshop-dark
+                        hover:bg-oneshop-soft
                         disabled:opacity-50
                     "
                 >

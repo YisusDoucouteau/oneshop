@@ -422,6 +422,17 @@ Route::post(
 ->name('envios-importacion.store');
 
 
+Route::patch(
+    '/envios-importacion/{envio}',
+    [
+        EnvioImportacionController::class,
+        'update',
+    ]
+)
+->middleware('permiso:importacion.gestionar')
+->name('envios-importacion.update');
+
+
 Route::get(
     '/envios-importacion/{envio}',
     [

@@ -17,14 +17,14 @@ class EnvioImportacionFase42Test extends TestCase
 {
     use RefreshDatabase;
 
-    protected $seed = true;
-
     private User $usuario;
     private EnvioImportacionService $servicio;
 
     protected function setUp(): void
     {
         parent::setUp();
+
+        $this->seed();
 
         $this->usuario = User::factory()->create([
             'activo' => true,
@@ -161,6 +161,74 @@ class EnvioImportacionFase42Test extends TestCase
             ->assertSee('Corregir envío')
             ->assertSee('Cancelar envío')
             ->assertSee('Despachar a Oruro');
+    }
+
+    public function test_borrador_puede_actualizar_manifiesto_y_audita_cambios(): void
+    {
+        $envio = $this->servicio->crearBorrador(
+            $this->usuario->id,
+            [
+                'cantidad_bultos' => 1,
+                'cantidad_cargadores' => 0,
+                'cantidad_accesorios' => 0,
+            ]
+        );
+
+        $actualizado = $this->servicio->actualizarBorrador(
+            $this->usuario->id,
+            $envio->id,
+            [
+                'transportista' => 'Transportes Andinos',
+                'numero_guia' => 'GUIA-F42-001',
+                'cantidad_bultos' => 3,
+                'cantidad_cargadores' => 2,
+                'cantidad_accesorios' => 1,
+                'detalle_accesorios' => 'Cable de poder',
+                'observacion' => 'Manifiesto corregido antes de preparar.',
+            ]
+        );
+
+        $this->assertSame(EnvioImportacion::ESTADO_BORRADOR, $actualizado->estado);
+        $this->assertSame('Transportes Andinos', $actualizado->transportista);
+        $this->assertSame('GUIA-F42-001', $actualizado->numero_guia);
+        $this->assertSame(3, $actualizado->cantidad_bultos);
+        $this->assertSame(2, $actualizado->cantidad_cargadores);
+        $this->assertSame(1, $actualizado->cantidad_accesorios);
+        $this->assertSame('Cable de poder', $actualizado->detalle_accesorios);
+        $this->assertSame('Manifiesto corregido antes de preparar.', $actualizado->observacion);
+
+        $this->assertDatabaseHas('auditorias', [
+            'accion' => 'ACTUALIZAR_ENVIO_IMPORTACION',
+            'entidad' => 'EnvioImportacion',
+            'entidad_id' => $envio->id,
+            'usuario_id' => $this->usuario->id,
+        ]);
+    }
+
+    public function test_manifiesto_no_puede_editarse_fuera_de_borrador(): void
+    {
+        [$envio] = $this->crearEnvioConUnidad();
+
+        $this->servicio->marcarPreparado(
+            $this->usuario->id,
+            $envio->id
+        );
+
+        $this->expectException(ReglaNegocioException::class);
+
+        $this->servicio->actualizarBorrador(
+            $this->usuario->id,
+            $envio->id,
+            [
+                'transportista' => 'No debe cambiar',
+                'numero_guia' => null,
+                'cantidad_bultos' => 2,
+                'cantidad_cargadores' => 0,
+                'cantidad_accesorios' => 0,
+                'detalle_accesorios' => null,
+                'observacion' => null,
+            ]
+        );
     }
 
     private function crearEnvioConUnidad(): array

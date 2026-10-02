@@ -227,6 +227,138 @@ class EnvioImportacionService
     }
 
 
+    /**
+     * Actualiza el manifiesto de un envío mientras continúa en BORRADOR.
+     *
+     * La composición y los datos logísticos quedan congelados al marcarlo
+     * como PREPARADO. Para corregirlos después debe reabrirse previamente.
+     */
+    public function actualizarBorrador(
+        int $usuarioId,
+        int $envioId,
+        array $datos
+    ): EnvioImportacion {
+        return DB::transaction(
+            function () use ($usuarioId, $envioId, $datos) {
+                $usuario = $this->obtenerUsuarioAutorizado($usuarioId);
+
+                $validator = Validator::make(
+                    $datos,
+                    [
+                        'transportista' => [
+                            'nullable',
+                            'string',
+                            'max:150',
+                        ],
+                        'numero_guia' => [
+                            'nullable',
+                            'string',
+                            'max:120',
+                        ],
+                        'cantidad_bultos' => [
+                            'required',
+                            'integer',
+                            'min:1',
+                        ],
+                        'cantidad_cargadores' => [
+                            'required',
+                            'integer',
+                            'min:0',
+                        ],
+                        'cantidad_accesorios' => [
+                            'required',
+                            'integer',
+                            'min:0',
+                        ],
+                        'detalle_accesorios' => [
+                            'nullable',
+                            'string',
+                            'max:1000',
+                        ],
+                        'observacion' => [
+                            'nullable',
+                            'string',
+                            'max:3000',
+                        ],
+                    ]
+                );
+
+                if ($validator->fails()) {
+                    throw new ValidationException($validator);
+                }
+
+                $validados = $validator->validated();
+
+                $envio = EnvioImportacion::query()
+                    ->lockForUpdate()
+                    ->find($envioId);
+
+                if (!$envio) {
+                    throw new ReglaNegocioException(
+                        'El envío de importación no existe.'
+                    );
+                }
+
+                $this->exigirOperacionEnAlmacen(
+                    $usuario,
+                    $envio->almacen_origen_id,
+                    'modificar el manifiesto desde el almacén de origen'
+                );
+
+                if (!$envio->estaEnBorrador()) {
+                    throw new ReglaNegocioException(
+                        'El manifiesto solo puede modificarse mientras el envío se encuentra en BORRADOR.'
+                    );
+                }
+
+                $anterior = [
+                    'transportista' => $envio->transportista,
+                    'numero_guia' => $envio->numero_guia,
+                    'cantidad_bultos' => (int) $envio->cantidad_bultos,
+                    'cantidad_cargadores' => (int) ($envio->cantidad_cargadores ?? 0),
+                    'cantidad_accesorios' => (int) ($envio->cantidad_accesorios ?? 0),
+                    'detalle_accesorios' => $envio->detalle_accesorios,
+                    'observacion' => $envio->observacion,
+                ];
+
+                $normalizarTexto = static function ($valor): ?string {
+                    if ($valor === null) {
+                        return null;
+                    }
+
+                    $texto = trim((string) $valor);
+
+                    return $texto !== '' ? $texto : null;
+                };
+
+                $nuevo = [
+                    'transportista' => $normalizarTexto($validados['transportista'] ?? null),
+                    'numero_guia' => $normalizarTexto($validados['numero_guia'] ?? null),
+                    'cantidad_bultos' => (int) $validados['cantidad_bultos'],
+                    'cantidad_cargadores' => (int) $validados['cantidad_cargadores'],
+                    'cantidad_accesorios' => (int) $validados['cantidad_accesorios'],
+                    'detalle_accesorios' => $normalizarTexto($validados['detalle_accesorios'] ?? null),
+                    'observacion' => $normalizarTexto($validados['observacion'] ?? null),
+                ];
+
+                $envio->update($nuevo);
+
+                $this->auditoriaService->registrar(
+                    $usuario->id,
+                    'ACTUALIZAR_ENVIO_IMPORTACION',
+                    'EnvioImportacion',
+                    $envio->id,
+                    $anterior,
+                    $nuevo
+                );
+
+                return $envio->fresh();
+            },
+            3
+        );
+    }
+
+
     private function generarCodigoEnvio(): string
     {
         $anio = now()->format('Y');

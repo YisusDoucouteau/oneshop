@@ -186,27 +186,33 @@ Almacen::firstOrCreate(
 
 
         $categoria =
-            CategoriaProducto::create([
-                'codigo' =>
-                    'COMPUTADORAS',
+            CategoriaProducto::firstOrCreate(
+                [
+                    'codigo' =>
+                        'COMPUTADORAS',
+                ],
+                [
+                    'nombre' =>
+                        'Computadoras',
 
-                'nombre' =>
-                    'Computadoras',
-
-                'activo' =>
-                    true,
-            ]);
+                    'activo' =>
+                        true,
+                ]
+            );
 
 
 
         $marca =
-            Marca::create([
-                'nombre' =>
-                    'Dell',
-
-                'activo' =>
-                    true,
-            ]);
+            Marca::firstOrCreate(
+                [
+                    'nombre' =>
+                        'Dell',
+                ],
+                [
+                    'activo' =>
+                        true,
+                ]
+            );
 
 
 
