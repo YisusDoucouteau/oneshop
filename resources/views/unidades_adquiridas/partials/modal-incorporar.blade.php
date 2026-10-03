@@ -87,7 +87,7 @@
                             text-slate-500
                         "
                     >
-                        Daniel confirmará la incorporación formal de esta unidad en Oruro.
+                        Se confirmará la incorporación formal de esta unidad al inventario de Oruro.
                     </p>
 
                 </div>
@@ -163,6 +163,14 @@
 
             <div class="space-y-5">
 
+                <div class="rounded-xl border border-blue-200 bg-blue-50 p-4">
+                    <p class="text-sm font-semibold text-blue-900">
+                        El código de inventario se generará automáticamente.
+                    </p>
+                    <p class="mt-1 text-xs text-blue-700">
+                        Esta operación crea el Equipo formal en Oruro y conserva la trazabilidad de la unidad adquirida.
+                    </p>
+                </div>
 
                 {{-- Condición --}}
                 <div>
@@ -321,14 +329,16 @@
                         justify-center
                         gap-2
                         rounded-xl
-                        bg-oneshop-primary
+                        border
+                        border-oneshop-primary
+                        bg-oneshop-light
                         px-5
                         py-2.5
                         text-sm
                         font-semibold
-                        text-white
+                        text-oneshop-dark
                         transition
-                        hover:bg-oneshop-dark
+                        hover:bg-blue-100
                         disabled:cursor-not-allowed
                         disabled:opacity-60
                     "

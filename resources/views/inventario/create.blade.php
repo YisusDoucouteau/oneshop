@@ -25,106 +25,6 @@
             <p class="mt-2 max-w-2xl text-sm leading-6 text-slate-500">
                 Registra una unidad física serializada para incorporarla al inventario y comenzar su trazabilidad.
             </p>
-            <div class="mt-8 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-
-    <p class="text-xs font-semibold uppercase tracking-wider text-slate-400">
-        Proceso de registro
-    </p>
-
-
-    <div class="mt-5 flex items-center justify-between gap-2 overflow-x-auto">
-
-
-        @php
-
-        $pasos = [
-            'Producto',
-            'Identificación',
-            'Ubicación',
-            'Procedencia',
-            'Especificaciones',
-            'Confirmación'
-        ];
-
-        @endphp
-
-
-
-        @foreach($pasos as $index=>$paso)
-
-
-            <div class="flex items-center">
-
-
-                <div class="flex items-center gap-3">
-
-
-                    <div
-                        class="
-                        flex
-                        h-8
-                        w-8
-                        items-center
-                        justify-center
-                        rounded-full
-                        bg-slate-950
-                        text-xs
-                        font-bold
-                        text-white
-                        "
-                    >
-
-                        {{ $index + 1 }}
-
-                    </div>
-
-
-
-                    <span
-                        class="
-                        whitespace-nowrap
-                        text-sm
-                        font-medium
-                        text-slate-700
-                        "
-                    >
-
-                        {{ $paso }}
-
-                    </span>
-
-
-                </div>
-
-
-
-                @if(!$loop->last)
-
-                    <div
-                        class="
-                        mx-4
-                        hidden
-                        h-px
-                        w-10
-                        bg-slate-300
-                        lg:block
-                        "
-                    ></div>
-
-                @endif
-
-
-            </div>
-
-
-        @endforeach
-
-
-
-    </div>
-
-
-</div>
         </div>
 
 
@@ -172,7 +72,7 @@
                 <div class="border-b border-slate-200 px-6 py-5">
                     <div class="flex items-center gap-4">
 
-                        <div class="flex h-9 w-9 items-center justify-center rounded-full bg-slate-950 text-sm font-bold text-white">
+                        <div class="flex h-9 w-9 items-center justify-center rounded-full border border-oneshop-primary bg-oneshop-light text-sm font-bold text-oneshop-dark">
                             1
                         </div>
 
@@ -342,7 +242,7 @@
                 <div class="border-b border-slate-200 px-6 py-5">
                     <div class="flex items-center gap-4">
 
-                        <div class="flex h-9 w-9 items-center justify-center rounded-full bg-slate-950 text-sm font-bold text-white">
+                        <div class="flex h-9 w-9 items-center justify-center rounded-full border border-oneshop-primary bg-oneshop-light text-sm font-bold text-oneshop-dark">
                             2
                         </div>
 
@@ -420,7 +320,7 @@
                 <div class="border-b border-slate-200 px-6 py-5">
                     <div class="flex items-center gap-4">
 
-                        <div class="flex h-9 w-9 items-center justify-center rounded-full bg-slate-950 text-sm font-bold text-white">
+                        <div class="flex h-9 w-9 items-center justify-center rounded-full border border-oneshop-primary bg-oneshop-light text-sm font-bold text-oneshop-dark">
                             3
                         </div>
 
@@ -511,7 +411,7 @@
                 <div class="border-b border-slate-200 px-6 py-5">
                     <div class="flex items-center gap-4">
 
-                        <div class="flex h-9 w-9 items-center justify-center rounded-full bg-slate-950 text-sm font-bold text-white">
+                        <div class="flex h-9 w-9 items-center justify-center rounded-full border border-oneshop-primary bg-oneshop-light text-sm font-bold text-oneshop-dark">
                             4
                         </div>
 
@@ -594,7 +494,7 @@
                 <div class="border-b border-slate-200 px-6 py-5">
                     <div class="flex items-center gap-4">
 
-                        <div class="flex h-9 w-9 items-center justify-center rounded-full bg-slate-950 text-sm font-bold text-white">
+                        <div class="flex h-9 w-9 items-center justify-center rounded-full border border-oneshop-primary bg-oneshop-light text-sm font-bold text-oneshop-dark">
                             5
                         </div>
 
@@ -828,7 +728,7 @@
                 <div class="border-b border-slate-200 px-6 py-5">
                     <div class="flex items-center gap-4">
 
-                        <div class="flex h-9 w-9 items-center justify-center rounded-full bg-slate-950 text-sm font-bold text-white">
+                        <div class="flex h-9 w-9 items-center justify-center rounded-full border border-oneshop-primary bg-oneshop-light text-sm font-bold text-oneshop-dark">
                             6
                         </div>
 
@@ -903,7 +803,7 @@
                 <button
                     type="submit"
                     @disabled($productos->isEmpty())
-                    class="inline-flex items-center justify-center rounded-xl bg-slate-950 px-6 py-3 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-40"
+                    class="inline-flex items-center justify-center rounded-xl border border-oneshop-primary bg-oneshop-light px-6 py-3 text-sm font-semibold text-oneshop-dark transition hover:bg-blue-100 disabled:cursor-not-allowed disabled:opacity-40"
                 >
                     Registrar equipo
                 </button>

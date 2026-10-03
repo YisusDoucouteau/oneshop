@@ -25,97 +25,40 @@ class UnidadAdquiridaController extends Controller
     private UnidadAdquiridaService $unidadAdquiridaService
 ) {
 }
-   public function index(Request $request): View
-{
+    public function index(Request $request): View
+    {
+        /*
+         * Búsqueda y estado se filtran en Alpine/JavaScript para evitar
+         * una recarga completa de Laravel en cada cambio.
+         */
+        $unidades = UnidadAdquirida::query()
+            ->with([
+                'producto.marca',
+                'detalleLote.lote.proveedor',
+                'adquisicionDirecta',
+                'almacenActual',
+                'equipo',
+            ])
+            ->latest()
+            ->get();
 
-    $unidades = UnidadAdquirida::query()
+        $estados = [
+            UnidadAdquirida::ESTADO_PENDIENTE_LLEGADA,
+            UnidadAdquirida::ESTADO_RECIBIDA_ORIGEN,
+            UnidadAdquirida::ESTADO_EN_REVISION,
+            UnidadAdquirida::ESTADO_EN_PREPARACION,
+            UnidadAdquirida::ESTADO_LISTA_ENVIO,
+            UnidadAdquirida::ESTADO_ENVIADA,
+            UnidadAdquirida::ESTADO_RECIBIDA_ORURO,
+            UnidadAdquirida::ESTADO_INCORPORADA,
+            UnidadAdquirida::ESTADO_ANULADA,
+        ];
 
-        ->with([
-            'producto.marca',
-            'detalleLote.lote.proveedor',
-            'adquisicionDirecta',
-            'almacenActual',
-            'equipo',
-        ])
-
-        ->when(
-            $request->buscar,
-            function($query) use ($request){
-
-                $buscar = $request->buscar;
-
-
-                $query->where(function($q) use ($buscar){
-
-                    $q->where(
-                        'codigo_trazabilidad',
-                        'like',
-                        "%{$buscar}%"
-                    )
-
-                    ->orWhere(
-                        'serial_fabricante',
-                        'like',
-                        "%{$buscar}%"
-                    )
-
-                    ->orWhere(
-                        'nombre_equipo',
-                        'like',
-                        "%{$buscar}%"
-                    );
-
-                });
-
-            }
-        )
-
-
-        ->when(
-            $request->estado,
-            function($query) use ($request){
-
-                $query->where(
-                    'estado',
-                    $request->estado
-                );
-
-            }
-        )
-
-
-        ->latest()
-
-        ->paginate(15)
-
-        ->withQueryString();
-
-
-
-    $estados = [
-        UnidadAdquirida::ESTADO_PENDIENTE_LLEGADA,
-        UnidadAdquirida::ESTADO_RECIBIDA_ORIGEN,
-        UnidadAdquirida::ESTADO_EN_REVISION,
-        UnidadAdquirida::ESTADO_EN_PREPARACION,
-        UnidadAdquirida::ESTADO_LISTA_ENVIO,
-        UnidadAdquirida::ESTADO_ENVIADA,
-        UnidadAdquirida::ESTADO_RECIBIDA_ORURO,
-        UnidadAdquirida::ESTADO_INCORPORADA,
-        UnidadAdquirida::ESTADO_ANULADA,
-    ];
-
-
-
-    return view(
-        'unidades_adquiridas.index',
-        compact(
-            'unidades',
-            'estados'
-        )
-    );
-
-}
-
+        return view(
+            'unidades_adquiridas.index',
+            compact('unidades', 'estados')
+        );
+    }
 
 
     public function create(): View
@@ -519,9 +462,36 @@ public function incorporar(
 
             ],
 
+            'redirect' =>
+                $unidadActualizada->equipo
+                    ? route(
+                        'inventario.show',
+                        $unidadActualizada
+                            ->equipo
+                            ->codigo_interno
+                    )
+                    : route(
+                        'unidades-adquiridas.show',
+                        $unidadActualizada
+                    ),
+
         ]);
     }
 
+
+    if ($unidadActualizada->equipo) {
+        return redirect()
+            ->route(
+                'inventario.show',
+                $unidadActualizada
+                    ->equipo
+                    ->codigo_interno
+            )
+            ->with(
+                'success',
+                $mensaje
+            );
+    }
 
     return redirect()
         ->route(

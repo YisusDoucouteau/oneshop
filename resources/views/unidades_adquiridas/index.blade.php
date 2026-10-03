@@ -35,8 +35,60 @@
     };
 @endphp
 
+@php
+    $registrosFiltro = $unidades
+        ->map(function ($unidad) {
+            return [
+                'id' => (int) $unidad->id,
+                'estado' => (string) ($unidad->estado ?? ''),
+                'texto' => implode(' ', array_filter([
+                    $unidad->codigo_trazabilidad,
+                    $unidad->serial_fabricante,
+                    $unidad->nombre_equipo,
+                    $unidad->modelo_equipo,
+                    $unidad->producto?->nombre,
+                    $unidad->producto?->modelo,
+                    $unidad->producto?->marca?->nombre,
+                    $unidad->almacenActual?->nombre,
+                ])),
+            ];
+        })
+        ->values();
+@endphp
 
-<div class="space-y-6">
+<div
+    x-data="{
+        buscar: @js((string) request('buscar', '')),
+        estado: @js((string) request('estado', '')),
+        registros: @js($registrosFiltro),
+        normalizar(valor) {
+            return String(valor ?? '')
+                .normalize('NFD')
+                .replace(/[\u0300-\u036f]/g, '')
+                .toLowerCase()
+                .trim();
+        },
+        visible(registro) {
+            const termino = this.normalizar(this.buscar);
+            return (
+                (termino === '' || this.normalizar(registro.texto).includes(termino))
+                && (this.estado === '' || String(registro.estado) === String(this.estado))
+            );
+        },
+        visiblePorId(id) {
+            const registro = this.registros.find(item => Number(item.id) === Number(id));
+            return registro ? this.visible(registro) : false;
+        },
+        get totalFiltrado() {
+            return this.registros.filter(registro => this.visible(registro)).length;
+        },
+        limpiar() {
+            this.buscar = '';
+            this.estado = '';
+        }
+    }"
+    class="space-y-6"
+>
 
     {{-- Encabezado --}}
     <div
@@ -92,15 +144,16 @@
                     justify-center
                     gap-2
                     rounded-xl
-                    bg-oneshop-primary
+                    border
+                    border-oneshop-primary
+                    bg-oneshop-light
                     px-5
                     py-3
                     text-sm
                     font-semibold
-                    text-white
-                    shadow-sm
+                    text-oneshop-dark
                     transition
-                    hover:bg-oneshop-dark
+                    hover:bg-blue-100
                 "
             >
                 <x-ui.icon name="plus" size="18"/>
@@ -148,9 +201,7 @@
     {{-- Filtros --}}
     <x-ui.card>
 
-        <form
-            method="GET"
-            action="{{ route('unidades-adquiridas.index') }}"
+        <div
             class="
                 grid
                 grid-cols-1
@@ -198,8 +249,7 @@
                     <input
                         id="buscar"
                         type="text"
-                        name="buscar"
-                        value="{{ request('buscar') }}"
+                        x-model.debounce.150ms="buscar"
                         placeholder="Código, serial o nombre del equipo"
                         class="
                             input-oneshop
@@ -234,7 +284,7 @@
 
                 <select
                     id="estado"
-                    name="estado"
+                    x-model="estado"
                     class="input-oneshop w-full"
                 >
 
@@ -246,7 +296,6 @@
 
                         <option
                             value="{{ $estado }}"
-                            @selected(request('estado') === $estado)
                         >
                             {{ $nombreEstado($estado) }}
                         </option>
@@ -258,67 +307,20 @@
             </div>
 
 
-            {{-- Botones --}}
-            <div
-                class="
-                    flex
-                    gap-2
-                    md:col-span-2
-                "
-            >
-
+            {{-- Acciones de filtro --}}
+            <div class="flex md:col-span-2">
                 <button
-                    type="submit"
-                    class="
-                        inline-flex
-                        flex-1
-                        items-center
-                        justify-center
-                        gap-2
-                        rounded-xl
-                        bg-slate-900
-                        px-4
-                        py-2.5
-                        text-sm
-                        font-semibold
-                        text-white
-                        transition
-                        hover:bg-slate-800
-                    "
+                    type="button"
+                    @click="limpiar()"
+                    :disabled="buscar === '' && estado === ''"
+                    class="inline-flex w-full items-center justify-center gap-2 rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40"
                 >
-                    <x-ui.icon name="filter" size="17"/>
-
-                    Filtrar
+                    <x-ui.icon name="x" size="17"/>
+                    Limpiar
                 </button>
-
-                @if(request()->filled('buscar') || request()->filled('estado'))
-
-                    <a
-                        href="{{ route('unidades-adquiridas.index') }}"
-                        class="
-                            inline-flex
-                            items-center
-                            justify-center
-                            rounded-xl
-                            border
-                            border-slate-200
-                            bg-white
-                            px-3
-                            text-slate-500
-                            transition
-                            hover:bg-slate-50
-                            hover:text-slate-900
-                        "
-                        title="Limpiar filtros"
-                    >
-                        <x-ui.icon name="x" size="18"/>
-                    </a>
-
-                @endif
-
             </div>
 
-        </form>
+        </div>
 
     </x-ui.card>
 
@@ -348,19 +350,18 @@
                 </h2>
 
                 <p class="text-xs text-slate-500">
-                    {{ $unidades->total() }}
-                    {{ $unidades->total() === 1 ? 'unidad encontrada' : 'unidades encontradas' }}
+                    <span x-text="totalFiltrado"></span>
+                    de {{ $unidades->count() }} unidades visibles
                 </p>
             </div>
 
 
-            @if(request()->filled('buscar') || request()->filled('estado'))
-
-                <span class="text-xs font-medium text-oneshop-primary">
-                    Filtros aplicados
-                </span>
-
-            @endif
+            <span
+                x-show="buscar !== '' || estado !== ''"
+                class="text-xs font-medium text-oneshop-primary"
+            >
+                Filtro local activo
+            </span>
 
         </div>
 
@@ -414,13 +415,11 @@
 
                 <tbody class="divide-y divide-slate-100">
 
-                    @forelse($unidades as $unidad)
+                    @foreach($unidades as $unidad)
 
                         <tr
-                            class="
-                                transition
-                                hover:bg-slate-50/80
-                            "
+                            x-show="visiblePorId({{ $unidad->id }})"
+                            class="transition hover:bg-slate-50/80"
                         >
 
                             {{-- Unidad --}}
@@ -640,58 +639,19 @@
 
                         </tr>
 
-                    @empty
+                    @endforeach
 
-                        <tr>
-
-                            <td
-                                colspan="6"
-                                class="px-6 py-16 text-center"
-                            >
-
-                                <div
-                                    class="
-                                        mx-auto
-                                        flex
-                                        h-14
-                                        w-14
-                                        items-center
-                                        justify-center
-                                        rounded-2xl
-                                        bg-slate-100
-                                        text-slate-400
-                                    "
-                                >
-                                    <x-ui.icon name="package" size="24"/>
-                                </div>
-
-                                <h3
-                                    class="
-                                        mt-4
-                                        font-semibold
-                                        text-slate-900
-                                    "
-                                >
-                                    No se encontraron unidades
-                                </h3>
-
-                                <p
-                                    class="
-                                        mx-auto
-                                        mt-1
-                                        max-w-sm
-                                        text-sm
-                                        text-slate-500
-                                    "
-                                >
-                                    No existen unidades que coincidan con los criterios seleccionados.
-                                </p>
-
-                            </td>
-
-                        </tr>
-
-                    @endforelse
+                    <tr x-show="totalFiltrado === 0">
+                        <td colspan="6" class="px-6 py-16 text-center">
+                            <div class="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-slate-100 text-slate-400">
+                                <x-ui.icon name="package" size="24"/>
+                            </div>
+                            <h3 class="mt-4 font-semibold text-slate-900">Sin coincidencias</h3>
+                            <p class="mx-auto mt-1 max-w-sm text-sm text-slate-500">
+                                Cambia la búsqueda o el estado seleccionado.
+                            </p>
+                        </td>
+                    </tr>
 
                 </tbody>
 
@@ -700,20 +660,7 @@
         </div>
 
 
-        @if($unidades->hasPages())
 
-            <div
-                class="
-                    border-t
-                    border-slate-200
-                    px-5
-                    py-4
-                "
-            >
-                {{ $unidades->links() }}
-            </div>
-
-        @endif
 
     </x-ui.card>
 

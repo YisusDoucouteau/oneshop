@@ -33,6 +33,11 @@
 
         </div>
 
+        {{-- Adquisición, costo histórico y accesorios asociados --}}
+        <x-inventario.adquisicion-accesorios
+            :equipo="$equipo"
+        />
+
         {{-- Especificaciones --}}
         <x-inventario.especificaciones
             :equipo="$equipo"

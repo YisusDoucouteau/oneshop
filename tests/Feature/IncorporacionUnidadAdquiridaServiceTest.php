@@ -11,10 +11,12 @@ use App\Models\Equipo;
 use App\Models\EnvioImportacion;
 use App\Models\EnvioImportacionUnidad;
 use App\Models\Marca;
+use App\Models\Moneda;
 use App\Models\Producto;
 use App\Models\Proveedor;
 use App\Models\RevisionTecnicaUnidadAdquirida;
 use App\Models\Rol;
+use App\Models\TipoCambio;
 use App\Models\UnidadAdquirida;
 use App\Models\User;
 use App\Services\IncorporacionUnidadAdquiridaService;
@@ -269,7 +271,10 @@ class IncorporacionUnidadAdquiridaServiceTest extends TestCase
     }
 
 
-    private function prepararUnidadRecibidaEnOruro(bool $envioCerrado = true): UnidadAdquirida
+    private function prepararUnidadRecibidaEnOruro(
+        bool $envioCerrado = true,
+        ?string $estadoEnvioCerrado = null
+    ): UnidadAdquirida
     {
         $this->unidad->refresh();
 
@@ -325,7 +330,10 @@ class IncorporacionUnidadAdquiridaServiceTest extends TestCase
             'almacen_origen_id' => $almacenCochabamba->id,
             'almacen_destino_id' => $almacenOruro->id,
             'estado' => $envioCerrado
-                ? EnvioImportacion::ESTADO_RECIBIDO
+                ? (
+                    $estadoEnvioCerrado
+                    ?? EnvioImportacion::ESTADO_RECIBIDO
+                )
                 : EnvioImportacion::ESTADO_DESPACHADO,
             'cantidad_bultos' => 1,
             'fecha_despacho' => now()->subHour(),
@@ -644,6 +652,40 @@ class IncorporacionUnidadAdquiridaServiceTest extends TestCase
     }
 
 
+    public function test_permite_incorporar_unidad_de_envio_cerrado_con_diferencias(): void
+    {
+        $unidad = $this->prepararUnidadRecibidaEnOruro(
+            true,
+            EnvioImportacion::ESTADO_RECIBIDO_PARCIAL
+        );
+
+        $servicio = app(
+            IncorporacionUnidadAdquiridaService::class
+        );
+
+        $unidad = $servicio->incorporar(
+            $this->usuarioOperativo->id,
+            $unidad->id,
+            $this->obtenerCondicionFisicaId(),
+            'SN-RECIBIDO-PARCIAL-001'
+        );
+
+        $this->assertSame(
+            UnidadAdquirida::ESTADO_INCORPORADA,
+            $unidad->estado
+        );
+
+        $this->assertNotNull(
+            $unidad->equipo_id
+        );
+
+        $this->assertSame(
+            'SN-RECIBIDO-PARCIAL-001',
+            $unidad->equipo?->serial_fabricante
+        );
+    }
+
+
     public function test_no_permite_incorporar_antes_de_cerrar_recepcion_del_envio(): void
     {
         $unidad =
@@ -894,6 +936,129 @@ class IncorporacionUnidadAdquiridaServiceTest extends TestCase
                     $equipo->id,
             ]
         );
+    }
+
+
+    public function test_ficha_formal_conserva_trazabilidad_y_cargador_de_la_unidad_origen(): void
+    {
+        $unidad =
+            $this->prepararUnidadRecibidaEnOruro();
+
+        $unidad->update([
+            'tiene_cargador' => true,
+        ]);
+
+        $detalleEnvio =
+            $unidad
+                ->envioImportacionUnidad()
+                ->firstOrFail();
+
+        $detalleEnvio->update([
+            'incluye_cargador' => true,
+            'cargador_recibido' => true,
+        ]);
+
+        $unidad =
+            app(IncorporacionUnidadAdquiridaService::class)
+                ->incorporar(
+                    $this->usuarioOperativo->id,
+                    $unidad->id,
+                    $this->obtenerCondicionFisicaId()
+                );
+
+        $this
+            ->actingAs($this->usuarioOperativo)
+            ->get(
+                route(
+                    'inventario.show',
+                    $unidad->equipo->codigo_interno
+                )
+            )
+            ->assertOk()
+            ->assertSee('Código de trazabilidad')
+            ->assertSee($unidad->codigo_trazabilidad)
+            ->assertSee('Cargador asociado')
+            ->assertSee('Incluido en el envío')
+            ->assertSee('Recepción en Oruro')
+            ->assertSee('Recibido')
+            ->assertDontSee('Costo de adquisición');
+    }
+
+
+    public function test_administrador_visualiza_compra_tipo_cambio_y_costo_historico_en_ficha(): void
+    {
+        $unidad =
+            $this->prepararUnidadRecibidaEnOruro();
+
+        $usd =
+            Moneda::query()
+                ->where('codigo', 'USD')
+                ->firstOrFail();
+
+        $bob =
+            Moneda::query()
+                ->where('codigo', 'BOB')
+                ->firstOrFail();
+
+        $tipoCambio =
+            TipoCambio::query()
+                ->create([
+                    'moneda_origen_id' => $usd->id,
+                    'moneda_destino_id' => $bob->id,
+                    'valor' => 11.000000,
+                    'fecha_vigencia' => '2026-09-19 12:00:00',
+                    'fuente' => 'COMPRA_REAL',
+                    'registrado_por_id' => $this->usuarioOperativo->id,
+                ]);
+
+        $unidad->update([
+            'precio_compra' => 324,
+            'moneda_id' => $usd->id,
+            'tipo_cambio_compra_id' => $tipoCambio->id,
+            'precio_compra_bob' => 3564,
+            'fecha_compra' => '2026-09-19',
+        ]);
+
+        $unidad =
+            app(IncorporacionUnidadAdquiridaService::class)
+                ->incorporar(
+                    $this->usuarioOperativo->id,
+                    $unidad->id,
+                    $this->obtenerCondicionFisicaId()
+                );
+
+        $administrador =
+            User::factory()->create([
+                'activo' => true,
+            ]);
+
+        $rolAdministrador =
+            Rol::query()
+                ->where('codigo', 'ADMINISTRADOR')
+                ->firstOrFail();
+
+        $administrador
+            ->roles()
+            ->attach(
+                $rolAdministrador->id
+            );
+
+        $this
+            ->actingAs($administrador)
+            ->get(
+                route(
+                    'inventario.show',
+                    $unidad->equipo->codigo_interno
+                )
+            )
+            ->assertOk()
+            ->assertSee('Costo de adquisición')
+            ->assertSee('324.00')
+            ->assertSee('USD')
+            ->assertSee('11.000000')
+            ->assertSee('BOB/USD')
+            ->assertSee('Bs 3,564.00')
+            ->assertSee('Costo real incorporado');
     }
 
 }

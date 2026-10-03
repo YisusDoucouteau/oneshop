@@ -7,6 +7,9 @@ use App\Models\CondicionFisica;
 use App\Models\Equipo;
 use App\Models\EstadoEquipo;
 use App\Models\Producto;
+use App\Models\EnvioImportacion;
+use App\Models\EnvioImportacionUnidad;
+use App\Models\UnidadAdquirida;
 use App\Services\RegistroEquipoService;
 use App\Models\MetodoPago;
 use App\Services\AjusteGarantiaService;
@@ -18,11 +21,16 @@ class InventarioController extends Controller
 {
     public function index(Request $request): View
     {
+        /*
+         * Los filtros se aplican en Alpine/JavaScript para evitar
+         * recargas completas durante la operación diaria.
+         * Los parámetros GET solo inicializan el filtro local.
+         */
         $busqueda = trim((string) $request->query('buscar', ''));
         $estadoId = $request->integer('estado');
         $almacenId = $request->integer('almacen');
 
-        $equiposQuery = Equipo::query()
+        $equipos = Equipo::query()
             ->with([
                 'producto.marca',
                 'almacenActual',
@@ -30,39 +38,9 @@ class InventarioController extends Controller
                 'condicionFisica',
                 'precioVigente',
             ])
-            ->where('activo', true);
-
-        if ($busqueda !== '') {
-            $equiposQuery->where(function ($query) use ($busqueda) {
-                $query
-                    ->where('codigo_interno', 'like', "%{$busqueda}%")
-                    ->orWhere('serial_fabricante', 'like', "%{$busqueda}%")
-                    ->orWhereHas('producto', function ($productoQuery) use ($busqueda) {
-                        $productoQuery
-                            ->where('nombre', 'like', "%{$busqueda}%")
-                            ->orWhere('modelo', 'like', "%{$busqueda}%");
-                    });
-            });
-        }
-
-        if ($estadoId > 0) {
-            $equiposQuery->where(
-                'estado_actual_id',
-                $estadoId
-            );
-        }
-
-        if ($almacenId > 0) {
-            $equiposQuery->where(
-                'almacen_actual_id',
-                $almacenId
-            );
-        }
-
-        $equipos = $equiposQuery
+            ->where('activo', true)
             ->orderByDesc('fecha_registro')
-            ->paginate(15)
-            ->withQueryString();
+            ->get();
 
         $estados = EstadoEquipo::query()
             ->where('activo', true)
@@ -74,9 +52,7 @@ class InventarioController extends Controller
             ->orderBy('nombre')
             ->get();
 
-        $totalEquipos = Equipo::query()
-            ->where('activo', true)
-            ->count();
+        $totalEquipos = $equipos->count();
 
         $resumenEstados = EstadoEquipo::query()
             ->withCount([
@@ -86,6 +62,58 @@ class InventarioController extends Controller
             ])
             ->where('activo', true)
             ->get();
+
+        /*
+         * Puente Fase 5 -> Fase 6: unidades físicamente recibidas
+         * en Oruro, aún sin Equipo formal y con recepción cerrada.
+         */
+        $almacenOruro = Almacen::query()
+            ->where('codigo', 'ORURO_PRINCIPAL')
+            ->where('activo', true)
+            ->first();
+
+        $unidadesPendientesIncorporacion = collect();
+
+        if ($almacenOruro) {
+            $unidadesPendientesIncorporacion = UnidadAdquirida::query()
+                ->with([
+                    'producto.marca',
+                    'almacenActual',
+                    'envioImportacionUnidad.envioImportacion',
+                ])
+                ->where('estado', UnidadAdquirida::ESTADO_RECIBIDA_ORURO)
+                ->whereNull('equipo_id')
+                ->where('almacen_actual_id', $almacenOruro->id)
+                ->latest()
+                ->get()
+                ->filter(function (UnidadAdquirida $unidad): bool {
+                    if (!$unidad->provieneDeLote()) {
+                        return true;
+                    }
+
+                    $detalleEnvio = $unidad->envioImportacionUnidad;
+                    $envio = $detalleEnvio?->envioImportacion;
+
+                    return $envio
+                        && in_array(
+                            $envio->estado,
+                            [
+                                EnvioImportacion::ESTADO_RECIBIDO,
+                                EnvioImportacion::ESTADO_RECIBIDO_PARCIAL,
+                            ],
+                            true
+                        )
+                        && in_array(
+                            $detalleEnvio->estado_recepcion,
+                            [
+                                EnvioImportacionUnidad::ESTADO_RECIBIDA,
+                                EnvioImportacionUnidad::ESTADO_INCIDENCIA,
+                            ],
+                            true
+                        );
+                })
+                ->values();
+        }
 
         return view(
             'inventario.index',
@@ -97,10 +125,12 @@ class InventarioController extends Controller
                 'resumenEstados',
                 'busqueda',
                 'estadoId',
-                'almacenId'
+                'almacenId',
+                'unidadesPendientesIncorporacion'
             )
         );
     }
+
     public function create(): View
 {
     $productos = Producto::query()
@@ -178,6 +208,16 @@ public function store(
         'especificacion',
         'precioVigente',
         'detalleLote.lote.proveedor',
+
+        /*
+         * Fase 6: mantener disponible en la ficha formal
+         * la trazabilidad de la unidad que originó el equipo.
+         */
+        'incorporacionUnidad.usuario',
+        'incorporacionUnidad.unidadAdquirida.moneda',
+        'incorporacionUnidad.unidadAdquirida.tipoCambioCompra',
+        'incorporacionUnidad.unidadAdquirida.historialCostos',
+        'incorporacionUnidad.unidadAdquirida.envioImportacionUnidad.envioImportacion',
 
         'casosGarantia.recibidoPor',
         'casosGarantia.cerradoPor',
