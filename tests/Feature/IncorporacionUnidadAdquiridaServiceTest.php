@@ -1055,7 +1055,7 @@ class IncorporacionUnidadAdquiridaServiceTest extends TestCase
             ->assertSee('Costo de adquisición')
             ->assertSee('324.00')
             ->assertSee('USD')
-            ->assertSee('11.000000')
+            ->assertSee('11.00')
             ->assertSee('BOB/USD')
             ->assertSee('Bs 3,564.00')
             ->assertSee('Costo real incorporado');

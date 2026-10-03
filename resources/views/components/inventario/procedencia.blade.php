@@ -66,7 +66,7 @@
             <p class="mt-2 font-medium text-slate-900">
                 {{
                     $equipo->detalleLote?->cantidad_esperada !== null
-                        ? $equipo->detalleLote->cantidad_esperada . ' unidades'
+                        ? $equipo->detalleLote->cantidad_esperada . ((int) $equipo->detalleLote->cantidad_esperada === 1 ? ' unidad' : ' unidades')
                         : '—'
                 }}
             </p>

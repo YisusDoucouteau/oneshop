@@ -186,7 +186,7 @@
 
                         <p class="mt-2 font-semibold text-slate-900">
                             @if($tipoCambioCompra !== null)
-                                {{ number_format((float) $tipoCambioCompra, 6, '.', '') }}
+                                {{ number_format((float) $tipoCambioCompra, 2, '.', '') }}
                                 BOB/{{ $monedaCompra }}
                             @else
                                 No registrado
