@@ -565,6 +565,29 @@ Route::post(
 ->name('envios-importacion.unidades.incidencia');
 
 
+
+Route::post(
+    '/envios-importacion/{envio}/incidencias/{incidencia}/gestion',
+    [
+        EnvioImportacionController::class,
+        'iniciarGestionIncidencia',
+    ]
+)
+->middleware('permiso:importacion.gestionar')
+->name('envios-importacion.incidencias.gestion');
+
+
+Route::post(
+    '/envios-importacion/{envio}/incidencias/{incidencia}/resolver',
+    [
+        EnvioImportacionController::class,
+        'resolverIncidencia',
+    ]
+)
+->middleware('permiso:importacion.gestionar')
+->name('envios-importacion.incidencias.resolver');
+
+
 Route::post(
     '/envios-importacion/{envio}/cerrar-recepcion',
     [

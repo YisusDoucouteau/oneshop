@@ -7,6 +7,7 @@ use App\Models\Almacen;
 use App\Models\CategoriaProducto;
 use App\Models\EnvioImportacion;
 use App\Models\EnvioImportacionUnidad;
+use App\Models\IncidenciaLogisticaImportacion;
 use App\Models\Marca;
 use App\Models\Producto;
 use App\Models\Rol;
@@ -157,7 +158,182 @@ class EnvioImportacionRecepcionFase5Test extends TestCase
             UnidadAdquirida::ESTADO_RECIBIDA_ORURO,
             $unidad->fresh()->estado
         );
+
+        $this->assertDatabaseHas(
+            'incidencias_logisticas_importacion',
+            [
+                'envio_importacion_unidad_id' => $detalle->id,
+                'tipo' => 'ACCESORIO_FALTANTE',
+                'estado' => IncidenciaLogisticaImportacion::ESTADO_ABIERTA,
+            ]
+        );
     }
+
+    public function test_unidad_faltante_abre_incidencia_y_recepcion_tardia_la_resuelve(): void
+    {
+        [$envio, $unidad] = $this->crearEnvioDespachado();
+
+        $detalle = $this->servicio->marcarUnidadFaltante(
+            $this->admin->id,
+            $envio->id,
+            $unidad->id,
+            'La unidad no llegó con el resto del despacho.'
+        );
+
+        $this->assertSame(
+            EnvioImportacionUnidad::ESTADO_FALTANTE,
+            $detalle->estado_recepcion
+        );
+
+        $incidencia = IncidenciaLogisticaImportacion::query()
+            ->where('envio_importacion_unidad_id', $detalle->id)
+            ->firstOrFail();
+
+        $this->assertSame('UNIDAD_FALTANTE', $incidencia->tipo);
+        $this->assertSame(
+            IncidenciaLogisticaImportacion::ESTADO_ABIERTA,
+            $incidencia->estado
+        );
+
+        $recibida = $this->servicio->recibirUnidad(
+            $this->admin->id,
+            $envio->id,
+            $unidad->id,
+            'La transportadora entregó la unidad al día siguiente.',
+            true
+        );
+
+        $this->assertSame(
+            EnvioImportacionUnidad::ESTADO_RECIBIDA,
+            $recibida->estado_recepcion
+        );
+
+        $incidencia->refresh();
+
+        $this->assertSame(
+            IncidenciaLogisticaImportacion::ESTADO_RESUELTA,
+            $incidencia->estado
+        );
+        $this->assertSame(
+            'RECIBIDA_TARDIAMENTE',
+            $incidencia->resultado
+        );
+        $this->assertSame(
+            UnidadAdquirida::ESTADO_RECIBIDA_ORURO,
+            $unidad->fresh()->estado
+        );
+    }
+
+    public function test_endpoint_de_incidencia_crea_expediente_formal_con_tipo(): void
+    {
+        [$envio, $unidad] = $this->crearEnvioDespachado();
+
+        $this->actingAs($this->admin->fresh())
+            ->postJson(
+                route(
+                    'envios-importacion.unidades.incidencia',
+                    [
+                        'envio' => $envio,
+                        'unidad' => $unidad,
+                    ]
+                ),
+                [
+                    'tipo' => 'DANIO_TRANSPORTE',
+                    'observacion' =>
+                        'Se detectó un golpe visible al abrir la caja.',
+                    'cargador_recibido' => true,
+                ]
+            )
+            ->assertOk()
+            ->assertJsonPath('ok', true);
+
+        $detalle = EnvioImportacionUnidad::query()
+            ->where('envio_importacion_id', $envio->id)
+            ->where('unidad_adquirida_id', $unidad->id)
+            ->firstOrFail();
+
+        $this->assertDatabaseHas(
+            'incidencias_logisticas_importacion',
+            [
+                'envio_importacion_unidad_id' => $detalle->id,
+                'tipo' => 'DANIO_TRANSPORTE',
+                'estado' => IncidenciaLogisticaImportacion::ESTADO_ABIERTA,
+            ]
+        );
+    }
+
+    public function test_endpoint_gestiona_y_resuelve_incidencia_formal(): void
+    {
+        [$envio, $unidad] = $this->crearEnvioDespachado();
+
+        $this->actingAs($this->admin->fresh())
+            ->postJson(
+                route(
+                    'envios-importacion.unidades.incidencia',
+                    [
+                        'envio' => $envio,
+                        'unidad' => $unidad,
+                    ]
+                ),
+                [
+                    'tipo' => 'DANIO_TRANSPORTE',
+                    'observacion' => 'Golpe visible en una esquina.',
+                    'cargador_recibido' => true,
+                ]
+            )
+            ->assertOk();
+
+        $incidencia = IncidenciaLogisticaImportacion::query()
+            ->latest('id')
+            ->firstOrFail();
+
+        $this->actingAs($this->admin->fresh())
+            ->postJson(
+                route(
+                    'envios-importacion.incidencias.gestion',
+                    [
+                        'envio' => $envio,
+                        'incidencia' => $incidencia,
+                    ]
+                )
+            )
+            ->assertOk()
+            ->assertJsonPath(
+                'incidencia.estado',
+                IncidenciaLogisticaImportacion::ESTADO_EN_GESTION
+            );
+
+        $this->actingAs($this->admin->fresh())
+            ->postJson(
+                route(
+                    'envios-importacion.incidencias.resolver',
+                    [
+                        'envio' => $envio,
+                        'incidencia' => $incidencia,
+                    ]
+                ),
+                [
+                    'resultado' => 'REPARADO',
+                    'detalle_resolucion' =>
+                        'Se corrigió el daño superficial y se verificó el equipo.',
+                ]
+            )
+            ->assertOk()
+            ->assertJsonPath(
+                'incidencia.estado',
+                IncidenciaLogisticaImportacion::ESTADO_RESUELTA
+            );
+
+        $this->assertDatabaseHas(
+            'incidencias_logisticas_importacion',
+            [
+                'id' => $incidencia->id,
+                'estado' => IncidenciaLogisticaImportacion::ESTADO_RESUELTA,
+                'resultado' => 'REPARADO',
+            ]
+        );
+    }
+
 
     public function test_interfaz_muestra_recepcion_humana_y_conteo_fisico(): void
     {
@@ -166,10 +342,12 @@ class EnvioImportacionRecepcionFase5Test extends TestCase
         $this->actingAs($this->admin->fresh())
             ->get(route('envios-importacion.show', $envio->fresh()))
             ->assertOk()
+            ->assertSee('Avance de recepción física')
             ->assertSee('Verificación física en destino')
             ->assertSee('Pendiente de recepción')
             ->assertSeeHtml('data-testid="accion-verificar-recepcion"')
-            ->assertSeeHtml('data-testid="recepcion-cajas"');
+            ->assertSeeHtml('data-testid="recepcion-cajas"')
+            ->assertSeeHtml('data-testid="recepcion-tipo-incidencia"');
     }
 
     private function crearEnvioDespachado(

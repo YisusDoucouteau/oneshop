@@ -4,9 +4,11 @@ namespace App\Http\Controllers;
 
 use App\Models\Almacen;
 use App\Models\EnvioImportacion;
+use App\Models\IncidenciaLogisticaImportacion;
 use App\Models\UnidadAdquirida;
 use App\Models\User;
 use App\Services\EnvioImportacionService;
+use App\Services\IncidenciaLogisticaImportacionService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -15,7 +17,8 @@ use Illuminate\View\View;
 class EnvioImportacionController extends Controller
 {
     public function __construct(
-        private readonly EnvioImportacionService $envioService
+        private readonly EnvioImportacionService $envioService,
+        private readonly IncidenciaLogisticaImportacionService $incidenciaService
     ) {
     }
 
@@ -843,6 +846,11 @@ class EnvioImportacionController extends Controller
 
         $datos =
             $request->validate([
+                'tipo' => [
+                    'nullable',
+                    'string',
+                    'max:60',
+                ],
                 'observacion' => [
                     'required',
                     'string',
@@ -860,7 +868,8 @@ class EnvioImportacionController extends Controller
                     $datos['observacion'],
                     $request->has('cargador_recibido')
                         ? $request->boolean('cargador_recibido')
-                        : null
+                        : null,
+                    $datos['tipo'] ?? 'INCIDENCIA_RECEPCION'
                 );
 
 
@@ -891,6 +900,104 @@ class EnvioImportacionController extends Controller
                 'success',
                 $mensaje
             );
+    }
+
+
+
+    /*
+    |--------------------------------------------------------------------------
+    | Gestión de incidencia logística
+    |--------------------------------------------------------------------------
+    */
+
+    public function iniciarGestionIncidencia(
+        Request $request,
+        EnvioImportacion $envio,
+        IncidenciaLogisticaImportacion $incidencia
+    ): JsonResponse|RedirectResponse {
+        $incidencia->loadMissing('envioImportacionUnidad');
+
+        if (
+            (int) $incidencia->envioImportacionUnidad?->envio_importacion_id
+            !== (int) $envio->id
+        ) {
+            abort(404);
+        }
+
+        $actualizada = $this->incidenciaService->iniciarGestion(
+            $request->user()->id,
+            $incidencia->id
+        );
+
+        $mensaje = 'La incidencia quedó en gestión.';
+
+        if ($request->expectsJson()) {
+            return response()->json([
+                'ok' => true,
+                'message' => $mensaje,
+                'incidencia' => [
+                    'id' => $actualizada->id,
+                    'estado' => $actualizada->estado,
+                ],
+            ]);
+        }
+
+        return redirect()
+            ->route('envios-importacion.show', $envio)
+            ->with('success', $mensaje);
+    }
+
+
+    public function resolverIncidencia(
+        Request $request,
+        EnvioImportacion $envio,
+        IncidenciaLogisticaImportacion $incidencia
+    ): JsonResponse|RedirectResponse {
+        $incidencia->loadMissing('envioImportacionUnidad');
+
+        if (
+            (int) $incidencia->envioImportacionUnidad?->envio_importacion_id
+            !== (int) $envio->id
+        ) {
+            abort(404);
+        }
+
+        $datos = $request->validate([
+            'resultado' => [
+                'required',
+                'string',
+                'max:60',
+            ],
+            'detalle_resolucion' => [
+                'required',
+                'string',
+                'max:5000',
+            ],
+        ]);
+
+        $actualizada = $this->incidenciaService->resolverIncidencia(
+            $request->user()->id,
+            $incidencia->id,
+            $datos
+        );
+
+        $mensaje = 'La incidencia logística fue resuelta.';
+
+        if ($request->expectsJson()) {
+            return response()->json([
+                'ok' => true,
+                'message' => $mensaje,
+                'incidencia' => [
+                    'id' => $actualizada->id,
+                    'estado' => $actualizada->estado,
+                    'resultado' => $actualizada->resultado,
+                ],
+            ]);
+        }
+
+        return redirect()
+            ->route('envios-importacion.show', $envio)
+            ->with('success', $mensaje);
     }
 
 

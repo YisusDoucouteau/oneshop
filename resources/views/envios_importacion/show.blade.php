@@ -51,6 +51,26 @@
                         )
                     )
             );
+
+    $totalUnidadesRecepcion = $envio->unidadesEnvio->count();
+    $pendientesRecepcion = $envio->unidadesEnvio
+        ->where('estado_recepcion', \App\Models\EnvioImportacionUnidad::ESTADO_PENDIENTE)
+        ->count();
+    $recibidasRecepcion = $envio->unidadesEnvio
+        ->where('estado_recepcion', \App\Models\EnvioImportacionUnidad::ESTADO_RECIBIDA)
+        ->count();
+    $faltantesRecepcion = $envio->unidadesEnvio
+        ->where('estado_recepcion', \App\Models\EnvioImportacionUnidad::ESTADO_FALTANTE)
+        ->count();
+    $incidenciasRecepcion = $envio->unidadesEnvio
+        ->where('estado_recepcion', \App\Models\EnvioImportacionUnidad::ESTADO_INCIDENCIA)
+        ->count();
+    $procesadasRecepcion =
+        $totalUnidadesRecepcion - $pendientesRecepcion;
+    $porcentajeRecepcion =
+        $totalUnidadesRecepcion > 0
+            ? (int) round(($procesadasRecepcion / $totalUnidadesRecepcion) * 100)
+            : 0;
 @endphp
 
 
@@ -90,6 +110,13 @@
         observacionRecepcion: '',
         cargadorEsperadoRecepcion: false,
         cargadorRecibidoRecepcion: null,
+        tipoIncidenciaRecepcion: 'INCIDENCIA_RECEPCION',
+
+        modalResolucionIncidencia: false,
+        urlResolucionIncidencia: '',
+        incidenciaResolucion: '',
+        resultadoIncidencia: 'REPARADO',
+        detalleResolucionIncidencia: '',
 
         recepcionGeneral: {
             cantidad_bultos_recibidos: @js($envio->cantidad_bultos_recibidos),
@@ -220,6 +247,7 @@
 
             this.cargadorEsperadoRecepcion = Boolean(incluyeCargador);
             this.cargadorRecibidoRecepcion = null;
+            this.tipoIncidenciaRecepcion = 'INCIDENCIA_RECEPCION';
 
             this.errorGeneral = '';
 
@@ -280,10 +308,42 @@
                     this.cargadorRecibidoRecepcion;
             }
 
+            if (this.tipoRecepcion === 'incidencia') {
+                datosRecepcion.tipo = this.tipoIncidenciaRecepcion;
+            }
+
             await this.ejecutar(
                 this.urlRecepcion,
                 'post',
                 datosRecepcion
+            );
+        },
+
+
+        abrirResolucionIncidencia(url, etiqueta) {
+            this.urlResolucionIncidencia = url;
+            this.incidenciaResolucion = etiqueta;
+            this.resultadoIncidencia = 'REPARADO';
+            this.detalleResolucionIncidencia = '';
+            this.errorGeneral = '';
+            this.modalResolucionIncidencia = true;
+        },
+
+
+        async resolverIncidencia() {
+            if (!this.detalleResolucionIncidencia.trim()) {
+                this.errorGeneral =
+                    'Debe describir cómo fue resuelta la incidencia.';
+                return;
+            }
+
+            await this.ejecutar(
+                this.urlResolucionIncidencia,
+                'post',
+                {
+                    resultado: this.resultadoIncidencia,
+                    detalle_resolucion: this.detalleResolucionIncidencia
+                }
             );
         },
 
@@ -884,66 +944,6 @@
                     @endif
 
 
-                    {{-- CERRAR RECEPCIÓN --}}
-                    @if(
-                        ($puedeOperarDestino ?? false)
-                        &&
-                        in_array(
-                            $envio->estado,
-                            [
-                                \App\Models\EnvioImportacion::ESTADO_DESPACHADO,
-                                \App\Models\EnvioImportacion::ESTADO_RECIBIDO_PARCIAL,
-                            ],
-                            true
-                        )
-                        &&
-                        $recepcionGeneralVerificada
-                        &&
-                        !$hayPendientes
-                        &&
-                        $envio->unidadesEnvio->isNotEmpty()
-                    )
-
-                        <button
-                            type="button"
-                            data-testid="accion-cerrar-recepcion"
-                            @click="
-                                ejecutar(
-                                    @js(
-                                        route(
-                                            'envios-importacion.cerrar-recepcion',
-                                            $envio
-                                        )
-                                    )
-                                )
-                            "
-                            :disabled="procesando"
-                            class="
-                                inline-flex
-                                items-center
-                                gap-2
-                                rounded-xl
-                                border
-                                border-green-300
-                                bg-green-50
-                                px-4
-                                py-2.5
-                                text-sm
-                                font-semibold
-                                text-green-800
-                                hover:bg-green-100
-                                disabled:opacity-50
-                            "
-                        >
-                            <x-ui.icon
-                                name="check"
-                                size="17"
-                            />
-
-                            Cerrar recepción
-                        </button>
-
-                    @endif
 
                 </div>
 
@@ -1143,6 +1143,74 @@
 
 
     {{-- ============================================================
+        RESUMEN DE RECEPCIÓN EN ORURO
+    ============================================================ --}}
+    @if(
+        in_array(
+            $envio->estado,
+            [
+                \App\Models\EnvioImportacion::ESTADO_DESPACHADO,
+                \App\Models\EnvioImportacion::ESTADO_RECIBIDO_PARCIAL,
+                \App\Models\EnvioImportacion::ESTADO_RECIBIDO,
+            ],
+            true
+        )
+    )
+        <x-ui.card>
+            <div class="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+                <div>
+                    <p class="text-xs font-bold uppercase tracking-[0.14em] text-oneshop-primary">
+                        Recepción Oruro
+                    </p>
+                    <h2 class="mt-1 text-lg font-bold text-slate-900">
+                        Avance de recepción física
+                    </h2>
+                    <p class="mt-1 text-sm text-slate-500">
+                        El traslado y la recepción física se controlan antes de incorporar los equipos al inventario formal.
+                    </p>
+                </div>
+
+                <div class="min-w-[180px]">
+                    <div class="flex items-center justify-between text-xs font-semibold text-slate-600">
+                        <span>Procesadas</span>
+                        <span>{{ $porcentajeRecepcion }}%</span>
+                    </div>
+                    <div class="mt-2 h-2 overflow-hidden rounded-full bg-slate-100">
+                        <div
+                            class="h-full rounded-full bg-oneshop-primary transition-all"
+                            style="width: {{ $porcentajeRecepcion }}%"
+                        ></div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="mt-5 grid grid-cols-2 gap-3 lg:grid-cols-5">
+                <div class="rounded-xl border border-slate-200 bg-slate-50 p-4">
+                    <p class="text-xs font-semibold uppercase tracking-wide text-slate-500">Total</p>
+                    <p class="mt-1 text-2xl font-bold text-slate-900">{{ $totalUnidadesRecepcion }}</p>
+                </div>
+                <div class="rounded-xl border border-slate-200 bg-slate-50 p-4">
+                    <p class="text-xs font-semibold uppercase tracking-wide text-slate-500">Pendientes</p>
+                    <p class="mt-1 text-2xl font-bold text-slate-900">{{ $pendientesRecepcion }}</p>
+                </div>
+                <div class="rounded-xl border border-green-200 bg-green-50 p-4">
+                    <p class="text-xs font-semibold uppercase tracking-wide text-green-700">Recibidas</p>
+                    <p class="mt-1 text-2xl font-bold text-green-800">{{ $recibidasRecepcion }}</p>
+                </div>
+                <div class="rounded-xl border border-red-200 bg-red-50 p-4">
+                    <p class="text-xs font-semibold uppercase tracking-wide text-red-700">Faltantes</p>
+                    <p class="mt-1 text-2xl font-bold text-red-800">{{ $faltantesRecepcion }}</p>
+                </div>
+                <div class="rounded-xl border border-amber-200 bg-amber-50 p-4">
+                    <p class="text-xs font-semibold uppercase tracking-wide text-amber-700">Incidencias</p>
+                    <p class="mt-1 text-2xl font-bold text-amber-800">{{ $incidenciasRecepcion }}</p>
+                </div>
+            </div>
+        </x-ui.card>
+    @endif
+
+
+    {{-- ============================================================
         VERIFICACIÓN FÍSICA EN DESTINO
     ============================================================ --}}
     @if(
@@ -1249,6 +1317,11 @@
                     Registra primero el conteo físico general para habilitar el cierre de recepción.
                 @elseif($hayPendientes)
                     Aún existen unidades pendientes. Registra cada una como recibida, faltante o con incidencia.
+                @elseif(
+                    $envio->estado ===
+                    \App\Models\EnvioImportacion::ESTADO_RECIBIDO_PARCIAL
+                )
+                    La recepción está cerrada como <strong>Recibido con diferencias</strong>. Puedes actualizar la verificación y recalcular el cierre si cambia la recepción.
                 @elseif($hayDiferenciasConteoRecepcion || $hayDiferenciasUnidades)
                     Todo está verificado. El envío puede cerrarse como <strong>Recibido con diferencias</strong>.
                 @else
@@ -1256,7 +1329,7 @@
                 @endif
             </div>
 
-            <div class="mt-4 flex justify-end">
+            <div class="mt-4 flex flex-wrap justify-end gap-2">
                 <button
                     type="button"
                     data-testid="accion-verificar-recepcion"
@@ -1266,6 +1339,39 @@
                 >
                     {{ $envio->fecha_verificacion_recepcion ? 'Actualizar verificación' : 'Registrar verificación' }}
                 </button>
+
+                @if(
+                    $recepcionGeneralVerificada
+                    &&
+                    !$hayPendientes
+                    &&
+                    $envio->unidadesEnvio->isNotEmpty()
+                )
+                    <button
+                        type="button"
+                        data-testid="accion-cerrar-recepcion"
+                        @click="
+                            ejecutar(
+                                @js(
+                                    route(
+                                        'envios-importacion.cerrar-recepcion',
+                                        $envio
+                                    )
+                                )
+                            )
+                        "
+                        :disabled="procesando"
+                        class="inline-flex items-center gap-2 rounded-xl border border-green-300 bg-green-50 px-5 py-2.5 text-sm font-semibold text-green-800 hover:bg-green-100 disabled:opacity-50"
+                    >
+                        <x-ui.icon name="check" size="17" />
+                        {{
+                            $envio->estado ===
+                            \App\Models\EnvioImportacion::ESTADO_RECIBIDO_PARCIAL
+                                ? 'Actualizar cierre'
+                                : 'Cerrar recepción'
+                        }}
+                    </button>
+                @endif
             </div>
         </x-ui.card>
     @endif
@@ -1361,6 +1467,37 @@
                                     \App\Models\EnvioImportacionUnidad::ESTADO_INCIDENCIA => 'yellow',
                                     default => 'gray',
                                 };
+
+                            $incidenciaActiva = $detalle->incidencias
+                                ->first(
+                                    fn ($incidencia) =>
+                                        in_array(
+                                            $incidencia->estado,
+                                            [
+                                                \App\Models\IncidenciaLogisticaImportacion::ESTADO_ABIERTA,
+                                                \App\Models\IncidenciaLogisticaImportacion::ESTADO_EN_GESTION,
+                                            ],
+                                            true
+                                        )
+                                );
+
+                            $ultimaIncidencia = $detalle->incidencias->last();
+
+                            $etiquetaTipoIncidencia = $ultimaIncidencia
+                                ? match ($ultimaIncidencia->tipo) {
+                                    'UNIDAD_FALTANTE' => 'Unidad faltante',
+                                    'ACCESORIO_FALTANTE' => 'Accesorio/cargador faltante',
+                                    'DANIO_TRANSPORTE' => 'Daño de transporte',
+                                    'EQUIPO_INCORRECTO' => 'Equipo incorrecto',
+                                    'EMBALAJE_MANIPULADO' => 'Embalaje manipulado',
+                                    'INCIDENCIA_RECEPCION' => 'Incidencia de recepción',
+                                    default => ucfirst(
+                                        strtolower(
+                                            str_replace('_', ' ', $ultimaIncidencia->tipo)
+                                        )
+                                    ),
+                                }
+                                : null;
                         @endphp
 
 
@@ -1555,6 +1692,37 @@
                                         ?? '-'
                                     }}
                                 </p>
+
+                                @if($ultimaIncidencia)
+                                    <div class="mt-3 max-w-xs rounded-lg border border-amber-200 bg-amber-50 p-3">
+                                        <div class="flex flex-wrap items-center gap-2">
+                                            <span class="text-[11px] font-bold uppercase tracking-wide text-amber-800">
+                                                {{ $etiquetaTipoIncidencia }}
+                                            </span>
+                                            <span class="rounded-full border border-amber-200 px-2 py-0.5 text-[10px] font-semibold text-amber-700">
+                                                {{
+                                                    match ($ultimaIncidencia->estado) {
+                                                        \App\Models\IncidenciaLogisticaImportacion::ESTADO_ABIERTA => 'Abierta',
+                                                        \App\Models\IncidenciaLogisticaImportacion::ESTADO_EN_GESTION => 'En gestión',
+                                                        \App\Models\IncidenciaLogisticaImportacion::ESTADO_RESUELTA => 'Resuelta',
+                                                        default => $ultimaIncidencia->estado,
+                                                    }
+                                                }}
+                                            </span>
+                                        </div>
+
+                                        <p class="mt-2 text-[11px] leading-5 text-amber-900">
+                                            {{ $ultimaIncidencia->descripcion }}
+                                        </p>
+
+                                        @if($ultimaIncidencia->estaResuelta())
+                                            <p class="mt-2 text-[11px] font-semibold text-slate-600">
+                                                Resultado:
+                                                {{ str_replace('_', ' ', ucfirst(strtolower($ultimaIncidencia->resultado ?? 'Resuelta'))) }}
+                                            </p>
+                                        @endif
+                                    </div>
+                                @endif
 
                             </td>
 
@@ -1757,6 +1925,93 @@
                                             Incidencia
                                         </button>
 
+                                    @endif
+
+
+                                    {{-- Gestión de incidencia logística --}}
+                                    @if(
+                                        $incidenciaActiva
+                                        &&
+                                        ($puedeOperarDestino ?? false)
+                                        &&
+                                        auth()->user()?->tienePermiso('importacion.gestionar')
+                                    )
+                                        @if(
+                                            $incidenciaActiva->estado ===
+                                                \App\Models\IncidenciaLogisticaImportacion::ESTADO_ABIERTA
+                                        )
+                                            <button
+                                                type="button"
+                                                data-testid="accion-iniciar-gestion-incidencia"
+                                                @click="
+                                                    ejecutar(
+                                                        @js(
+                                                            route(
+                                                                'envios-importacion.incidencias.gestion',
+                                                                [
+                                                                    'envio' => $envio,
+                                                                    'incidencia' => $incidenciaActiva,
+                                                                ]
+                                                            )
+                                                        )
+                                                    )
+                                                "
+                                                :disabled="procesando"
+                                                class="
+                                                    rounded-lg
+                                                    border
+                                                    border-amber-300
+                                                    bg-amber-50
+                                                    px-3
+                                                    py-2
+                                                    text-xs
+                                                    font-semibold
+                                                    text-amber-800
+                                                    hover:bg-amber-100
+                                                    disabled:opacity-50
+                                                "
+                                            >
+                                                Iniciar gestión
+                                            </button>
+                                        @elseif(
+                                            $incidenciaActiva->estado ===
+                                                \App\Models\IncidenciaLogisticaImportacion::ESTADO_EN_GESTION
+                                        )
+                                            <button
+                                                type="button"
+                                                data-testid="accion-resolver-incidencia"
+                                                @click="
+                                                    abrirResolucionIncidencia(
+                                                        @js(
+                                                            route(
+                                                                'envios-importacion.incidencias.resolver',
+                                                                [
+                                                                    'envio' => $envio,
+                                                                    'incidencia' => $incidenciaActiva,
+                                                                ]
+                                                            )
+                                                        ),
+                                                        @js($etiquetaTipoIncidencia ?? 'Incidencia')
+                                                    )
+                                                "
+                                                :disabled="procesando"
+                                                class="
+                                                    rounded-lg
+                                                    border
+                                                    border-green-300
+                                                    bg-green-50
+                                                    px-3
+                                                    py-2
+                                                    text-xs
+                                                    font-semibold
+                                                    text-green-800
+                                                    hover:bg-green-100
+                                                    disabled:opacity-50
+                                                "
+                                            >
+                                                Resolver incidencia
+                                            </button>
+                                        @endif
                                     @endif
 
 
@@ -2547,6 +2802,29 @@
             </div>
 
 
+            <div
+                x-show="tipoRecepcion === 'incidencia'"
+                class="mt-6"
+            >
+                <label class="mb-2 block text-sm font-semibold text-slate-700">
+                    Tipo de incidencia
+                </label>
+
+                <select
+                    x-model="tipoIncidenciaRecepcion"
+                    class="input-oneshop w-full"
+                    data-testid="recepcion-tipo-incidencia"
+                >
+                    <option value="INCIDENCIA_RECEPCION">Incidencia general de recepción</option>
+                    <option value="DANIO_TRANSPORTE">Daño de transporte</option>
+                    <option value="EQUIPO_INCORRECTO">Equipo incorrecto</option>
+                    <option value="EMBALAJE_MANIPULADO">Embalaje manipulado</option>
+                    <option value="ACCESORIO_FALTANTE">Accesorio faltante</option>
+                    <option value="OTRO">Otro</option>
+                </select>
+            </div>
+
+
             <div class="mt-6">
 
                 <label class="mb-2 block text-sm font-semibold text-slate-700">
@@ -2634,6 +2912,135 @@
 
         </div>
 
+    </div>
+
+
+    {{-- ============================================================
+        MODAL RESOLUCIÓN DE INCIDENCIA
+    ============================================================ --}}
+    <div
+        x-cloak
+        x-show="modalResolucionIncidencia"
+        class="
+            fixed
+            inset-0
+            z-[110]
+            flex
+            items-center
+            justify-center
+            p-4
+        "
+    >
+        <div
+            class="
+                absolute
+                inset-0
+                bg-slate-950/70
+                backdrop-blur-sm
+            "
+            @click="!procesando && (modalResolucionIncidencia = false)"
+        ></div>
+
+        <div
+            class="
+                relative
+                z-10
+                w-full
+                max-w-xl
+                rounded-2xl
+                bg-white
+                p-6
+                shadow-2xl
+            "
+        >
+            <p class="text-xs font-bold uppercase tracking-[0.14em] text-oneshop-primary">
+                Gestión logística
+            </p>
+
+            <h3 class="mt-1 text-lg font-bold text-slate-900">
+                Resolver incidencia
+            </h3>
+
+            <p class="mt-1 text-sm text-slate-500">
+                Incidencia:
+                <strong
+                    class="text-slate-700"
+                    x-text="incidenciaResolucion"
+                ></strong>
+            </p>
+
+            <div class="mt-6">
+                <label class="mb-2 block text-sm font-semibold text-slate-700">
+                    Resultado
+                </label>
+
+                <select
+                    x-model="resultadoIncidencia"
+                    class="input-oneshop w-full"
+                >
+                    <option value="REPARADO">Reparado</option>
+                    <option value="REEMPLAZADO">Reemplazado</option>
+                    <option value="RECUPERADO">Recuperado</option>
+                    <option value="COMPENSADO">Compensado</option>
+                    <option value="ACEPTADO_CON_OBSERVACION">Aceptado con observación</option>
+                    <option value="OTRO">Otro</option>
+                </select>
+            </div>
+
+            <div class="mt-5">
+                <label class="mb-2 block text-sm font-semibold text-slate-700">
+                    Detalle de resolución
+                </label>
+
+                <textarea
+                    x-model="detalleResolucionIncidencia"
+                    rows="5"
+                    class="input-oneshop w-full"
+                    placeholder="Describe qué se hizo y cómo quedó resuelta la incidencia"
+                ></textarea>
+            </div>
+
+            <div
+                class="
+                    mt-6
+                    flex
+                    justify-end
+                    gap-3
+                    border-t
+                    border-slate-200
+                    pt-5
+                "
+            >
+                <button
+                    type="button"
+                    @click="modalResolucionIncidencia = false"
+                    class="btn-secondary"
+                >
+                    Cancelar
+                </button>
+
+                <button
+                    type="button"
+                    @click="resolverIncidencia()"
+                    :disabled="procesando"
+                    class="
+                        rounded-xl
+                        border
+                        border-green-300
+                        bg-green-50
+                        px-5
+                        py-2.5
+                        text-sm
+                        font-semibold
+                        text-green-800
+                        hover:bg-green-100
+                        disabled:opacity-50
+                    "
+                >
+                    Guardar resolución
+                </button>
+            </div>
+        </div>
     </div>
 
 

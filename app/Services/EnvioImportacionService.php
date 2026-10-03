@@ -17,7 +17,8 @@ use Illuminate\Validation\ValidationException;
 class EnvioImportacionService
 {
     public function __construct(
-        private readonly AuditoriaService $auditoriaService
+        private readonly AuditoriaService $auditoriaService,
+        private readonly IncidenciaLogisticaImportacionService $incidenciaService
     ) {
     }
 
@@ -1471,7 +1472,40 @@ $this->registrarEventoLogisticoLotesDelEnvio(
                         UnidadAdquirida::ESTADO_RECIBIDA_ORURO,
                 ]);
 
-                return $detalle->fresh();
+                /*
+                 * Si la unidad había sido declarada FALTANTE, su llegada
+                 * posterior cierra automáticamente la incidencia activa de
+                 * unidad faltante. Si además falta el cargador declarado,
+                 * se abre una nueva incidencia específica para el accesorio.
+                 */
+                if ($esRecepcionTardia) {
+                    $this->incidenciaService
+                        ->resolverPorRecepcionTardia(
+                            $usuario->id,
+                            $detalle->id,
+                            $observacionFinal
+                        );
+                }
+
+                if (
+                    $estadoRecepcion ===
+                    EnvioImportacionUnidad::ESTADO_INCIDENCIA
+                ) {
+                    $this->incidenciaService->abrirIncidencia(
+                        $usuario->id,
+                        $detalle->id,
+                        [
+                            'tipo' => 'ACCESORIO_FALTANTE',
+                            'descripcion' =>
+                                $observacionFinal
+                                ?: 'El equipo llegó sin el cargador declarado en el manifiesto.',
+                        ]
+                    );
+                }
+
+                return $detalle->fresh([
+                    'incidencias',
+                ]);
             },
             3
         );
@@ -1647,7 +1681,19 @@ $this->registrarEventoLogisticoLotesDelEnvio(
                  * porque todavía no existe evidencia
                  * de recepción física en Oruro.
                  */
-                return $detalle->fresh();
+                $this->incidenciaService->abrirIncidencia(
+                    $usuario->id,
+                    $detalle->id,
+                    [
+                        'tipo' => 'UNIDAD_FALTANTE',
+                        'descripcion' =>
+                            trim($validados['observacion']),
+                    ]
+                );
+
+                return $detalle->fresh([
+                    'incidencias',
+                ]);
             },
             3
         );
@@ -1665,7 +1711,8 @@ public function registrarIncidenciaRecepcion(
     int $envioId,
     int $unidadId,
     string $observacion,
-    ?bool $cargadorRecibido = null
+    ?bool $cargadorRecibido = null,
+    string $tipoIncidencia = 'INCIDENCIA_RECEPCION'
 ): EnvioImportacionUnidad {
     return DB::transaction(
         function () use (
@@ -1673,7 +1720,8 @@ public function registrarIncidenciaRecepcion(
             $envioId,
             $unidadId,
             $observacion,
-            $cargadorRecibido
+            $cargadorRecibido,
+            $tipoIncidencia
         ) {
             $usuario =
                 $this->obtenerUsuarioAutorizado(
@@ -1830,7 +1878,22 @@ public function registrarIncidenciaRecepcion(
                     UnidadAdquirida::ESTADO_RECIBIDA_ORURO,
             ]);
 
-            return $detalle->fresh();
+            $this->incidenciaService->abrirIncidencia(
+                $usuario->id,
+                $detalle->id,
+                [
+                    'tipo' =>
+                        trim($tipoIncidencia) !== ''
+                            ? trim($tipoIncidencia)
+                            : 'INCIDENCIA_RECEPCION',
+                    'descripcion' =>
+                        trim($validados['observacion']),
+                ]
+            );
+
+            return $detalle->fresh([
+                'incidencias',
+            ]);
         },
         3
     );
@@ -2169,5 +2232,5 @@ if ($existe) {
 
         return $usuario;
     }
-        
+
 }

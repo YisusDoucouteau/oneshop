@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Exceptions\ReglaNegocioException;
+use App\Models\Almacen;
 use App\Models\CategoriaProducto;
 use App\Models\EnvioImportacionUnidad;
 use App\Models\IncidenciaLogisticaImportacion;
@@ -257,17 +258,13 @@ class IncidenciaLogisticaImportacionServiceTest extends TestCase
         */
 
         $incidencia =
-            $servicio->abrirIncidencia(
-                $this->usuarioOperativo->id,
-                $detalle->id,
-                [
-                    'tipo' =>
-                    'DANIO_TRANSPORTE',
-
-                    'descripcion' =>
-                    'Se detectó un golpe en la carcasa al abrir el paquete.',
-                ]
-            );
+            IncidenciaLogisticaImportacion::query()
+                ->where(
+                    'envio_importacion_unidad_id',
+                    $detalle->id
+                )
+                ->latest('id')
+                ->firstOrFail();
 
 
         $this->assertEquals(
@@ -412,19 +409,6 @@ class IncidenciaLogisticaImportacionServiceTest extends TestCase
             );
 
 
-        $servicio->abrirIncidencia(
-            $this->usuarioOperativo->id,
-            $detalle->id,
-            [
-                'tipo' =>
-                'DANIO_TRANSPORTE',
-
-                'descripcion' =>
-                'Primera incidencia activa.',
-            ]
-        );
-
-
         try {
 
             $servicio->abrirIncidencia(
@@ -489,17 +473,13 @@ class IncidenciaLogisticaImportacionServiceTest extends TestCase
      * La incidencia nace ABIERTA.
      */
         $incidencia =
-            $servicio->abrirIncidencia(
-                $this->usuarioOperativo->id,
-                $detalle->id,
-                [
-                    'tipo' =>
-                    'DANIO_TRANSPORTE',
-
-                    'descripcion' =>
-                    'Equipo recibido con daño visible.',
-                ]
-            );
+            IncidenciaLogisticaImportacion::query()
+                ->where(
+                    'envio_importacion_unidad_id',
+                    $detalle->id
+                )
+                ->latest('id')
+                ->firstOrFail();
 
 
         $this->assertEquals(
@@ -572,6 +552,64 @@ class IncidenciaLogisticaImportacionServiceTest extends TestCase
     }
 
 
+    public function test_usuario_de_origen_no_puede_gestionar_incidencia_de_destino(): void
+    {
+        $detalle = $this->crearDetalleConIncidencia(
+            'ENV-INC-SEDE-001'
+        );
+
+        $servicio = app(
+            IncidenciaLogisticaImportacionService::class
+        );
+
+        $incidencia = IncidenciaLogisticaImportacion::query()
+            ->where('envio_importacion_unidad_id', $detalle->id)
+            ->latest('id')
+            ->firstOrFail();
+
+        $origen = Almacen::query()
+            ->where('codigo', 'COCHABAMBA')
+            ->firstOrFail();
+
+        $usuarioOrigen = User::factory()->create([
+            'activo' => true,
+            'almacen_operativo_id' => $origen->id,
+        ]);
+
+        /*
+         * Para probar la restricción por sede usamos un operador real
+         * ligado a Cochabamba. El rol ADMINISTRADOR es global por diseño
+         * y puede operar ambas sedes, por lo que no sirve para este caso.
+         */
+        $rol = Rol::query()
+            ->where('codigo', 'ADMIN_OPERATIVO')
+            ->firstOrFail();
+
+        $permisoImportacion = Permiso::query()
+            ->where('codigo', 'importacion.gestionar')
+            ->firstOrFail();
+
+        $rol->permisos()->syncWithoutDetaching([
+            $permisoImportacion->id,
+        ]);
+
+        $usuarioOrigen->roles()->attach($rol->id);
+
+        $this->expectException(
+            ReglaNegocioException::class
+        );
+
+        $this->expectExceptionMessage(
+            'Sede requerida'
+        );
+
+        $servicio->iniciarGestion(
+            $usuarioOrigen->id,
+            $incidencia->id
+        );
+    }
+
+
     public function test_no_permite_resolver_dos_veces_la_misma_incidencia(): void
     {
         $detalle =
@@ -590,17 +628,13 @@ class IncidenciaLogisticaImportacionServiceTest extends TestCase
      * ABIERTA
      */
         $incidencia =
-            $servicio->abrirIncidencia(
-                $this->usuarioOperativo->id,
-                $detalle->id,
-                [
-                    'tipo' =>
-                    'DANIO_TRANSPORTE',
-
-                    'descripcion' =>
-                    'Incidencia para comprobar doble resolución.',
-                ]
-            );
+            IncidenciaLogisticaImportacion::query()
+                ->where(
+                    'envio_importacion_unidad_id',
+                    $detalle->id
+                )
+                ->latest('id')
+                ->firstOrFail();
 
 
         /*
