@@ -312,6 +312,60 @@
         </div>
     @endif
 
+    @if($esAdministrador && $equipo->estadoActual?->codigo === 'RECIBIDO')
+        <section class="rounded-2xl border border-amber-200 bg-amber-50/60 px-5 py-4 shadow-sm">
+            <div class="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+                <div>
+                    <div class="flex flex-wrap items-center gap-2">
+                        <h2 class="font-semibold text-slate-950">
+                            Equipo aún no publicado para venta
+                        </h2>
+                        <span class="rounded-full bg-amber-100 px-2.5 py-1 text-[11px] font-bold uppercase tracking-wide text-amber-800">
+                            Recibido
+                        </span>
+                    </div>
+                    <p class="mt-1 max-w-3xl text-sm leading-6 text-slate-600">
+                        Definir un precio no cambia automáticamente la disponibilidad. Cuando Daniel termine de revisar precio y límite de negociación, puede habilitar esta unidad para que aparezca en Nueva venta.
+                    </p>
+                </div>
+
+                @if($equipo->precioVigente && $costoComercial)
+                    <form
+                        method="POST"
+                        action="{{ route('precios.equipos.habilitar-venta', $equipo) }}"
+                        onsubmit="return confirm('¿Habilitar este equipo para venta? Desde ese momento aparecerá en Nueva venta.')"
+                        class="shrink-0"
+                    >
+                        @csrf
+                        <button type="submit" class="btn-primary">
+                            Habilitar para venta
+                        </button>
+                    </form>
+                @else
+                    <div class="rounded-xl border border-amber-200 bg-white px-4 py-3 text-sm text-amber-800">
+                        Completa precio y costo comercial antes de habilitar.
+                    </div>
+                @endif
+            </div>
+        </section>
+    @elseif($esAdministrador && $equipo->estadoActual?->codigo === 'DISPONIBLE')
+        <section class="rounded-2xl border border-emerald-200 bg-emerald-50/60 px-5 py-4 shadow-sm">
+            <div class="flex flex-col gap-1">
+                <div class="flex flex-wrap items-center gap-2">
+                    <h2 class="font-semibold text-emerald-950">
+                        Disponible para venta
+                    </h2>
+                    <span class="rounded-full bg-emerald-100 px-2.5 py-1 text-[11px] font-bold uppercase tracking-wide text-emerald-800">
+                        Publicado
+                    </span>
+                </div>
+                <p class="text-sm text-emerald-800">
+                    Esta unidad ya puede ser seleccionada desde Nueva venta mientras conserve precio vigente y estado Disponible.
+                </p>
+            </div>
+        </section>
+    @endif
+
     @if($esAdministrador)
         <section class="rounded-2xl border border-blue-200 bg-white shadow-sm">
             <div class="flex flex-col gap-5 border-b border-blue-100 px-6 py-5 lg:flex-row lg:items-center lg:justify-between">

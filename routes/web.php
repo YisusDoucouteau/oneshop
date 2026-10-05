@@ -733,6 +733,14 @@ Route::post(
 
 
 Route::post(
+    '/ventas/{venta}/pagos/mixto',
+    [PagoVentaController::class, 'storeMixto']
+)
+->middleware('permiso:pagos.registrar')
+->name('ventas.pagos.mixto.store');
+
+
+Route::post(
     '/ventas/{venta}/pagos/{pago}/verificar',
     [PagoVentaController::class, 'verificar']
 )
@@ -952,6 +960,24 @@ Route::post(
 )
 ->middleware('permiso:precios.modificar')
 ->name('precios.equipos.store');
+
+
+/*
+|--------------------------------------------------------------------------
+| Habilitar equipo para venta
+|--------------------------------------------------------------------------
+|
+| Guardar un precio no cambia automáticamente el estado del equipo. Esta
+| acción explícita cierra el puente RECIBIDO -> DISPONIBLE.
+|
+*/
+
+Route::post(
+    '/inventario/{equipo:codigo_interno}/habilitar-venta',
+    [PrecioEquipoController::class, 'habilitarVenta']
+)
+->middleware('permiso:precios.modificar')
+->name('precios.equipos.habilitar-venta');
 
 
 /*

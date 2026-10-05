@@ -129,6 +129,12 @@ class CatalogoInventarioSeeder extends Seeder
 
 
         $this->crearTransicion(
+            'RECIBIDO',
+            'DISPONIBLE'
+        );
+
+
+        $this->crearTransicion(
             'DISPONIBLE',
             'RESERVADO'
         );

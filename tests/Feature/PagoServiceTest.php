@@ -248,6 +248,65 @@ class PagoServiceTest extends TestCase
         );
     }
 
+    public function test_pago_mixto_crea_efectivo_verificado_y_qr_pendiente(): void
+    {
+        $venta = $this->crearVentaDirecta();
+
+        $pagos = app(PagoService::class)
+            ->registrarPagoMixtoVenta(
+                ventaId: $venta->id,
+                montoEfectivo: '1000.00',
+                montoQrTransferencia: '1500.00',
+                registradoPorId: $this->usuario->id,
+                referencia: 'QR-MIXTO-001'
+            );
+
+        $this->assertSame(
+            'VERIFICADO',
+            $pagos['efectivo']->estado
+        );
+
+        $this->assertSame(
+            'PENDIENTE',
+            $pagos['qr_transferencia']->estado
+        );
+
+        $this->assertSame(
+            'QR-MIXTO-001',
+            $pagos['qr_transferencia']->referencia
+        );
+
+        $this->assertDatabaseCount(
+            'pagos',
+            2
+        );
+
+        $resumen = app(PagoService::class)
+            ->obtenerResumenVenta(
+                $venta->id
+            );
+
+        $this->assertSame(
+            '1000.00',
+            $resumen['pagado_total']
+        );
+
+        $this->assertSame(
+            '1500.00',
+            $resumen['pendiente_total']
+        );
+
+        $this->assertSame(
+            '2500.00',
+            $resumen['saldo']
+        );
+
+        $this->assertSame(
+            '1000.00',
+            $resumen['saldo_disponible']
+        );
+    }
+
     public function test_no_permite_pago_mayor_al_saldo(): void
     {
         $venta = $this->crearVentaDirecta();

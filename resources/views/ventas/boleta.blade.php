@@ -283,11 +283,12 @@
     <table class="items">
         <thead>
             <tr>
-                <th style="width: 23%;">Marca</th>
-                <th style="width: 25%;">Modelo</th>
-                <th style="width: 20%;">Serial</th>
-                <th style="width: 14%;">Condición</th>
-                <th class="derecha" style="width: 18%;">Precio</th>
+                <th style="width: 17%;">Marca</th>
+                <th style="width: 18%;">Modelo</th>
+                <th style="width: 16%;">N° equipo</th>
+                <th style="width: 21%;">Serial fabricante</th>
+                <th style="width: 12%;">Condición</th>
+                <th class="derecha" style="width: 16%;">Precio</th>
             </tr>
         </thead>
 
@@ -314,11 +315,14 @@
                     $codigoVisible =
                         $codigo === '-'
                             ? '-'
-                            : '#'
-                                . ltrim(
-                                    (string) $codigo,
-                                    '#'
-                                );
+                            : ltrim(
+                                (string) $codigo,
+                                '#'
+                            );
+
+                    $serialFabricante =
+                        $detalle->equipo?->serial_fabricante
+                        ?: '-';
 
                     $condicion =
                         $detalle->condicion_venta_snapshot
@@ -329,6 +333,7 @@
                     <td>{{ $marca }}</td>
                     <td>{{ $modelo }}</td>
                     <td><strong>{{ $codigoVisible }}</strong></td>
+                    <td>{{ $serialFabricante }}</td>
                     <td>{{ $condicion }}</td>
                     <td class="derecha">
                         Bs {{ number_format((float) $detalle->precio_unitario, 2, ',', '.') }}

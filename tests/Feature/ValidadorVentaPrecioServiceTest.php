@@ -9,6 +9,7 @@ use App\Models\EstadoEquipo;
 use App\Models\PoliticaDescuento;
 use App\Models\PrecioEquipo;
 use App\Models\Producto;
+use App\Models\SolicitudDescuento;
 use App\Models\User;
 use App\Services\CostoComercialActualService;
 use App\Services\ValidadorVentaPrecioService;
@@ -636,4 +637,79 @@ class ValidadorVentaPrecioServiceTest extends TestCase
             ]
         );
     }
+    public function test_vista_previa_con_vendedor_no_crea_solicitud_si_se_desactiva_efecto_secundario(): void
+    {
+        $equipo = $this->crearEquipo();
+        $this->crearPrecio($equipo);
+        $this->crearPolitica();
+
+        $usuario = User::create([
+            'name' => 'Vendedor vista previa',
+            'email' => 'preview-' . Str::uuid() . '@test.com',
+            'password' => bcrypt('password'),
+            'activo' => true,
+        ]);
+
+        $resultado = app(
+            ValidadorVentaPrecioService::class
+        )->validar(
+            equipoId: $equipo->id,
+            precioPropuesto: 4000,
+            vendedorId: $usuario->id,
+            crearSolicitud: false
+        );
+
+        $this->assertFalse($resultado['permitido']);
+        $this->assertTrue($resultado['requiere_aprobacion']);
+        $this->assertNull($resultado['solicitud']);
+        $this->assertDatabaseCount('solicitudes_descuentos', 0);
+    }
+
+    public function test_vista_previa_reconoce_autorizacion_aprobada_sin_crear_otra_solicitud(): void
+    {
+        $equipo = $this->crearEquipo();
+        $precio = $this->crearPrecio($equipo);
+        $this->crearPolitica();
+
+        $usuario = User::create([
+            'name' => 'Vendedor autorizado',
+            'email' => 'autorizado-' . Str::uuid() . '@test.com',
+            'password' => bcrypt('password'),
+            'activo' => true,
+        ]);
+
+        $solicitud = SolicitudDescuento::create([
+            'precio_equipo_id' => $precio->id,
+            'politica_descuento_id' => null,
+            'cliente_id' => null,
+            'solicitado_por_id' => $usuario->id,
+            'precio_publico_snapshot' => 5000,
+            'precio_solicitado' => 4000,
+            'descuento_solicitado' => 1000,
+            'porcentaje_descuento' => 20,
+            'costo_total_snapshot' => 3500,
+            'utilidad_proyectada' => 500,
+            'estado' => 'APROBADA',
+            'motivo' => 'Cierre autorizado.',
+            'respondido_por_id' => $usuario->id,
+            'fecha_respuesta' => now(),
+            'medio_respuesta' => 'SISTEMA',
+        ]);
+
+        $resultado = app(
+            ValidadorVentaPrecioService::class
+        )->validar(
+            equipoId: $equipo->id,
+            precioPropuesto: 4000,
+            vendedorId: $usuario->id,
+            crearSolicitud: false
+        );
+
+        $this->assertTrue($resultado['permitido']);
+        $this->assertFalse($resultado['requiere_aprobacion']);
+        $this->assertSame('AUTORIZADO', $resultado['estado']);
+        $this->assertSame($solicitud->id, $resultado['solicitud_aprobada']?->id);
+        $this->assertDatabaseCount('solicitudes_descuentos', 1);
+    }
+
 }

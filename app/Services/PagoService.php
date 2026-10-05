@@ -154,6 +154,128 @@ class PagoService
         }, 3);
     }
 
+    /**
+     * Registra un pago mixto como dos movimientos reales:
+     * efectivo verificado + QR / transferencia pendiente de verificación.
+     *
+     * Se ejecuta en una sola transacción para evitar que una mitad quede
+     * registrada si la otra falla.
+     */
+    public function registrarPagoMixtoVenta(
+        int $ventaId,
+        string|int|float $montoEfectivo,
+        string|int|float $montoQrTransferencia,
+        int $registradoPorId,
+        string $referencia,
+        ?string $observacion = null
+    ): array {
+        return DB::transaction(function () use (
+            $ventaId,
+            $montoEfectivo,
+            $montoQrTransferencia,
+            $registradoPorId,
+            $referencia,
+            $observacion
+        ) {
+            $venta = Venta::query()
+                ->lockForUpdate()
+                ->find($ventaId);
+
+            if (!$venta) {
+                throw new ReglaNegocioException(
+                    'La venta no existe.'
+                );
+            }
+
+            if ($venta->estado === 'ANULADA') {
+                throw new ReglaNegocioException(
+                    'No se pueden registrar pagos en una venta anulada.'
+                );
+            }
+
+            $montoEfectivo = $this->normalizarMonto(
+                $montoEfectivo
+            );
+
+            $montoQrTransferencia = $this->normalizarMonto(
+                $montoQrTransferencia
+            );
+
+            $referencia = trim($referencia);
+
+            if ($referencia === '') {
+                throw new ReglaNegocioException(
+                    'El pago por QR / transferencia requiere una referencia o comprobante.'
+                );
+            }
+
+            $totalMixto = bcadd(
+                $montoEfectivo,
+                $montoQrTransferencia,
+                2
+            );
+
+            $comprometido = $this->calcularPagadoVenta(
+                venta: $venta,
+                estados: ['PENDIENTE', 'VERIFICADO']
+            );
+
+            $saldoDisponible = bcsub(
+                (string) $venta->total,
+                $comprometido,
+                2
+            );
+
+            $this->validarMontoContraSaldo(
+                $totalMixto,
+                $saldoDisponible
+            );
+
+            $efectivo = MetodoPago::query()
+                ->where('codigo', 'EFECTIVO')
+                ->where('activo', true)
+                ->first();
+
+            $qr = MetodoPago::query()
+                ->where('codigo', 'QR')
+                ->where('activo', true)
+                ->first();
+
+            if (!$efectivo || !$qr) {
+                throw new ReglaNegocioException(
+                    'No están disponibles los métodos necesarios para registrar el pago mixto.'
+                );
+            }
+
+            $pagoEfectivo = $this->crearPago(
+                reservaId: null,
+                ventaId: $venta->id,
+                metodoPagoId: $efectivo->id,
+                monto: $montoEfectivo,
+                registradoPorId: $registradoPorId,
+                referencia: null,
+                comprobanteRuta: null,
+                observacion: $observacion
+            );
+
+            $pagoQrTransferencia = $this->crearPago(
+                reservaId: null,
+                ventaId: $venta->id,
+                metodoPagoId: $qr->id,
+                monto: $montoQrTransferencia,
+                registradoPorId: $registradoPorId,
+                referencia: $referencia,
+                comprobanteRuta: null,
+                observacion: $observacion
+            );
+
+            return [
+                'efectivo' => $pagoEfectivo,
+                'qr_transferencia' => $pagoQrTransferencia,
+            ];
+        }, 3);
+    }
+
     public function verificarPago(
         int $pagoId,
         int $verificadoPorId

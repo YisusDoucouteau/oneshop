@@ -21,7 +21,8 @@ class ValidadorVentaPrecioService
         float $precioPropuesto,
         ?int $clienteId = null,
         ?int $vendedorId = null,
-        ?string $motivoSolicitud = null
+        ?string $motivoSolicitud = null,
+        bool $crearSolicitud = true
     ): array {
         if ($precioPropuesto <= 0) {
             throw new InvalidArgumentException(
@@ -251,6 +252,7 @@ class ValidadorVentaPrecioService
             !$cumplePolitica
             && $requiereAprobacion
             && $vendedorId !== null
+            && $crearSolicitud
         ) {
             $solicitud =
                 $this->crearSolicitud(

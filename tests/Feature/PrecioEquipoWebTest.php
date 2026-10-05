@@ -99,6 +99,185 @@ class PrecioEquipoWebTest extends TestCase
             ->assertDontSee('Configuración comercial global');
     }
 
+    public function test_admin_puede_habilitar_equipo_recibido_para_venta(): void
+    {
+        $estadoRecibido =
+            EstadoEquipo::query()
+                ->where('codigo', 'RECIBIDO')
+                ->firstOrFail();
+
+        $almacenOruro =
+            Almacen::query()
+                ->where('codigo', 'ORURO_PRINCIPAL')
+                ->firstOrFail();
+
+        $this->equipo->update([
+            'estado_actual_id' => $estadoRecibido->id,
+            'almacen_actual_id' => $almacenOruro->id,
+            'fecha_disponible' => null,
+        ]);
+
+        $this->mockCostoComercial(3888);
+
+        $this
+            ->actingAs($this->admin)
+            ->post(
+                route(
+                    'precios.equipos.habilitar-venta',
+                    $this->equipo
+                )
+            )
+            ->assertRedirect(
+                route(
+                    'precios.equipos.show',
+                    $this->equipo
+                )
+            )
+            ->assertSessionHas(
+                'success',
+                'Equipo habilitado para venta. Ya aparecerá en Nueva venta.'
+            );
+
+        $this->equipo->refresh();
+
+        $this->assertSame(
+            'DISPONIBLE',
+            $this->equipo->estadoActual?->codigo
+        );
+
+        $this->assertNotNull(
+            $this->equipo->fecha_disponible
+        );
+
+        $this->assertDatabaseHas(
+            'existencias_productos',
+            [
+                'producto_id' =>
+                    $this->equipo->producto_id,
+
+                'almacen_id' =>
+                    $almacenOruro->id,
+
+                'cantidad_disponible' =>
+                    1,
+
+                'cantidad_reservada' =>
+                    0,
+            ]
+        );
+
+        $this->assertDatabaseHas(
+            'movimientos_inventario',
+            [
+                'producto_id' =>
+                    $this->equipo->producto_id,
+
+                'almacen_id' =>
+                    $almacenOruro->id,
+
+                'cambio_disponible' =>
+                    1,
+
+                'cambio_reservado' =>
+                    0,
+
+                'tipo_referencia' =>
+                    'HABILITACION_VENTA',
+
+                'referencia_id' =>
+                    $this->equipo->id,
+            ]
+        );
+
+        /*
+         * Repetir la acción no debe duplicar stock.
+         */
+        $this
+            ->actingAs($this->admin)
+            ->post(
+                route(
+                    'precios.equipos.habilitar-venta',
+                    $this->equipo
+                )
+            )
+            ->assertRedirect(
+                route(
+                    'precios.equipos.show',
+                    $this->equipo
+                )
+            );
+
+        $this->assertDatabaseHas(
+            'existencias_productos',
+            [
+                'producto_id' =>
+                    $this->equipo->producto_id,
+
+                'almacen_id' =>
+                    $almacenOruro->id,
+
+                'cantidad_disponible' =>
+                    1,
+            ]
+        );
+
+        $this->assertSame(
+            1,
+            \App\Models\MovimientoInventario::query()
+                ->where('tipo_referencia', 'HABILITACION_VENTA')
+                ->where('referencia_id', $this->equipo->id)
+                ->count()
+        );
+    }
+
+    public function test_no_habilita_para_venta_si_no_hay_precio_vigente(): void
+    {
+        $estadoRecibido =
+            EstadoEquipo::query()
+                ->where('codigo', 'RECIBIDO')
+                ->firstOrFail();
+
+        $almacenOruro =
+            Almacen::query()
+                ->where('codigo', 'ORURO_PRINCIPAL')
+                ->firstOrFail();
+
+        $this->equipo->update([
+            'estado_actual_id' => $estadoRecibido->id,
+            'almacen_actual_id' => $almacenOruro->id,
+            'fecha_disponible' => null,
+        ]);
+
+        PrecioEquipo::query()
+            ->where('equipo_id', $this->equipo->id)
+            ->delete();
+
+        $this
+            ->actingAs($this->admin)
+            ->post(
+                route(
+                    'precios.equipos.habilitar-venta',
+                    $this->equipo
+                )
+            )
+            ->assertRedirect(
+                route(
+                    'precios.equipos.show',
+                    $this->equipo
+                )
+            )
+            ->assertSessionHasErrors(
+                'habilitacion_venta'
+            );
+
+        $this->equipo->refresh();
+
+        $this->assertSame(
+            'RECIBIDO',
+            $this->equipo->estadoActual?->codigo
+        );
+    }
+
     public function test_vendedor_no_puede_abrir_gestion_administrativa_de_precio(): void
     {
         $this

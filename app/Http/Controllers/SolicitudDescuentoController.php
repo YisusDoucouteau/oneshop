@@ -6,6 +6,7 @@ use App\Models\Equipo;
 use App\Models\SolicitudDescuento;
 use App\Services\GestionSolicitudDescuentoService;
 use App\Services\ValidadorVentaPrecioService;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\View\View;
@@ -17,7 +18,7 @@ class SolicitudDescuentoController extends Controller
         Request $request,
         Equipo $equipo,
         ValidadorVentaPrecioService $validadorVentaPrecioService
-    ): RedirectResponse {
+    ): RedirectResponse|JsonResponse {
         $datos = $request->validate([
             'precio_propuesto' => [
                 'required',
@@ -42,42 +43,71 @@ class SolicitudDescuentoController extends Controller
             );
 
             if (($resultado['estado'] ?? null) === 'AUTORIZADO') {
-                return back()->with(
-                    'success',
-                    'Ese precio ya cuenta con una autorización aprobada.'
-                );
+                $mensaje = 'Ese precio ya cuenta con una autorización aprobada.';
+
+                return $request->expectsJson()
+                    ? response()->json([
+                        'ok' => true,
+                        'estado' => 'AUTORIZADO',
+                        'message' => $mensaje,
+                    ])
+                    : back()->with('success', $mensaje);
             }
 
             if (!($resultado['requiere_aprobacion'] ?? false)) {
-                return back()->withErrors([
-                    'autorizacion' => match ($resultado['estado'] ?? null) {
-                        'NO_RECOMENDADA' =>
-                            'El precio propuesto genera pérdida y no puede enviarse como una autorización ordinaria.',
-                        'APROBADO' =>
-                            'Ese precio ya se encuentra dentro del rango permitido y no necesita autorización.',
-                        default =>
-                            'La propuesta todavía no reúne las condiciones para crear una solicitud de autorización.',
-                    },
-                ]);
+                $mensaje = match ($resultado['estado'] ?? null) {
+                    'NO_RECOMENDADA' =>
+                        'El precio propuesto genera pérdida y no puede enviarse como una autorización ordinaria.',
+                    'APROBADO' =>
+                        'Ese precio ya se encuentra dentro del rango permitido y no necesita autorización.',
+                    default =>
+                        'La propuesta todavía no reúne las condiciones para crear una solicitud de autorización.',
+                };
+
+                return $request->expectsJson()
+                    ? response()->json([
+                        'ok' => false,
+                        'message' => $mensaje,
+                    ], 422)
+                    : back()->withErrors([
+                        'autorizacion' => $mensaje,
+                    ]);
             }
 
             if (!$resultado['solicitud']) {
-                return back()->withErrors([
-                    'autorizacion' =>
-                        'No se pudo crear la solicitud de autorización.',
-                ]);
+                $mensaje = 'No se pudo crear la solicitud de autorización.';
+
+                return $request->expectsJson()
+                    ? response()->json([
+                        'ok' => false,
+                        'message' => $mensaje,
+                    ], 422)
+                    : back()->withErrors([
+                        'autorizacion' => $mensaje,
+                    ]);
             }
 
-            return back()->with(
-                'success',
-                'Solicitud enviada a administración. La propuesta queda pendiente de aprobación.'
-            );
+            $mensaje = 'Solicitud enviada a administración. La propuesta queda pendiente de aprobación.';
+
+            return $request->expectsJson()
+                ? response()->json([
+                    'ok' => true,
+                    'estado' => 'PENDIENTE',
+                    'solicitud_id' => $resultado['solicitud']->id,
+                    'message' => $mensaje,
+                ])
+                : back()->with('success', $mensaje);
         } catch (InvalidArgumentException $exception) {
-            return back()
-                ->withInput()
-                ->withErrors([
-                    'autorizacion' => $exception->getMessage(),
-                ]);
+            return $request->expectsJson()
+                ? response()->json([
+                    'ok' => false,
+                    'message' => $exception->getMessage(),
+                ], 422)
+                : back()
+                    ->withInput()
+                    ->withErrors([
+                        'autorizacion' => $exception->getMessage(),
+                    ]);
         }
     }
 

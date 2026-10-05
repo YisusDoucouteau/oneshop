@@ -46,6 +46,85 @@ class PagoVentaWebTest extends TestCase
         ]);
     }
 
+    public function test_administrador_puede_registrar_pago_mixto_desde_la_venta(): void
+    {
+        $venta = $this->crearVentaDirecta();
+
+        $this
+            ->actingAs($this->administrador)
+            ->post(
+                route(
+                    'ventas.pagos.mixto.store',
+                    $venta
+                ),
+                [
+                    'tipo_pago' => 'MIXTO',
+                    'monto_efectivo' => '1000.00',
+                    'monto_qr' => '1500.00',
+                    'referencia' => 'MIXTO-WEB-001',
+                ]
+            )
+            ->assertRedirect(
+                route('ventas.show', $venta)
+            )
+            ->assertSessionHas(
+                'success',
+                'Pago mixto registrado correctamente. El efectivo quedó verificado y el QR / transferencia quedó pendiente de verificación.'
+            );
+
+        $pagos = $venta->pagos()
+            ->with('metodoPago')
+            ->orderBy('id')
+            ->get();
+
+        $this->assertCount(2, $pagos);
+
+        $this->assertSame(
+            'EFECTIVO',
+            $pagos[0]->metodoPago?->codigo
+        );
+
+        $this->assertSame(
+            'VERIFICADO',
+            $pagos[0]->estado
+        );
+
+        $this->assertSame(
+            'QR',
+            $pagos[1]->metodoPago?->codigo
+        );
+
+        $this->assertSame(
+            'PENDIENTE',
+            $pagos[1]->estado
+        );
+
+        $this->assertSame(
+            'MIXTO-WEB-001',
+            $pagos[1]->referencia
+        );
+
+        $resumen = app(PagoService::class)
+            ->obtenerResumenVenta(
+                $venta->id
+            );
+
+        $this->assertSame(
+            '1000.00',
+            $resumen['pagado_total']
+        );
+
+        $this->assertSame(
+            '1500.00',
+            $resumen['pendiente_total']
+        );
+
+        $this->assertSame(
+            '1000.00',
+            $resumen['saldo_disponible']
+        );
+    }
+
     public function test_administrador_puede_verificar_pago_pendiente(): void
     {
         $venta = $this->crearVentaDirecta();

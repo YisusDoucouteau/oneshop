@@ -69,6 +69,59 @@ class PagoVentaController extends Controller
             );
     }
 
+    public function storeMixto(
+        Request $request,
+        Venta $venta
+    ): RedirectResponse {
+        $datos = $request->validate([
+            'monto_efectivo' => [
+                'required',
+                'numeric',
+                'gt:0',
+            ],
+            'monto_qr' => [
+                'required',
+                'numeric',
+                'gt:0',
+            ],
+            'referencia' => [
+                'required',
+                'string',
+                'max:150',
+            ],
+            'observacion' => [
+                'nullable',
+                'string',
+                'max:1000',
+            ],
+        ]);
+
+        try {
+            $this->pagoService->registrarPagoMixtoVenta(
+                ventaId: $venta->id,
+                montoEfectivo: $datos['monto_efectivo'],
+                montoQrTransferencia: $datos['monto_qr'],
+                registradoPorId: (int) $request->user()->id,
+                referencia: $datos['referencia'],
+                observacion: $datos['observacion'] ?? null
+            );
+        } catch (ReglaNegocioException $exception) {
+            return redirect()
+                ->route('ventas.show', $venta)
+                ->withInput()
+                ->withErrors([
+                    'pago' => $exception->getMessage(),
+                ]);
+        }
+
+        return redirect()
+            ->route('ventas.show', $venta)
+            ->with(
+                'success',
+                'Pago mixto registrado correctamente. El efectivo quedó verificado y el QR / transferencia quedó pendiente de verificación.'
+            );
+    }
+
     public function verificar(
         Request $request,
         Venta $venta,

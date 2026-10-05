@@ -8,6 +8,8 @@ use App\Models\Moneda;
 use App\Services\CostoComercialActualService;
 use App\Services\CostoRealEquipoService;
 use App\Services\EvaluacionPropuestaPrecioService;
+use App\Services\EstadoEquipoService;
+use App\Services\MovimientoInventarioService;
 use App\Services\RegistroPrecioEquipoService;
 use App\Services\RentabilidadRebajaService;
 use App\Services\SugerenciaPrecioEquipoService;
@@ -16,6 +18,7 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\View\View;
+use Illuminate\Support\Facades\DB;
 use InvalidArgumentException;
 
 class PrecioEquipoController extends Controller
@@ -343,6 +346,129 @@ class PrecioEquipoController extends Controller
                 ->withInput()
                 ->withErrors([
                     'precio' =>
+                        $exception->getMessage(),
+                ]);
+        }
+    }
+
+    /**
+     * Habilita explícitamente un equipo para que aparezca en Ventas.
+     *
+     * Guardar un precio NO publica automáticamente el equipo. Daniel puede
+     * preparar el precio y decidir después cuándo poner la unidad a la venta.
+     */
+    public function habilitarVenta(
+        Request $request,
+        Equipo $equipo,
+        EstadoEquipoService $estadoEquipoService,
+        CostoComercialActualService $costoComercialActualService,
+        MovimientoInventarioService $movimientoInventarioService
+    ): RedirectResponse {
+        $equipo->loadMissing([
+            'estadoActual',
+            'precioVigente',
+            'almacenActual',
+        ]);
+
+        try {
+            if (!$equipo->activo) {
+                throw new ReglaNegocioException(
+                    'No se puede habilitar para venta un equipo inactivo.'
+                );
+            }
+
+            if ($equipo->estadoActual?->codigo === 'DISPONIBLE') {
+                return redirect()
+                    ->route('precios.equipos.show', $equipo)
+                    ->with(
+                        'success',
+                        'El equipo ya se encuentra disponible para venta.'
+                    );
+            }
+
+            if ($equipo->estadoActual?->codigo !== 'RECIBIDO') {
+                throw new ReglaNegocioException(
+                    'Solo un equipo en estado Recibido puede habilitarse manualmente para venta desde Gestión de precio.'
+                );
+            }
+
+            if (
+                !$equipo->almacenActual
+                || $equipo->almacenActual->codigo !== 'ORURO_PRINCIPAL'
+            ) {
+                throw new ReglaNegocioException(
+                    'El equipo debe encontrarse en el almacén principal de Oruro antes de habilitarse para venta.'
+                );
+            }
+
+            if (
+                !$equipo->precioVigente
+                || (float) $equipo->precioVigente->precio_publico <= 0
+            ) {
+                throw new ReglaNegocioException(
+                    'Registra primero un precio publicado vigente.'
+                );
+            }
+
+            $costoComercial =
+                $costoComercialActualService
+                    ->calcular($equipo);
+
+            if ((float) ($costoComercial['costo_total'] ?? 0) <= 0) {
+                throw new ReglaNegocioException(
+                    'El equipo no tiene un costo comercial válido para habilitar la venta.'
+                );
+            }
+
+            /*
+             * Un equipo serializado disponible y la existencia agregada del
+             * producto deben representar la misma realidad. La incorporación
+             * formal deja el equipo en RECIBIDO; recién al habilitarlo para
+             * venta pasa a formar parte de cantidad_disponible.
+             *
+             * Ambos cambios ocurren en la misma transacción para evitar que
+             * Ventas muestre una unidad DISPONIBLE sin stock agregado.
+             */
+            DB::transaction(function () use (
+                $request,
+                $equipo,
+                $estadoEquipoService,
+                $movimientoInventarioService
+            ): void {
+                $movimientoInventarioService->registrarEntrada(
+                    productoId: (int) $equipo->producto_id,
+                    almacenId: (int) $equipo->almacen_actual_id,
+                    cantidad: 1,
+                    tipoCodigo: 'ENTRADA',
+                    usuarioId: (int) $request->user()->id,
+                    tipoReferencia: 'HABILITACION_VENTA',
+                    referenciaId: (int) $equipo->id,
+                    observacion: "Habilitación para venta {$equipo->codigo_interno}"
+                );
+
+                $estadoEquipoService->cambiarEstado(
+                    equipoId: $equipo->id,
+                    codigoEstadoDestino: 'DISPONIBLE',
+                    usuarioId: (int) $request->user()->id,
+                    motivo: 'Habilitación comercial para venta',
+                    observacion: 'Equipo con precio vigente y costo comercial validado.'
+                );
+            });
+
+            return redirect()
+                ->route('precios.equipos.show', $equipo)
+                ->with(
+                    'success',
+                    'Equipo habilitado para venta. Ya aparecerá en Nueva venta.'
+                );
+        } catch (
+            ReglaNegocioException
+            | InvalidArgumentException $exception
+        ) {
+            return redirect()
+                ->route('precios.equipos.show', $equipo)
+                ->withErrors([
+                    'habilitacion_venta' =>
                         $exception->getMessage(),
                 ]);
         }

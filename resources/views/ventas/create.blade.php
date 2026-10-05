@@ -86,8 +86,14 @@
         condiciones: @js($condicionesAnteriores),
         evaluaciones: {},
         cargando: {},
+        secuenciaEvaluacion: {},
+        motivosExcepcion: {},
+        solicitandoExcepcion: {},
+        excepcionesEnviadas: {},
+        erroresExcepcion: {},
         csrf: @js(csrf_token()),
         evaluarBase: @js(url('/ventas/equipos')),
+        solicitarBase: @js(url('/ventas/equipos')),
 
         aplicarCliente() {
             const cliente =
@@ -132,7 +138,12 @@
                             valor => valor !== id
                         );
 
+                this.secuenciaEvaluacion[id] =
+                    (this.secuenciaEvaluacion[id] ?? 0) + 1;
+
                 delete this.evaluaciones[id];
+                delete this.cargando[id];
+                delete this.excepcionesEnviadas[id];
                 return;
             }
 
@@ -171,6 +182,19 @@
                     +
                     Number(
                         this.precios[id]
+                        ?? 0
+                    ),
+                0
+            );
+        },
+
+        totalPublicado() {
+            return this.seleccionados.reduce(
+                (total, id) =>
+                    total
+                    +
+                    Number(
+                        this.publicados[id]
                         ?? 0
                     ),
                 0
@@ -218,9 +242,26 @@
         },
 
         invalidar(id) {
-            delete this.evaluaciones[
-                Number(id)
-            ];
+            id = Number(id);
+
+            /*
+             * Cada pulsación invalida inmediatamente el resultado visible y
+             * cualquier petición AJAX anterior. Así una respuesta lenta para
+             * Una respuesta antigua nunca puede sobrescribir la evaluación más reciente.
+             */
+            this.secuenciaEvaluacion[id] =
+                (this.secuenciaEvaluacion[id] ?? 0) + 1;
+
+            delete this.evaluaciones[id];
+            this.cargando[id] = false;
+
+            /*
+             * Una excepción enviada corresponde al precio exacto que se pidió.
+             * Si el vendedor cambia el monto, la pantalla debe volver a evaluar
+             * el nuevo precio y no mostrar una solicitud anterior como vigente.
+             */
+            delete this.excepcionesEnviadas[id];
+            delete this.erroresExcepcion[id];
         },
 
         todosEvaluados() {
@@ -274,6 +315,60 @@
             );
         },
 
+        async solicitarExcepcion(id, codigo) {
+            id = Number(id);
+
+            const motivo = String(
+                this.motivosExcepcion[id] ?? ''
+            ).trim();
+
+            if (motivo.length < 5) {
+                this.erroresExcepcion[id] =
+                    'Explica brevemente por qué necesitas esta excepción.';
+                return;
+            }
+
+            this.solicitandoExcepcion[id] = true;
+            this.erroresExcepcion[id] = '';
+
+            try {
+                const respuesta = await fetch(
+                    `${this.solicitarBase}/${encodeURIComponent(codigo)}/solicitar-autorizacion`,
+                    {
+                        method: 'POST',
+                        headers: {
+                            'Accept': 'application/json',
+                            'Content-Type': 'application/json',
+                            'X-CSRF-TOKEN': this.csrf,
+                        },
+                        body: JSON.stringify({
+                            precio_propuesto:
+                                Number(this.precios[id] ?? 0),
+                            motivo,
+                        }),
+                    }
+                );
+
+                const datos = await respuesta.json();
+
+                if (!respuesta.ok || !datos.ok) {
+                    throw new Error(
+                        datos.message
+                        ?? 'No se pudo enviar la solicitud.'
+                    );
+                }
+
+                this.excepcionesEnviadas[id] =
+                    datos.message
+                    ?? 'Solicitud enviada a administración.';
+            } catch (error) {
+                this.erroresExcepcion[id] =
+                    error.message;
+            } finally {
+                this.solicitandoExcepcion[id] = false;
+            }
+        },
+
         async evaluar(id, codigo) {
             id = Number(id);
 
@@ -287,6 +382,16 @@
                     ?? 0
                 );
 
+            /*
+             * Token monotónico por equipo. Solo la petición más reciente puede
+             * pintar el resultado. Esto evita carreras al escribir 4 -> 44 ->
+             * 444 -> 4444 rápidamente.
+             */
+            const secuencia =
+                (this.secuenciaEvaluacion[id] ?? 0) + 1;
+
+            this.secuenciaEvaluacion[id] = secuencia;
+
             if (!precio || precio <= 0) {
                 this.evaluaciones[id] = {
                     ok: false,
@@ -294,6 +399,7 @@
                         'Ingresa un precio válido.'
                 };
 
+                this.cargando[id] = false;
                 return;
             }
 
@@ -329,6 +435,10 @@
                 const datos =
                     await respuesta.json();
 
+                if (this.secuenciaEvaluacion[id] !== secuencia) {
+                    return;
+                }
+
                 if (
                     !respuesta.ok
                     ||
@@ -344,13 +454,19 @@
                 this.evaluaciones[id] =
                     datos;
             } catch (error) {
+                if (this.secuenciaEvaluacion[id] !== secuencia) {
+                    return;
+                }
+
                 this.evaluaciones[id] = {
                     ok: false,
                     message:
                         error.message,
                 };
             } finally {
-                this.cargando[id] = false;
+                if (this.secuenciaEvaluacion[id] === secuencia) {
+                    this.cargando[id] = false;
+                }
             }
         },
     }"
@@ -368,12 +484,12 @@
                 Registrar venta directa
             </h1>
 
-            <p class="mt-1 max-w-2xl text-sm text-slate-500">
-                Selecciona los equipos, confirma el precio acordado y valida la política comercial antes de registrar.
+            <p class="mt-1 max-w-3xl text-sm text-slate-500">
+                Busca el equipo, acuerda el precio con el cliente y registra la venta. OneShop valida la negociación automáticamente.
             </p>
         </div>
 
-        <div class="rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm shadow-sm">
+        <div class="rounded-xl border border-blue-100 bg-white px-4 py-3 text-sm shadow-sm">
             <span class="font-black text-slate-950" x-text="seleccionados.length"></span>
             <span
                 class="text-slate-500"
@@ -416,7 +532,7 @@
                     </h2>
 
                     <p class="mt-1 text-sm text-slate-500">
-                        Escribe el nombre directamente. Vincular un cliente registrado es opcional y solo sirve para autocompletar.
+                        Selecciona un cliente registrado para autocompletar o escribe sus datos directamente.
                     </p>
                 </div>
 
@@ -437,7 +553,7 @@
                             name="cliente_id"
                             x-model="clienteId"
                             @change="aplicarCliente()"
-                            class="mt-2 w-full rounded-xl border-slate-300 text-sm focus:border-slate-900 focus:ring-slate-900"
+                            class="input-oneshop mt-2 w-full text-sm"
                         >
                             <option value="">
                                 No vincular · ingreso manual
@@ -474,7 +590,7 @@
                             maxlength="180"
                             x-model="clienteNombre"
                             placeholder="Ej. Juan Pérez"
-                            class="mt-2 w-full rounded-xl border-slate-300 text-sm focus:border-slate-900 focus:ring-slate-900"
+                            class="input-oneshop mt-2 w-full text-sm"
                             required
                         >
 
@@ -501,7 +617,7 @@
                             maxlength="50"
                             x-model="clienteTelefono"
                             placeholder="Ej. 71234567"
-                            class="mt-2 w-full rounded-xl border-slate-300 text-sm focus:border-slate-900 focus:ring-slate-900"
+                            class="input-oneshop mt-2 w-full text-sm"
                         >
                     </div>
                 </div>
@@ -511,11 +627,11 @@
                 <div class="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
                     <div>
                         <h2 class="text-lg font-bold text-slate-950">
-                            Equipos disponibles
+                            Buscar y agregar equipos
                         </h2>
 
                         <p class="mt-1 text-sm text-slate-500">
-                            Solo aparecen unidades activas, disponibles y con precio vigente.
+                            Solo aparecen equipos listos para venta. Puedes buscar por código, producto, modelo o número de serie.
                         </p>
                     </div>
 
@@ -531,8 +647,8 @@
                             id="buscar-equipo-venta"
                             type="search"
                             x-model="equipoBusqueda"
-                            placeholder="Código, producto, modelo o serial..."
-                            class="w-full rounded-xl border-slate-300 text-sm focus:border-slate-900 focus:ring-slate-900"
+                            placeholder="Buscar equipo..."
+                            class="input-oneshop w-full text-sm"
                         >
                     </div>
                 </div>
@@ -563,11 +679,11 @@
                         <article
                             x-show="coincide(@js($textoBusqueda), equipoBusqueda)"
                             x-cloak
-                            class="rounded-2xl border p-4 transition"
+                            class="rounded-2xl border p-4 transition duration-200"
                             :class="
                                 seleccionado({{ $equipo->id }})
-                                    ? 'border-slate-950 bg-slate-50'
-                                    : 'border-slate-200 bg-white'
+                                    ? 'border-blue-300 bg-blue-50/40 shadow-sm'
+                                    : 'border-slate-200 bg-white hover:border-blue-200 hover:bg-slate-50/60'
                             "
                         >
                             <div class="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
@@ -586,7 +702,7 @@
                                         class="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-lg border text-xs font-black"
                                         :class="
                                             seleccionado({{ $equipo->id }})
-                                                ? 'border-slate-950 bg-slate-950 text-white'
+                                                ? 'border-blue-600 bg-blue-600 text-white'
                                                 : 'border-slate-300 bg-white text-transparent'
                                         "
                                     >
@@ -594,8 +710,14 @@
                                     </span>
 
                                     <span class="min-w-0">
-                                        <span class="block font-bold text-slate-950">
-                                            {{ $equipo->codigo_interno }}
+                                        <span class="flex flex-wrap items-center gap-2">
+                                            <span class="block font-bold text-slate-950">
+                                                {{ $equipo->codigo_interno }}
+                                            </span>
+
+                                            <span class="rounded-full border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-[11px] font-bold uppercase tracking-wide text-emerald-700">
+                                                Disponible
+                                            </span>
                                         </span>
 
                                         <span class="mt-1 block text-sm text-slate-600">
@@ -618,13 +740,27 @@
                                     <p class="mt-1 text-xl font-black text-slate-950">
                                         Bs {{ number_format($precioPublicado, 2) }}
                                     </p>
+
+                                    <p
+                                        class="mt-2 text-xs font-bold"
+                                        :class="
+                                            seleccionado({{ $equipo->id }})
+                                                ? 'text-blue-700'
+                                                : 'text-slate-500'
+                                        "
+                                        x-text="
+                                            seleccionado({{ $equipo->id }})
+                                                ? 'Agregado a la venta'
+                                                : 'Agregar'
+                                        "
+                                    ></p>
                                 </div>
                             </div>
 
                             <div
                                 x-show="seleccionado({{ $equipo->id }})"
                                 x-cloak
-                                class="mt-4 grid gap-4 border-t border-slate-200 pt-4 lg:grid-cols-[minmax(0,1fr)_11rem_17rem]"
+                                class="mt-4 grid gap-4 border-t border-blue-100 pt-4 lg:grid-cols-[minmax(0,1fr)_10rem_minmax(18rem,0.9fr)]"
                             >
                                 <div>
                                     <input
@@ -654,67 +790,53 @@
                                             step="0.01"
                                             x-model.number="precios[{{ $equipo->id }}]"
                                             :disabled="!seleccionado({{ $equipo->id }})"
+                                            @input="invalidar({{ $equipo->id }})"
                                             @input.debounce.650ms="
-                                                invalidar({{ $equipo->id }});
                                                 evaluar(
                                                     {{ $equipo->id }},
                                                     @js($equipo->codigo_interno)
                                                 )
                                             "
-                                            class="w-full rounded-xl border-slate-300 font-bold text-slate-950 focus:border-slate-900 focus:ring-slate-900"
+                                            class="input-oneshop w-full font-bold text-slate-950"
                                         >
                                     </div>
                                 </div>
 
                                 <div>
                                     <label
-                                        for="condicion-venta-{{ $equipo->id }}"
+                                        for="condicion-{{ $equipo->id }}"
                                         class="block text-sm font-semibold text-slate-700"
                                     >
-                                        Condición
+                                        Condición de venta
                                     </label>
 
                                     <select
-                                        id="condicion-venta-{{ $equipo->id }}"
+                                        id="condicion-{{ $equipo->id }}"
                                         name="equipos[{{ $equipo->id }}][condicion]"
                                         x-model="condiciones[{{ $equipo->id }}]"
                                         :disabled="!seleccionado({{ $equipo->id }})"
-                                        class="mt-2 w-full rounded-xl border-slate-300 text-sm font-semibold focus:border-slate-900 focus:ring-slate-900"
+                                        class="input-oneshop mt-2 w-full"
                                     >
-                                        <option value="USADO">
-                                            Usado
-                                        </option>
-
-                                        <option value="NUEVO">
-                                            Nuevo
-                                        </option>
+                                        <option value="USADO">Usado</option>
+                                        <option value="NUEVO">Nuevo</option>
                                     </select>
 
                                     <p class="mt-1 text-xs text-slate-400">
-                                        Por defecto: usado.
+                                        Por defecto se registra como usado. Cámbialo solo si el equipo es nuevo.
                                     </p>
                                 </div>
 
-                                <div class="lg:min-w-[17rem]">
-                                    <button
-                                        type="button"
-                                        @click="
-                                            evaluar(
-                                                {{ $equipo->id }},
-                                                @js($equipo->codigo_interno)
-                                            )
-                                        "
-                                        class="w-full rounded-xl border border-slate-300 px-4 py-2.5 text-sm font-semibold text-slate-700 hover:bg-white"
-                                    >
-                                        Validar precio
-                                    </button>
+                                <div class="lg:min-w-[18rem]">
+                                    <p class="text-sm font-semibold text-slate-700">
+                                        Validación comercial
+                                    </p>
 
                                     <div
                                         x-show="cargando[{{ $equipo->id }}]"
                                         x-cloak
-                                        class="mt-2 text-sm text-slate-500"
+                                        class="mt-2 rounded-xl border border-blue-100 bg-blue-50 px-3 py-3 text-sm text-blue-700"
                                     >
-                                        Validando…
+                                        Validando automáticamente…
                                     </div>
 
                                     <template
@@ -732,14 +854,37 @@
                                                     : (
                                                         evaluaciones[{{ $equipo->id }}].permitido
                                                             ? 'border-emerald-200 bg-emerald-50 text-emerald-700'
-                                                            : 'border-amber-200 bg-amber-50 text-amber-800'
+                                                            : (
+                                                                evaluaciones[{{ $equipo->id }}].requiere_aprobacion
+                                                                    ? 'border-amber-200 bg-amber-50 text-amber-800'
+                                                                    : 'border-red-200 bg-red-50 text-red-700'
+                                                            )
                                                     )
                                             "
                                         >
                                             <p
-                                                class="text-sm font-bold"
+                                                class="text-sm font-black"
                                                 x-text="
-                                                    evaluaciones[{{ $equipo->id }}].message
+                                                    !evaluaciones[{{ $equipo->id }}].ok
+                                                        ? 'No se puede continuar'
+                                                        : (
+                                                            evaluaciones[{{ $equipo->id }}].permitido
+                                                                ? 'Precio permitido'
+                                                                : (
+                                                                    evaluaciones[{{ $equipo->id }}].requiere_aprobacion
+                                                                        ? 'Fuera del rango normal'
+                                                                        : 'Precio bloqueado'
+                                                                )
+                                                        )
+                                                "
+                                            ></p>
+
+                                            <p
+                                                class="mt-1 text-xs opacity-80"
+                                                x-text="
+                                                    evaluaciones[{{ $equipo->id }}].estado === 'NO_RECOMENDADA'
+                                                        ? 'Este precio genera una pérdida y no puede registrarse.'
+                                                        : evaluaciones[{{ $equipo->id }}].message
                                                 "
                                             ></p>
 
@@ -748,13 +893,14 @@
                                                     evaluaciones[{{ $equipo->id }}].ok
                                                 "
                                             >
-                                                <div class="mt-2 flex items-end justify-between gap-3">
+                                                <div class="mt-3 grid grid-cols-2 gap-3 border-t border-current/10 pt-3">
                                                     <div>
                                                         <p class="text-xs opacity-70">
                                                             Descuento
                                                         </p>
 
                                                         <p class="font-bold">
+                                                            Bs
                                                             <span x-text="
                                                                 dinero(
                                                                     Math.max(
@@ -763,20 +909,26 @@
                                                                     )
                                                                 )
                                                             "></span>
-                                                            Bs
                                                         </p>
                                                     </div>
 
                                                     <div class="text-right">
-                                                        <p class="text-xs opacity-70">
-                                                            GANANCIA
-                                                        </p>
+                                                        <p
+                                                            class="text-xs opacity-70"
+                                                            x-text="
+                                                                Number(evaluaciones[{{ $equipo->id }}].ganancia) < 0
+                                                                    ? 'Pérdida estimada'
+                                                                    : 'Ganancia estimada'
+                                                            "
+                                                        ></p>
 
-                                                        <p class="text-lg font-black">
+                                                        <p class="font-black">
                                                             Bs
                                                             <span x-text="
                                                                 dinero(
-                                                                    evaluaciones[{{ $equipo->id }}].ganancia
+                                                                    Math.abs(
+                                                                        evaluaciones[{{ $equipo->id }}].ganancia
+                                                                    )
                                                                 )
                                                             "></span>
                                                         </p>
@@ -785,6 +937,67 @@
                                             </template>
                                         </div>
                                     </template>
+
+                                    <p class="mt-2 text-xs text-slate-400">
+                                        El precio se valida automáticamente mientras escribes.
+                                    </p>
+
+                                    <div
+                                        x-show="
+                                            evaluaciones[{{ $equipo->id }}]
+                                            && evaluaciones[{{ $equipo->id }}].ok
+                                            && !evaluaciones[{{ $equipo->id }}].permitido
+                                            && evaluaciones[{{ $equipo->id }}].requiere_aprobacion
+                                        "
+                                        x-cloak
+                                        class="mt-3 rounded-xl border border-amber-200 bg-white p-3"
+                                    >
+                                        <template x-if="!excepcionesEnviadas[{{ $equipo->id }}]">
+                                            <div>
+                                                <label class="block text-xs font-bold text-slate-700">
+                                                    Motivo de la excepción
+                                                </label>
+
+                                                <textarea
+                                                    rows="2"
+                                                    maxlength="500"
+                                                    x-model="motivosExcepcion[{{ $equipo->id }}]"
+                                                    placeholder="Ej. Cliente confirma la compra hoy si se mantiene este precio."
+                                                    class="input-oneshop mt-2 w-full text-sm"
+                                                ></textarea>
+
+                                                <p
+                                                    x-show="erroresExcepcion[{{ $equipo->id }}]"
+                                                    x-text="erroresExcepcion[{{ $equipo->id }}]"
+                                                    class="mt-1 text-xs font-semibold text-red-600"
+                                                ></p>
+
+                                                <button
+                                                    type="button"
+                                                    @click="solicitarExcepcion({{ $equipo->id }}, @js($equipo->codigo_interno))"
+                                                    :disabled="solicitandoExcepcion[{{ $equipo->id }}]"
+                                                    class="mt-2 w-full rounded-xl border border-amber-300 bg-amber-50 px-3 py-2 text-sm font-bold text-amber-900 hover:bg-amber-100 disabled:cursor-wait disabled:opacity-60"
+                                                    x-text="
+                                                        solicitandoExcepcion[{{ $equipo->id }}]
+                                                            ? 'Enviando…'
+                                                            : 'Solicitar excepción a administración'
+                                                    "
+                                                ></button>
+                                            </div>
+                                        </template>
+
+                                        <template x-if="excepcionesEnviadas[{{ $equipo->id }}]">
+                                            <div class="rounded-lg bg-emerald-50 p-3 text-sm text-emerald-700">
+                                                <p class="font-black">
+                                                    Solicitud enviada
+                                                </p>
+                                                <p
+                                                    class="mt-1 text-xs"
+                                                    x-text="excepcionesEnviadas[{{ $equipo->id }}]"
+                                                ></p>
+                                            </div>
+                                        </template>
+                                    </div>
                                 </div>
                             </div>
                         </article>
@@ -816,7 +1029,7 @@
                     rows="3"
                     maxlength="1000"
                     placeholder="Dato opcional sobre la operación..."
-                    class="mt-2 w-full rounded-xl border-slate-300 text-sm focus:border-slate-900 focus:ring-slate-900"
+                    class="input-oneshop mt-2 w-full text-sm"
                 >{{ old('observacion') }}</textarea>
             </x-ui.card>
         </div>
@@ -837,6 +1050,17 @@
                             class="text-slate-950"
                             x-text="seleccionados.length"
                         ></strong>
+                    </div>
+
+                    <div class="flex items-center justify-between gap-4">
+                        <span class="text-sm text-slate-500">
+                            Total publicado
+                        </span>
+
+                        <strong class="text-slate-950">
+                            Bs
+                            <span x-text="dinero(totalPublicado())"></span>
+                        </strong>
                     </div>
 
                     <div class="flex items-center justify-between gap-4">
@@ -871,7 +1095,7 @@
                     x-cloak
                     class="mt-5 rounded-xl border border-blue-200 bg-blue-50 p-3 text-sm text-blue-700"
                 >
-                    Valida el precio de todos los equipos antes de continuar.
+                    OneShop está validando la negociación. Espera un momento antes de continuar.
                 </div>
 
                 <div
@@ -879,14 +1103,15 @@
                     x-cloak
                     class="mt-5 rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800"
                 >
-                    Hay un precio fuera de política. Al continuar se generará la solicitud de aprobación correspondiente y la venta no se cerrará todavía.</div>
+                    Hay una negociación fuera del rango normal. La solicitud solo se envía desde el equipo afectado y debe incluir un motivo.
+                </div>
 
                 <div
                     x-show="hayBloqueo()"
                     x-cloak
                     class="mt-5 rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-700"
                 >
-                    Uno de los precios no puede continuar con la política comercial actual.
+                    Uno de los precios está bloqueado. Puede generar pérdida o incumplir una regla comercial y debe corregirse antes de continuar.
                 </div>
 
                 <button
@@ -897,17 +1122,40 @@
                         !todosEvaluados()
                         ||
                         hayBloqueo()
-                    "
-                    class="mt-5 w-full rounded-xl bg-slate-950 px-5 py-3 font-bold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:bg-slate-300"
-                    x-text="
+                        ||
                         hayAprobacionPendiente()
-                            ? 'Solicitar aprobación'
-                            : 'Registrar venta'
+                    "
+                    class="btn-primary mt-5 w-full py-3 font-bold"
+                    :class="
+                        hayBloqueo()
+                            ? '!border-slate-200 !bg-slate-100 !text-slate-500 cursor-not-allowed'
+                            : (
+                                hayAprobacionPendiente()
+                                    ? '!border-amber-200 !bg-amber-50 !text-amber-700 cursor-not-allowed'
+                                    : ''
+                            )
+                    "
+                    x-text="
+                        seleccionados.length === 0
+                            ? 'Selecciona un equipo'
+                            : (
+                                !todosEvaluados()
+                                    ? 'Validando negociación…'
+                                    : (
+                                        hayBloqueo()
+                                            ? 'Corrige el precio bloqueado'
+                                            : (
+                                                hayAprobacionPendiente()
+                                                    ? 'Resuelve la excepción pendiente'
+                                                    : 'Registrar venta'
+                                            )
+                                    )
+                            )
                     "
                 ></button>
 
                 <p class="mt-3 text-center text-xs text-slate-400">
-                    La venta vuelve a validar precio, disponibilidad e inventario al guardar.
+                    Al confirmar, OneShop vuelve a validar precio, disponibilidad e inventario.
                 </p>
             </div>
         </aside>

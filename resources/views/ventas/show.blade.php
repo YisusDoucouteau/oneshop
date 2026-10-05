@@ -7,27 +7,29 @@
 >
 
 @php
-
     $hayErroresPago =
-
         $errors->has('pago')
-
         || $errors->has('metodo_pago_id')
-
         || $errors->has('monto')
-
+        || $errors->has('monto_efectivo')
+        || $errors->has('monto_qr')
         || $errors->has('referencia')
-
         || $errors->has('observacion');
 
+    $metodoEfectivo = $metodosPago->firstWhere('codigo', 'EFECTIVO');
+    $metodoQr = $metodosPago->firstWhere('codigo', 'QR');
+
+    $tipoPagoInicial = old('tipo_pago', 'EFECTIVO');
 @endphp
 
 <div
-
     class="space-y-6"
-
-   x-data="{ mostrarPago: {{ $hayErroresPago ? 'true' : 'false' }} }"
-
+    x-data="{
+        mostrarPago: {{ $hayErroresPago ? 'true' : 'false' }},
+        tipoPago: '{{ $tipoPagoInicial }}',
+        montoEfectivo: '{{ old('monto_efectivo', '') }}',
+        montoQr: '{{ old('monto_qr', '') }}'
+    }"
 >
 
     <div class="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
@@ -126,280 +128,294 @@
 
     @endif
 
-   @if($hayErroresPago)
+    @if($hayErroresPago)
+        <div class="rounded-xl border border-red-200 bg-red-50 p-4 text-red-700" role="alert">
+            <p class="font-semibold">
+                No se pudo registrar el pago.
+            </p>
 
-    <div class="rounded-xl border border-red-200 bg-red-50 p-4 text-red-700" role="alert">
+            <ul class="mt-2 list-disc pl-5 text-sm">
+                @error('pago')
+                    <li>{{ $message }}</li>
+                @enderror
 
-        <p class="font-semibold">
+                @error('metodo_pago_id')
+                    <li>{{ $message }}</li>
+                @enderror
 
-            No se pudo registrar el pago.
+                @error('monto')
+                    <li>{{ $message }}</li>
+                @enderror
 
-        </p>
+                @error('monto_efectivo')
+                    <li>{{ $message }}</li>
+                @enderror
 
-        <ul class="mt-2 list-disc pl-5 text-sm">
+                @error('monto_qr')
+                    <li>{{ $message }}</li>
+                @enderror
 
-            @error('pago')
+                @error('referencia')
+                    <li>{{ $message }}</li>
+                @enderror
 
-                <li>{{ $message }}</li>
-
-            @enderror
-
-            @error('metodo_pago_id')
-
-                <li>{{ $message }}</li>
-
-            @enderror
-
-            @error('monto')
-
-                <li>{{ $message }}</li>
-
-            @enderror
-
-            @error('referencia')
-
-                <li>{{ $message }}</li>
-
-            @enderror
-
-            @error('observacion')
-
-                <li>{{ $message }}</li>
-
-            @enderror
-
-        </ul>
-
-    </div>
-
-@endif
+                @error('observacion')
+                    <li>{{ $message }}</li>
+                @enderror
+            </ul>
+        </div>
+    @endif
 
     <div
-
         x-show="mostrarPago"
-
         x-cloak
-
         class="rounded-2xl border border-blue-200 bg-blue-50 p-5"
-
     >
+        <div class="mb-4">
+            <p class="font-bold text-slate-900">
+                Registrar pago
+            </p>
+            <p class="mt-1 text-sm text-slate-600">
+                Elige cómo pagó el cliente. Los pagos por QR / transferencia quedan pendientes hasta su verificación.
+            </p>
+        </div>
+
+        <div class="mb-4">
+            <label for="tipo_pago" class="block text-sm font-semibold text-slate-700">
+                Método de pago
+            </label>
+
+            <select
+                id="tipo_pago"
+                x-model="tipoPago"
+                class="mt-2 w-full rounded-xl border-slate-300 sm:max-w-sm"
+            >
+                <option value="EFECTIVO">Efectivo</option>
+                <option value="QR">QR / transferencia</option>
+                <option value="MIXTO">Pago mixto</option>
+            </select>
+        </div>
 
         <form
-
+            x-show="tipoPago !== 'MIXTO'"
             method="POST"
-
             action="{{ route('ventas.pagos.store', $venta) }}"
-
             class="grid grid-cols-1 gap-4 lg:grid-cols-4 lg:items-end"
-
         >
-
             @csrf
 
-            <div>
+            <input type="hidden" name="tipo_pago" :value="tipoPago">
+            <input
+                type="hidden"
+                name="metodo_pago_id"
+                :value="tipoPago === 'EFECTIVO' ? '{{ $metodoEfectivo?->id }}' : '{{ $metodoQr?->id }}'"
+            >
 
-                <label for="metodo_pago_id" class="block text-sm font-semibold text-slate-700">
-
-                    Método de pago
-
-                </label>
-
-                <select
-
-                    id="metodo_pago_id"
-
-                    name="metodo_pago_id"
-
-                    class="mt-2 w-full rounded-xl border-slate-300"
-
-                    required
-
-                >
-
-                    <option value="">Seleccionar</option>
-
-                    @foreach($metodosPago as $metodo)
-
-                        <option
-
-                            value="{{ $metodo->id }}"
-
-                            {{ (string) old('metodo_pago_id') === (string) $metodo->id ? 'selected' : '' }}
-
-                        >
-
-                            {{ $metodo->nombre }}
-
-                            {{ $metodo->requiere_verificacion ? ' · requiere verificación' : '' }}
-
-                        </option>
-
-                    @endforeach
-
-                </select>
-
-            </div>
-
-            <div>
-
+            <div class="lg:col-span-1">
                 <label for="monto" class="block text-sm font-semibold text-slate-700">
-
                     Monto
-
                 </label>
-
                 <input
-
                     id="monto"
-
                     name="monto"
-
                     type="number"
-
                     min="0.01"
-
                     max="{{ $resumenPago['saldo_disponible'] }}"
-
                     step="0.01"
-
                     value="{{ old('monto', $resumenPago['saldo_disponible']) }}"
-
                     class="mt-2 w-full rounded-xl border-slate-300"
-
                     required
-
                 >
-
             </div>
 
-            <div>
-
+            <div
+                x-show="tipoPago === 'QR'"
+                x-cloak
+                class="lg:col-span-2"
+            >
                 <label for="referencia" class="block text-sm font-semibold text-slate-700">
-
-                    Referencia
-
+                    Referencia / comprobante
                 </label>
-
                 <input
-
                     id="referencia"
-
                     name="referencia"
-
                     value="{{ old('referencia') }}"
-
-                    placeholder="QR o transferencia"
-
+                    placeholder="Ej.: número de operación o referencia del comprobante"
                     class="mt-2 w-full rounded-xl border-slate-300"
-
+                    :required="tipoPago === 'QR'"
                 >
+            </div>
 
+            <div
+                x-show="tipoPago === 'EFECTIVO'"
+                x-cloak
+                class="lg:col-span-2 rounded-xl border border-blue-100 bg-white/70 p-3 text-sm text-slate-600"
+            >
+                El efectivo se confirma automáticamente al registrar el pago.
             </div>
 
             <button
-
                 type="submit"
-
                 class="rounded-xl bg-slate-900 px-5 py-3 font-semibold text-white"
-
             >
-
                 Guardar pago
-
             </button>
-
         </form>
 
+        <form
+            x-show="tipoPago === 'MIXTO'"
+            x-cloak
+            method="POST"
+            action="{{ route('ventas.pagos.mixto.store', $venta) }}"
+            class="grid grid-cols-1 gap-4 lg:grid-cols-4 lg:items-end"
+        >
+            @csrf
+
+            <input type="hidden" name="tipo_pago" value="MIXTO">
+
+            <div>
+                <label for="monto_efectivo" class="block text-sm font-semibold text-slate-700">
+                    Efectivo
+                </label>
+                <input
+                    id="monto_efectivo"
+                    name="monto_efectivo"
+                    type="number"
+                    min="0.01"
+                    max="{{ $resumenPago['saldo_disponible'] }}"
+                    step="0.01"
+                    x-model="montoEfectivo"
+                    class="mt-2 w-full rounded-xl border-slate-300"
+                    placeholder="0,00"
+                    required
+                >
+            </div>
+
+            <div>
+                <label for="monto_qr" class="block text-sm font-semibold text-slate-700">
+                    QR / transferencia
+                </label>
+                <input
+                    id="monto_qr"
+                    name="monto_qr"
+                    type="number"
+                    min="0.01"
+                    max="{{ $resumenPago['saldo_disponible'] }}"
+                    step="0.01"
+                    x-model="montoQr"
+                    class="mt-2 w-full rounded-xl border-slate-300"
+                    placeholder="0,00"
+                    required
+                >
+            </div>
+
+            <div>
+                <label for="referencia_mixta" class="block text-sm font-semibold text-slate-700">
+                    Referencia / comprobante
+                </label>
+                <input
+                    id="referencia_mixta"
+                    name="referencia"
+                    value="{{ old('referencia') }}"
+                    placeholder="Número de operación o referencia"
+                    class="mt-2 w-full rounded-xl border-slate-300"
+                    required
+                >
+            </div>
+
+            <button
+                type="submit"
+                class="rounded-xl bg-slate-900 px-5 py-3 font-semibold text-white"
+            >
+                Guardar pago mixto
+            </button>
+
+            <div class="lg:col-span-4 grid gap-3 sm:grid-cols-3">
+                <div class="rounded-xl bg-white/80 p-3">
+                    <p class="text-xs font-semibold uppercase tracking-wide text-slate-400">
+                        Efectivo confirmado
+                    </p>
+                    <p class="mt-1 font-bold text-slate-900">
+                        Bs <span x-text="Number(montoEfectivo || 0).toFixed(2)"></span>
+                    </p>
+                </div>
+
+                <div class="rounded-xl bg-amber-50 p-3">
+                    <p class="text-xs font-semibold uppercase tracking-wide text-amber-700">
+                        Por verificar
+                    </p>
+                    <p class="mt-1 font-bold text-amber-800">
+                        Bs <span x-text="Number(montoQr || 0).toFixed(2)"></span>
+                    </p>
+                </div>
+
+                <div class="rounded-xl bg-white/80 p-3">
+                    <p class="text-xs font-semibold uppercase tracking-wide text-slate-400">
+                        Total a registrar
+                    </p>
+                    <p class="mt-1 font-bold text-slate-900">
+                        Bs <span x-text="(Number(montoEfectivo || 0) + Number(montoQr || 0)).toFixed(2)"></span>
+                    </p>
+                </div>
+            </div>
+        </form>
     </div>
 
-    <div class="grid gap-4 lg:grid-cols-[1fr_1fr_1.2fr]">
-
+    <div class="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
         <div class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-
             <p class="text-sm text-slate-500">
-
                 Total de venta
-
             </p>
-
             <p class="mt-2 text-2xl font-black text-slate-900">
-
                 Bs {{ number_format((float) $resumenPago['total'], 2) }}
-
             </p>
+        </div>
 
+        <div class="rounded-2xl border border-green-200 bg-green-50 p-5 shadow-sm">
+            <p class="text-sm font-semibold text-green-700">
+                Cobrado confirmado
+            </p>
+            <p class="mt-2 text-2xl font-black text-green-700">
+                Bs {{ number_format((float) $resumenPago['pagado_total'], 2) }}
+            </p>
+        </div>
+
+        <div class="rounded-2xl border border-amber-200 bg-amber-50 p-5 shadow-sm">
+            <p class="text-sm font-semibold text-amber-700">
+                Por verificar
+            </p>
+            <p class="mt-2 text-2xl font-black text-amber-700">
+                Bs {{ number_format((float) $resumenPago['pendiente_total'], 2) }}
+            </p>
         </div>
 
         <div class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-
             <p class="text-sm text-slate-500">
-
-                Saldo pendiente
-
+                Pendiente por cubrir
             </p>
-
             <p class="mt-2 text-2xl font-black text-slate-900">
-
-                Bs {{ number_format((float) $resumenPago['saldo'], 2) }}
-
+                Bs {{ number_format((float) $resumenPago['saldo_disponible'], 2) }}
             </p>
-            @if((float) $resumenPago['pagado_total'] > 0)
-                <p class="mt-1 text-xs text-slate-500">
-                    Pagado verificado:
-                    Bs {{ number_format((float) $resumenPago['pagado_total'], 2) }}
-                </p>
-            @endif
-
-            @if((float) $resumenPago['pendiente_total'] > 0)
-                <p class="mt-1 text-xs font-semibold text-amber-700">
-                    En verificación:
-                    Bs {{ number_format((float) $resumenPago['pendiente_total'], 2) }}
-                </p>
-            @endif
-
-            @if((float) $resumenPago['saldo_disponible'] !== (float) $resumenPago['saldo'])
-                <p class="mt-1 text-xs text-slate-500">
-                    Disponible para nuevos pagos:
-                    Bs {{ number_format((float) $resumenPago['saldo_disponible'], 2) }}
-                </p>
-            @endif
-
         </div>
 
         <div class="rounded-2xl border border-emerald-200 bg-emerald-50 p-5 shadow-sm">
-
             <p class="text-sm font-bold uppercase tracking-wide text-emerald-700">
-
-                Ganancia de la venta
-
+                Ganancia por parte
             </p>
 
             @if($economiaCompleta)
-
-                <p class="mt-2 text-3xl font-black text-emerald-700">
-
+                <p class="mt-2 text-2xl font-black text-emerald-700">
                     Bs {{ number_format((float) $gananciaVenta, 2) }}
-
                 </p>
-
                 <p class="mt-1 text-xs text-emerald-700/80">
-
                     Valor histórico congelado al registrar la venta.
-
                 </p>
-
             @else
-
                 <p class="mt-2 text-sm font-semibold text-slate-600">
-
                     Información económica histórica no disponible para esta venta.
-
                 </p>
-
             @endif
-
         </div>
-
     </div>
 
     @if($economiaCompleta && $puedeVerDetalleEconomico && $resumenEconomicoAdmin)
@@ -664,7 +680,7 @@
 
                                     <p class="text-xs font-bold uppercase tracking-wide text-slate-400">
 
-                                        Ganancia
+                                        Ganancia por parte
 
                                     </p>
 
@@ -736,7 +752,7 @@
 
                                                 <span class="text-slate-500">
 
-                                                    TC utilizado
+                                                    Tipo de cambio utilizado
 
                                                 </span>
 
@@ -801,9 +817,23 @@
                                                     </span>
 
                                                     <strong class="text-right text-slate-900">
-
-                                                        {{ $detalle->fuente_costo_snapshot }}
-
+                                                        @php
+                                                            $fuenteCostoVisible = match ($detalle->fuente_costo_snapshot) {
+                                                                'TIPO_CAMBIO_COMERCIAL' => 'Tipo de cambio comercial',
+                                                                'COSTO_HISTORICO' => 'Costo histórico',
+                                                                'COSTO_REAL' => 'Costo real',
+                                                                default => ucfirst(
+                                                                    mb_strtolower(
+                                                                        str_replace(
+                                                                            '_',
+                                                                            ' ',
+                                                                            (string) $detalle->fuente_costo_snapshot
+                                                                        )
+                                                                    )
+                                                                ),
+                                                            };
+                                                        @endphp
+                                                        {{ $fuenteCostoVisible }}
                                                     </strong>
 
                                                 </div>
@@ -848,11 +878,29 @@
 
 <div class="space-y-3">
     @forelse($venta->pagos as $pago)
+        @php
+            $metodoPagoVisible = match ($pago->metodoPago?->codigo) {
+                'EFECTIVO' => 'Efectivo',
+                'QR', 'TRANSFERENCIA', 'TRANSFERENCIA_BANCARIA' => 'QR / transferencia',
+                default => $pago->metodoPago?->nombre ?? 'Método no disponible',
+            };
+
+            $estadoPagoVisible = match ($pago->estado) {
+                'VERIFICADO' => 'Verificado',
+                'RECHAZADO' => 'Rechazado',
+                'PENDIENTE' => 'Pendiente de verificación',
+                default => ucfirst(
+                    mb_strtolower(
+                        str_replace('_', ' ', (string) $pago->estado)
+                    )
+                ),
+            };
+        @endphp
         <div class="rounded-xl border border-slate-200 p-4">
             <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                 <div>
                     <p class="font-semibold text-slate-900">
-                        {{ $pago->metodoPago?->nombre ?? 'Método no disponible' }}
+                        {{ $metodoPagoVisible }}
                     </p>
 
                     <p class="mt-1 text-xs text-slate-500">
@@ -897,7 +945,7 @@
                                     ? 'text-red-700'
                                     : 'text-amber-700') }}"
                     >
-                        {{ $pago->estado }}
+                        {{ $estadoPagoVisible }}
                     </p>
                 </div>
             </div>

@@ -54,13 +54,40 @@ class VentaDirectaWebTest extends TestCase
                 'Nombre / Señor(es)'
             )
             ->assertSee(
-                'Equipos disponibles'
+                'Buscar y agregar equipos'
             )
             ->assertSee(
                 'Precio acordado'
             )
             ->assertSee(
+                'Condición de venta'
+            )
+            ->assertSee(
+                'Usado'
+            )
+            ->assertSee(
+                'Nuevo'
+            )
+            ->assertDontSee(
+                'Nuevo · de caja'
+            )
+            ->assertDontSee(
+                'Reacondicionado'
+            )
+            ->assertSee(
+                'Corrige el precio bloqueado'
+            )
+            ->assertSee(
+                'Solicitar excepción a administración'
+            )
+            ->assertSee(
+                'El precio se valida automáticamente mientras escribes.'
+            )
+            ->assertSee(
                 'Resumen de venta'
+            )
+            ->assertSee(
+                'Total publicado'
             )
             ->assertSee(
                 $equipo->codigo_interno
@@ -104,7 +131,9 @@ class VentaDirectaWebTest extends TestCase
                 $equipo->id,
                 4800.0,
                 null,
-                null
+                $vendedor->id,
+                null,
+                false
             )
             ->andReturn([
                 'permitido' =>

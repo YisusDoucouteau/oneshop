@@ -11,6 +11,7 @@ use App\Models\Producto;
 use App\Models\TransicionEstadoEquipo;
 use App\Services\EstadoEquipoService;
 use Database\Seeders\CatalogoSeeder;
+use Database\Seeders\CatalogoInventarioSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Str;
 use Tests\TestCase;
@@ -24,6 +25,7 @@ class EstadoEquipoServiceTest extends TestCase
         parent::setUp();
 
         $this->seed(CatalogoSeeder::class);
+        $this->seed(CatalogoInventarioSeeder::class);
     }
 
     public function test_permite_cambiar_de_disponible_a_reservado_y_crea_historial(): void
@@ -62,6 +64,38 @@ class EstadoEquipoServiceTest extends TestCase
             'estado_destino_id' => $estadoReservado->id,
             'motivo' => 'Prueba automatizada de reserva',
         ]);
+    }
+
+    public function test_permite_habilitar_recibido_como_disponible_y_registra_fecha(): void
+    {
+        $equipo = $this->crearEquipoEnEstado('RECIBIDO');
+
+        $this->assertNull($equipo->fecha_disponible);
+
+        $servicio = app(EstadoEquipoService::class);
+
+        $resultado = $servicio->cambiarEstado(
+            equipoId: $equipo->id,
+            codigoEstadoDestino: 'DISPONIBLE',
+            motivo: 'Habilitación comercial para venta'
+        );
+
+        $this->assertSame(
+            'DISPONIBLE',
+            $resultado->estadoActual?->codigo
+        );
+
+        $this->assertNotNull(
+            $resultado->fecha_disponible
+        );
+
+        $this->assertDatabaseHas(
+            'historial_estados_equipos',
+            [
+                'equipo_id' => $equipo->id,
+                'motivo' => 'Habilitación comercial para venta',
+            ]
+        );
     }
 
     public function test_rechaza_una_transicion_no_permitida(): void

@@ -67,6 +67,42 @@ class SolicitudDescuentoWebTest extends TestCase
         );
     }
 
+    public function test_vendedor_puede_solicitar_excepcion_por_ajax_sin_salir_de_la_venta(): void
+    {
+        $this->mockCostoComercial(3500);
+
+        $this
+            ->actingAs($this->vendedor)
+            ->postJson(
+                route(
+                    'precios.autorizaciones.store',
+                    $this->equipo
+                ),
+                [
+                    'precio_propuesto' => 4400,
+                    'motivo' => 'Cliente confirma compra inmediata.',
+                ]
+            )
+            ->assertOk()
+            ->assertJsonPath('ok', true)
+            ->assertJsonPath('estado', 'PENDIENTE')
+            ->assertJsonStructure([
+                'solicitud_id',
+                'message',
+            ]);
+
+        $this->assertDatabaseHas(
+            'solicitudes_descuentos',
+            [
+                'precio_equipo_id' => $this->precio->id,
+                'solicitado_por_id' => $this->vendedor->id,
+                'precio_solicitado' => '4400.00',
+                'estado' => 'PENDIENTE',
+                'motivo' => 'Cliente confirma compra inmediata.',
+            ]
+        );
+    }
+
     public function test_admin_ve_bandeja_y_aprueba_solicitud(): void
     {
         $solicitud = $this->crearSolicitudPendiente();

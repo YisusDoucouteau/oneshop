@@ -96,8 +96,9 @@ class VentaController extends Controller
      * Vista previa comercial sin efectos secundarios.
      *
      * Importante:
-     * - vendedorId se envía como null al validador para NO crear
-     *   SolicitudDescuento mientras el usuario solamente escribe.
+     * - se conserva el vendedor para reconocer autorizaciones ya aprobadas;
+     * - crearSolicitud=false impide generar SolicitudDescuento mientras
+     *   el usuario solamente escribe o simula;
      * - GANANCIA se obtiene del servicio canónico de rentabilidad.
      * - No se exponen costo, TC ni reparto en este endpoint operativo.
      */
@@ -153,11 +154,18 @@ class VentaController extends Controller
                                 : null,
 
                         /*
-                         * Sin vendedor: evaluar no debe generar
-                         * solicitudes de aprobación.
+                         * Se conserva el vendedor para reconocer una autorización
+                         * previamente aprobada, pero la vista previa nunca crea
+                         * solicitudes mientras el usuario solo está escribiendo.
                          */
                         vendedorId:
-                            null
+                            (int) $request->user()->id,
+
+                        motivoSolicitud:
+                            null,
+
+                        crearSolicitud:
+                            false
                     );
 
             $rentabilidad =
