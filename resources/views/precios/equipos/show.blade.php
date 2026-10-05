@@ -11,8 +11,29 @@
                 'precio_rebaja',
                 $formularioRebaja['precio_rebaja']
                     ?? $equipo->precioVigente?->precio_publico
+                    ?? ($sugerenciaPrecio['precio_sugerido'] ?? null)
                     ?? ''
             )
+        ),
+        puedeEvaluar: @js((bool) $costoComercial),
+        sugerenciaPrecio: @js($esAdministrador ? $sugerenciaPrecio : null),
+        precioPublicadoAdmin: @js(
+            $esAdministrador
+                ? old(
+                    'precio_publico',
+                    $equipo->precioVigente?->precio_publico
+                        ?? ($sugerenciaPrecio['precio_sugerido'] ?? '')
+                )
+                : null
+        ),
+        precioMinimoAdmin: @js(
+            $esAdministrador
+                ? old(
+                    'precio_minimo_autorizado',
+                    $equipo->precioVigente?->precio_minimo_autorizado
+                        ?? ($sugerenciaPrecio['precio_minimo_sugerido'] ?? '')
+                )
+                : null
         ),
         cargando: false,
         resultado: @js(
@@ -25,6 +46,11 @@
                     'tipo_cambio' => $evaluacion['tipo_cambio'],
                     'moneda_origen' => $evaluacion['moneda_origen'],
                     'ganancia' => $evaluacion['ganancia'],
+                    'estado' => $evaluacion['estado'] ?? null,
+                    'requiere_autorizacion' => $evaluacion['requiere_autorizacion'] ?? false,
+                    'cumple_politica' => $evaluacion['cumple_politica'] ?? null,
+                    'descuento' => $evaluacion['descuento'] ?? null,
+                    'porcentaje_descuento' => $evaluacion['porcentaje_descuento'] ?? null,
                     'margen_total' => $esAdministrador
                         ? $evaluacion['margen_total']
                         : null,
@@ -36,6 +62,98 @@
         ),
         error: @js($errorEvaluacion),
         controlador: null,
+        tcAbierto: false,
+
+        init() {
+            if (
+                this.puedeEvaluar
+                && Number(this.precio) > 0
+            ) {
+                this.$nextTick(() => {
+                    this.evaluar();
+                });
+            }
+        },
+
+        usarSugerencia() {
+            if (!this.sugerenciaPrecio) {
+                return;
+            }
+
+            this.precioPublicadoAdmin =
+                this.sugerenciaPrecio.precio_sugerido;
+
+            this.precioMinimoAdmin =
+                this.sugerenciaPrecio.precio_minimo_sugerido;
+
+            this.precio =
+                this.sugerenciaPrecio.precio_sugerido;
+
+            this.$nextTick(() => {
+                this.evaluar();
+            });
+        },
+
+        estadoTexto(estado) {
+            const estados = {
+                APROBABLE:
+                    'Precio permitido',
+
+                REQUIERE_AUTORIZACION:
+                    'Requiere autorización',
+
+                REQUIERE_REVISION:
+                    'Requiere revisión',
+
+                NO_CUMPLE_POLITICA:
+                    'Fuera de política',
+
+                NO_RECOMENDADA:
+                    'Este precio genera pérdida',
+            };
+
+            return estados[estado]
+                ?? 'Evaluación comercial';
+        },
+
+        estadoAyuda(estado) {
+            const ayudas = {
+                APROBABLE:
+                    'Puede negociarse sin autorización adicional.',
+
+                REQUIERE_AUTORIZACION:
+                    'Está por debajo del mínimo operativo. Si una negociación real llega a este valor, la excepción se resolverá dentro del flujo de Ventas.',
+
+                REQUIERE_REVISION:
+                    'Todavía falta definir una referencia comercial o un mínimo operativo.',
+
+                NO_CUMPLE_POLITICA:
+                    'La propuesta incumple una regla comercial vigente.',
+
+                NO_RECOMENDADA:
+                    'La propuesta queda por debajo del costo comercial actual.',
+            };
+
+            return ayudas[estado]
+                ?? '';
+        },
+
+        estadoClase(estado) {
+            if (
+                estado === 'APROBABLE'
+            ) {
+                return 'border-emerald-200 bg-emerald-50 text-emerald-800';
+            }
+
+            if (
+                estado === 'REQUIERE_AUTORIZACION'
+                || estado === 'REQUIERE_REVISION'
+            ) {
+                return 'border-amber-200 bg-amber-50 text-amber-800';
+            }
+
+            return 'border-red-200 bg-red-50 text-red-800';
+        },
 
         dinero(valor) {
             return new Intl.NumberFormat(
@@ -126,11 +244,11 @@
             </p>
         </div>
 
-        <div class="flex flex-wrap gap-3">
+        <div class="flex flex-wrap items-stretch gap-3">
             @if($equipo->precioVigente)
                 <div class="rounded-xl bg-slate-50 px-4 py-3">
                     <p class="text-[11px] font-semibold uppercase tracking-wide text-slate-400">
-                        Publicado
+                        Precio publicado
                     </p>
                     <p class="mt-1 text-lg font-bold text-slate-950">
                         Bs {{ number_format($equipo->precioVigente->precio_publico, 2) }}
@@ -138,15 +256,44 @@
                 </div>
             @endif
 
-            @if($tipoCambioVigente)
+            @if($esAdministrador && $costoComercial)
                 <div class="rounded-xl bg-slate-50 px-4 py-3">
                     <p class="text-[11px] font-semibold uppercase tracking-wide text-slate-400">
-                        TC vigente
+                        Costo comercial actual
                     </p>
                     <p class="mt-1 text-lg font-bold text-slate-950">
-                        Bs {{ number_format($tipoCambioVigente->valor, 2) }}
+                        Bs {{ number_format($costoComercial['costo_total'], 2) }}
                     </p>
                 </div>
+            @endif
+
+            @if(
+                $esAdministrador
+                && $monedaOrigen
+                && $monedaOrigen->codigo !== 'BOB'
+            )
+                <button
+                    type="button"
+                    @click="tcAbierto = true"
+                    class="group flex min-w-[210px] items-center justify-between gap-4 rounded-xl border px-4 py-3 text-left transition hover:border-blue-300 hover:bg-blue-50/40 {{ $tipoCambioVigente ? 'border-slate-200 bg-white' : 'border-amber-300 bg-amber-50' }}"
+                >
+                    <div>
+                        <p class="text-[11px] font-semibold uppercase tracking-wide {{ $tipoCambioVigente ? 'text-slate-400' : 'text-amber-700' }}">
+                            Dólar global {{ $monedaOrigen->codigo }} → BOB
+                        </p>
+                        <p class="mt-1 text-lg font-bold text-slate-950">
+                            @if($tipoCambioVigente)
+                                Bs {{ number_format($tipoCambioVigente->valor, 2) }}
+                            @else
+                                Sin configurar
+                            @endif
+                        </p>
+                    </div>
+
+                    <span class="text-xs font-semibold text-blue-600 group-hover:text-blue-700">
+                        Editar
+                    </span>
+                </button>
             @endif
         </div>
     </div>
@@ -165,23 +312,129 @@
         </div>
     @endif
 
+    @if($esAdministrador)
+        <section class="rounded-2xl border border-blue-200 bg-white shadow-sm">
+            <div class="flex flex-col gap-5 border-b border-blue-100 px-6 py-5 lg:flex-row lg:items-center lg:justify-between">
+                <div>
+                    <div class="flex flex-wrap items-center gap-2">
+                        <h2 class="font-semibold text-slate-950">
+                            Sugerencia OneShop
+                        </h2>
+
+                        @if($sugerenciaPrecio)
+                            <span class="rounded-full bg-blue-50 px-2.5 py-1 text-[11px] font-bold uppercase tracking-wide text-blue-700">
+                                Confianza {{ strtolower($sugerenciaPrecio['confianza']) }}
+                            </span>
+                        @endif
+                    </div>
+
+                    <p class="mt-1 text-sm text-slate-500">
+                        Referencia automática para acelerar la decisión de Daniel. El precio final sigue siendo una decisión administrativa.
+                    </p>
+                </div>
+
+                @if($sugerenciaPrecio)
+                    <button
+                        type="button"
+                        class="btn-primary shrink-0"
+                        @click="usarSugerencia()"
+                    >
+                        Usar sugerencia
+                    </button>
+                @endif
+            </div>
+
+            @if($sugerenciaPrecio)
+                <div class="grid gap-4 p-6 lg:grid-cols-[1fr_1fr_1fr_1.35fr]">
+                    <div class="rounded-xl bg-blue-50 p-4">
+                        <p class="text-xs font-semibold uppercase tracking-wide text-blue-500">
+                            Precio sugerido
+                        </p>
+                        <p class="mt-1 text-2xl font-black text-blue-950">
+                            Bs {{ number_format($sugerenciaPrecio['precio_sugerido'], 2) }}
+                        </p>
+                    </div>
+
+                    <div class="rounded-xl bg-slate-50 p-4">
+                        <p class="text-xs font-semibold uppercase tracking-wide text-slate-400">
+                            Rango sugerido de negociación
+                        </p>
+                        <p class="mt-1 text-xl font-black text-slate-950">
+                            Bs {{ number_format($sugerenciaPrecio['precio_minimo_sugerido'], 2) }}
+                            <span class="mx-1 text-slate-300">–</span>
+                            Bs {{ number_format($sugerenciaPrecio['precio_sugerido'], 2) }}
+                        </p>
+                        <p class="mt-1 text-xs leading-5 text-slate-500">
+                            El extremo inferior es el mínimo sugerido para negociar sin consultar a Daniel.
+                        </p>
+                    </div>
+
+                    <div class="rounded-xl bg-emerald-50 p-4">
+                        <p class="text-xs font-semibold uppercase tracking-wide text-emerald-600">
+                            Ganancia estimada por parte
+                        </p>
+                        <p class="mt-1 text-2xl font-black text-emerald-700">
+                            Bs {{ number_format($sugerenciaPrecio['ganancia_parte_sugerida'], 2) }}
+                        </p>
+                        <p class="mt-1 text-xs leading-5 text-emerald-700/70">
+                            Al precio sugerido. En el mínimo: Bs {{ number_format($sugerenciaPrecio['ganancia_parte_minima'], 2) }} por parte.
+                        </p>
+                    </div>
+
+                    <div class="rounded-xl border border-slate-200 p-4">
+                        <div class="flex items-start justify-between gap-3">
+                            <div>
+                                <p class="text-xs font-semibold uppercase tracking-wide text-slate-400">
+                                    Cómo se calculó
+                                </p>
+                                <p class="mt-1 text-sm font-semibold text-slate-900">
+                                    @if($sugerenciaPrecio['fuente'] === 'HISTORIAL_CATEGORIA')
+                                        Historial real de OneShop
+                                    @else
+                                        Referencia inicial de OneShop
+                                    @endif
+                                </p>
+                            </div>
+
+                            <span class="rounded-lg bg-slate-100 px-2 py-1 text-xs font-semibold text-slate-600">
+                                {{ $sugerenciaPrecio['comparables'] }} comparables
+                            </span>
+                        </div>
+
+                        <ul class="mt-3 space-y-1.5 text-xs leading-5 text-slate-600">
+                            @foreach($sugerenciaPrecio['explicacion'] as $explicacion)
+                                <li>• {{ $explicacion }}</li>
+                            @endforeach
+                        </ul>
+                    </div>
+                </div>
+            @else
+                <div class="p-6">
+                    <div class="rounded-xl border border-amber-200 bg-amber-50 px-5 py-4 text-sm text-amber-800">
+                        {{ $errorSugerenciaPrecio ?? 'La sugerencia estará disponible cuando exista un costo comercial válido.' }}
+                    </div>
+                </div>
+            @endif
+        </section>
+    @endif
+
     {{-- Zona principal: mínima carga visual --}}
     <div class="grid gap-6 xl:grid-cols-[1fr_1.15fr]">
 
         <section class="rounded-2xl border border-slate-200 bg-white shadow-sm">
             <div class="border-b border-slate-200 px-6 py-5">
                 <h2 class="font-semibold text-slate-950">
-                    Evaluar rebaja
+                    Simulador de venta
                 </h2>
                 <p class="mt-1 text-sm text-slate-500">
-                    Escribe el precio que solicita el cliente.
+                    Simula escenarios internos antes de definir o ajustar el precio del equipo.
                 </p>
             </div>
 
             <div class="p-6">
                 @if($costoComercial)
                     <label class="text-sm font-medium text-slate-700">
-                        Precio de rebaja
+                        ¿A cuánto quieres venderla?
                     </label>
 
                     <div class="relative mt-2">
@@ -204,7 +457,7 @@
                     <div class="mt-5 grid grid-cols-2 gap-3 text-sm">
                         <div class="rounded-xl bg-slate-50 p-4">
                             <p class="text-xs font-semibold uppercase tracking-wide text-slate-400">
-                                Costo actualizado
+                                Costo comercial actual
                             </p>
                             <p class="mt-1 font-bold text-slate-900">
                                 Bs {{ number_format($costoComercial['costo_total'], 2) }}
@@ -213,13 +466,13 @@
 
                         <div class="rounded-xl bg-slate-50 p-4">
                             <p class="text-xs font-semibold uppercase tracking-wide text-slate-400">
-                                Tipo de cambio
+                                Precio publicado
                             </p>
                             <p class="mt-1 font-bold text-slate-900">
-                                @if($costoComercial['usa_tipo_cambio'])
-                                    Bs {{ number_format($costoComercial['tipo_cambio'], 2) }}
+                                @if($equipo->precioVigente)
+                                    Bs {{ number_format($equipo->precioVigente->precio_publico, 2) }}
                                 @else
-                                    No aplica
+                                    Sin precio
                                 @endif
                             </p>
                         </div>
@@ -268,9 +521,20 @@
                     x-cloak
                     class="max-w-md text-center"
                 >
-                    <p class="text-sm font-medium text-slate-400">
-                        La ganancia aparecerá aquí mientras escribes.
-                    </p>
+                    @if($costoComercial)
+                        <p class="text-sm font-medium text-slate-400">
+                            La ganancia aparecerá aquí mientras escribes.
+                        </p>
+                    @else
+                        <div class="max-w-sm">
+                            <p class="font-semibold text-slate-700">
+                                Simulador pendiente de configuración
+                            </p>
+                            <p class="mt-2 text-sm leading-6 text-slate-500">
+                                Configura el tipo de cambio comercial para habilitar el cálculo de ganancia.
+                            </p>
+                        </div>
+                    @endif
                 </div>
 
                 <div
@@ -280,7 +544,7 @@
                 >
                     <div class="text-center">
                         <p class="text-sm font-bold uppercase tracking-[0.24em] text-slate-500">
-                            Ganancia
+                            Ganancia estimada por parte
                         </p>
 
                         <p
@@ -299,8 +563,25 @@
                         </p>
 
                         <p class="mx-auto mt-4 max-w-md text-sm text-slate-500">
-                            Referencia principal para decidir si la rebaja mantiene una venta conveniente.
+                            Simulación administrativa. No registra una venta ni solicita una aprobación.
                         </p>
+
+                        <div
+                            x-show="resultado?.estado"
+                            x-cloak
+                            class="mx-auto mt-5 max-w-sm rounded-xl border px-4 py-3 text-center"
+                            :class="estadoClase(resultado?.estado)"
+                        >
+                            <p
+                                class="text-sm font-bold"
+                                x-text="estadoTexto(resultado?.estado)"
+                            ></p>
+                            <p
+                                class="mt-1 text-xs opacity-80"
+                                x-text="estadoAyuda(resultado?.estado)"
+                            ></p>
+                        </div>
+
                     </div>
 
                     @if($esAdministrador)
@@ -357,89 +638,15 @@
         </section>
     </div>
 
-    {{-- Configuración global: compacta y solo admin --}}
-    @if(
-        $esAdministrador
-        && $monedaOrigen
-        && $monedaOrigen->codigo !== 'BOB'
-    )
-        <details class="rounded-2xl border border-slate-200 bg-white shadow-sm">
-            <summary class="cursor-pointer select-none px-6 py-5">
-                <span class="font-semibold text-slate-950">
-                    Tipo de cambio comercial
-                </span>
-                <span class="ml-2 text-sm text-slate-500">
-                    Global para {{ $monedaOrigen->codigo }}
-                </span>
-            </summary>
-
-            <div class="border-t border-slate-100 px-6 py-5">
-                <div class="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
-                    <div>
-                        <p class="text-sm text-slate-500">
-                            Este valor se utiliza en todos los equipos comprados en {{ $monedaOrigen->codigo }}.
-                        </p>
-
-                        @if($tipoCambioVigente)
-                            <p class="mt-2 text-sm font-medium text-slate-700">
-                                Vigente:
-                                Bs {{ number_format($tipoCambioVigente->valor, 2) }}
-                                · {{ $tipoCambioVigente->fecha_vigencia?->format('d/m/Y H:i') }}
-                            </p>
-                        @endif
-                    </div>
-
-                    <form
-                        method="POST"
-                        action="{{ route('precios.tipo-cambio.store') }}"
-                        class="flex gap-3"
-                    >
-                        @csrf
-
-                        <input
-                            type="hidden"
-                            name="moneda_origen_id"
-                            value="{{ $monedaOrigen->id }}"
-                        >
-
-                        <input
-                            type="hidden"
-                            name="return_to"
-                            value="{{ url()->current() }}"
-                        >
-
-                        <input
-                            type="number"
-                            step="0.000001"
-                            min="0.000001"
-                            name="valor_tipo_cambio"
-                            value="{{ $tipoCambioVigente?->valor }}"
-                            placeholder="Ej. 12.00"
-                            class="w-40 rounded-xl border-slate-300"
-                            required
-                        >
-
-                        <button
-                            type="submit"
-                            class="rounded-xl bg-slate-950 px-4 py-2.5 text-sm font-semibold text-white hover:bg-slate-800"
-                        >
-                            Actualizar
-                        </button>
-                    </form>
-                </div>
-            </div>
-        </details>
-    @endif
-
     {{-- Administración secundaria: colapsada para no saturar --}}
     @if($esAdministrador)
-        <details class="rounded-2xl border border-slate-200 bg-white shadow-sm">
+        <details class="card-oneshop">
             <summary class="cursor-pointer select-none px-6 py-5">
                 <span class="font-semibold text-slate-950">
                     Administración del precio
                 </span>
                 <span class="ml-2 text-sm text-slate-500">
-                    Precio publicado, mínimo e historial
+                    Precio oficial y rango de negociación
                 </span>
             </summary>
 
@@ -447,30 +654,9 @@
                 <form
                     method="POST"
                     action="{{ route('precios.equipos.store', $equipo) }}"
-                    class="grid gap-4 lg:grid-cols-4"
+                    class="grid gap-4 lg:grid-cols-3"
                 >
                     @csrf
-
-                    <div>
-                        <label class="text-sm font-medium text-slate-700">
-                            Precio recomendado
-                        </label>
-                        <input
-                            type="number"
-                            step="0.01"
-                            min="0"
-                            name="precio_sugerido"
-                            value="{{ old(
-                                'precio_sugerido',
-                                $equipo->precioVigente?->precio_sugerido ?? ''
-                            ) }}"
-                            class="mt-1 w-full rounded-xl border-slate-300"
-                            required
-                        >
-                        <p class="mt-1 text-xs text-slate-400">
-                            Por ahora es una referencia administrativa; la sugerencia automática se implementará después.
-                        </p>
-                    </div>
 
                     <div>
                         <label class="text-sm font-medium text-slate-700">
@@ -481,49 +667,46 @@
                             step="0.01"
                             min="0.01"
                             name="precio_publico"
-                            value="{{ old(
-                                'precio_publico',
-                                $equipo->precioVigente?->precio_publico ?? ''
-                            ) }}"
-                            class="mt-1 w-full rounded-xl border-slate-300"
+                            x-model="precioPublicadoAdmin"
+                            class="input-oneshop mt-1 w-full"
                             required
                         >
                     </div>
 
                     <div>
                         <label class="text-sm font-medium text-slate-700">
-                            Mínimo autorizado
+                            Precio mínimo sin autorización
                         </label>
                         <input
                             type="number"
                             step="0.01"
                             min="0"
                             name="precio_minimo_autorizado"
-                            value="{{ old(
-                                'precio_minimo_autorizado',
-                                $equipo->precioVigente?->precio_minimo_autorizado ?? ''
-                            ) }}"
-                            class="mt-1 w-full rounded-xl border-slate-300"
+                            x-model="precioMinimoAdmin"
+                            class="input-oneshop mt-1 w-full"
                         >
+                        <p class="mt-1 text-xs leading-5 text-slate-500">
+                            Desde este valor hasta el precio publicado, Ventas podrá negociar sin consultar a Daniel. Las excepciones se resolverán dentro del flujo de Ventas.
+                        </p>
                     </div>
 
                     <div class="flex items-end">
                         <button
                             type="submit"
-                            class="w-full rounded-xl bg-slate-950 px-4 py-3 text-sm font-semibold text-white hover:bg-slate-800"
+                            class="btn-primary w-full"
                         >
                             Guardar precio
                         </button>
                     </div>
 
-                    <div class="lg:col-span-4">
+                    <div class="lg:col-span-3">
                         <label class="text-sm font-medium text-slate-700">
                             Observación
                         </label>
                         <textarea
                             name="observacion"
                             rows="2"
-                            class="mt-1 w-full rounded-xl border-slate-300"
+                            class="input-oneshop mt-1 w-full"
                         >{{ old('observacion') }}</textarea>
                     </div>
                 </form>
@@ -544,6 +727,7 @@
                                     <tr>
                                         <th class="px-4 py-3">Desde</th>
                                         <th class="px-4 py-3">Publicado</th>
+                                        <th class="px-4 py-3">Sugerido OneShop</th>
                                         <th class="px-4 py-3">Costo usado</th>
                                         <th class="px-4 py-3">Mínimo</th>
                                         <th class="px-4 py-3">Estado</th>
@@ -560,6 +744,12 @@
 
                                             <td class="px-4 py-3 font-semibold text-slate-950">
                                                 Bs {{ number_format($precio->precio_publico, 2) }}
+                                            </td>
+
+                                            <td class="px-4 py-3 text-slate-600">
+                                                {{ $precio->precio_sugerido !== null
+                                                    ? 'Bs ' . number_format($precio->precio_sugerido, 2)
+                                                    : '—' }}
                                             </td>
 
                                             <td class="px-4 py-3 text-slate-600">
@@ -588,6 +778,129 @@
                 </div>
             </div>
         </details>
+    @endif
+
+    {{-- Configuración global de moneda: fuera del flujo del equipo --}}
+    @if(
+        $esAdministrador
+        && $monedaOrigen
+        && $monedaOrigen->codigo !== 'BOB'
+    )
+        <div
+            x-show="tcAbierto"
+            x-cloak
+            @keydown.escape.window="tcAbierto = false"
+            class="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/40 p-4 backdrop-blur-[1px]"
+        >
+            <div
+                @click.outside="tcAbierto = false"
+                class="w-full max-w-lg rounded-2xl border border-slate-200 bg-white shadow-2xl"
+            >
+                <div class="flex items-start justify-between gap-4 border-b border-slate-100 px-6 py-5">
+                    <div>
+                        <p class="text-xs font-bold uppercase tracking-[0.16em] text-blue-600">
+                            Configuración comercial global
+                        </p>
+                        <h2 class="mt-1 text-xl font-bold text-slate-950">
+                            Dólar {{ $monedaOrigen->codigo }} → BOB
+                        </h2>
+                        <p class="mt-2 text-sm leading-6 text-slate-500">
+                            Se usa automáticamente para recalcular el costo comercial de todos los equipos comprados en {{ $monedaOrigen->codigo }}.
+                        </p>
+                    </div>
+
+                    <button
+                        type="button"
+                        @click="tcAbierto = false"
+                        class="rounded-lg px-2 py-1 text-xl leading-none text-slate-400 hover:bg-slate-100 hover:text-slate-700"
+                        aria-label="Cerrar"
+                    >
+                        ×
+                    </button>
+                </div>
+
+                <form
+                    method="POST"
+                    action="{{ route('precios.tipo-cambio.store') }}"
+                    class="p-6"
+                >
+                    @csrf
+
+                    <input
+                        type="hidden"
+                        name="moneda_origen_id"
+                        value="{{ $monedaOrigen->id }}"
+                    >
+
+                    <input
+                        type="hidden"
+                        name="return_to"
+                        value="{{ url()->current() }}"
+                    >
+
+                    <div class="grid gap-4 sm:grid-cols-2">
+                        <div class="rounded-xl bg-slate-50 p-4">
+                            <p class="text-xs font-semibold uppercase tracking-wide text-slate-400">
+                                Valor vigente
+                            </p>
+                            <p class="mt-1 text-2xl font-black text-slate-950">
+                                {{ $tipoCambioVigente
+                                    ? 'Bs ' . number_format($tipoCambioVigente->valor, 2)
+                                    : 'Sin configurar' }}
+                            </p>
+                            @if($tipoCambioVigente)
+                                <p class="mt-1 text-xs text-slate-500">
+                                    Desde {{ $tipoCambioVigente->fecha_vigencia?->format('d/m/Y H:i') }}
+                                </p>
+                            @endif
+                        </div>
+
+                        <div>
+                            <label class="text-sm font-semibold text-slate-700">
+                                Nuevo valor comercial
+                            </label>
+                            <div class="relative mt-2">
+                                <span class="pointer-events-none absolute inset-y-0 left-3 flex items-center text-sm font-semibold text-slate-400">
+                                    Bs
+                                </span>
+                                <input
+                                    type="number"
+                                    step="0.000001"
+                                    min="0.000001"
+                                    name="valor_tipo_cambio"
+                                    value="{{ $tipoCambioVigente
+                                        ? number_format((float) $tipoCambioVigente->valor, 2, '.', '')
+                                        : '' }}"
+                                    placeholder="12.00"
+                                    class="input-oneshop w-full pl-10"
+                                    required
+                                >
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="mt-5 rounded-xl border border-blue-100 bg-blue-50 px-4 py-3 text-sm leading-6 text-blue-800">
+                        Cambiar este valor afecta las próximas evaluaciones de <strong>todo el inventario en {{ $monedaOrigen->codigo }}</strong>. No modifica el costo histórico registrado de cada equipo.
+                    </div>
+
+                    <div class="mt-6 flex justify-end gap-3">
+                        <button
+                            type="button"
+                            @click="tcAbierto = false"
+                            class="btn-secondary"
+                        >
+                            Cancelar
+                        </button>
+                        <button
+                            type="submit"
+                            class="btn-primary"
+                        >
+                            Actualizar para todo el inventario
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
     @endif
 
 </div>

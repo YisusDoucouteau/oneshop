@@ -269,6 +269,42 @@ class ValidadorVentaPrecioServiceTest extends TestCase
         );
     }
 
+    public function test_sin_politica_precio_debajo_del_minimo_requiere_aprobacion(): void
+    {
+        $equipo =
+            $this->crearEquipo();
+
+        $this->crearPrecio(
+            $equipo
+        );
+
+        $resultado =
+            app(
+                ValidadorVentaPrecioService::class
+            )->validar(
+                $equipo->id,
+                4400
+            );
+
+        $this->assertFalse(
+            $resultado['permitido']
+        );
+
+        $this->assertTrue(
+            $resultado['requiere_aprobacion']
+        );
+
+        $this->assertSame(
+            4500.0,
+            $resultado['precio_minimo_autorizado']
+        );
+
+        $this->assertSame(
+            'REQUIERE_AUTORIZACION',
+            $resultado['estado']
+        );
+    }
+
     public function test_no_permita_equipo_inexistente(): void
     {
         $this->expectException(

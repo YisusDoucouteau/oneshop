@@ -20,7 +20,8 @@ class ValidadorVentaPrecioService
         int $equipoId,
         float $precioPropuesto,
         ?int $clienteId = null,
-        ?int $vendedorId = null
+        ?int $vendedorId = null,
+        ?string $motivoSolicitud = null
     ): array {
         if ($precioPropuesto <= 0) {
             throw new InvalidArgumentException(
@@ -81,9 +82,53 @@ class ValidadorVentaPrecioService
         $utilidad =
             $precioPropuesto - $costo;
 
+        $diasAntiguedad = (int) max(
+            0,
+            ($equipo->fecha_disponible ?? now())
+                ->copy()
+                ->startOfDay()
+                ->diffInDays(now()->startOfDay())
+        );
+
+        $categoriaId =
+            $equipo->producto?->categoria_producto_id;
+
+        $fecha = now()->toDateString();
+
+        /*
+         * Seleccionamos la misma clase de política que usa el simulador:
+         * vigente, aplicable por antigüedad y preferentemente específica
+         * para la categoría del equipo.
+         */
         $politica =
             PoliticaDescuento::query()
                 ->where('activo', true)
+                ->where('dias_desde', '<=', $diasAntiguedad)
+                ->where(function ($query) use ($diasAntiguedad) {
+                    $query
+                        ->whereNull('dias_hasta')
+                        ->orWhere('dias_hasta', '>=', $diasAntiguedad);
+                })
+                ->whereDate('vigente_desde', '<=', $fecha)
+                ->where(function ($query) use ($fecha) {
+                    $query
+                        ->whereNull('vigente_hasta')
+                        ->orWhereDate('vigente_hasta', '>=', $fecha);
+                })
+                ->where(function ($query) use ($categoriaId) {
+                    $query->whereNull('categoria_producto_id');
+
+                    if ($categoriaId !== null) {
+                        $query->orWhere(
+                            'categoria_producto_id',
+                            $categoriaId
+                        );
+                    }
+                })
+                ->orderByRaw(
+                    'CASE WHEN categoria_producto_id IS NULL THEN 1 ELSE 0 END'
+                )
+                ->orderByDesc('dias_desde')
                 ->first();
 
         $cumplePolitica = true;
@@ -112,11 +157,100 @@ class ValidadorVentaPrecioService
             }
         }
 
-        $solicitud = null;
+        /*
+        |--------------------------------------------------------------------------
+        | Límite operativo del equipo
+        |--------------------------------------------------------------------------
+        |
+        | El mínimo guardado por administración es la regla inmediata para el
+        | vendedor. Debajo de ese valor la venta necesita autorización aunque
+        | todavía exista utilidad.
+        */
+
+        $precioMinimoAutorizado =
+            $precio->precio_minimo_autorizado !== null
+                ? (float) $precio->precio_minimo_autorizado
+                : null;
 
         if (
-            !$cumplePolitica &&
-            $vendedorId !== null
+            $precioMinimoAutorizado !== null
+            && $precioPropuesto < $precioMinimoAutorizado
+            && $utilidad >= 0
+        ) {
+            $cumplePolitica = false;
+            $requiereAprobacion = true;
+        }
+
+        /*
+         * Sin política adicional ni mínimo operativo no existe una regla
+         * suficiente para aprobar automáticamente una negociación especial.
+         */
+        $requiereRevision =
+            $politica === null
+            && $precioMinimoAutorizado === null;
+
+        if ($requiereRevision) {
+            $cumplePolitica = false;
+        }
+
+        /*
+         * Una venta con pérdida nunca se autoriza automáticamente ni genera
+         * una solicitud ordinaria de descuento.
+         */
+        $generaPerdida = $utilidad < 0;
+
+        if ($generaPerdida) {
+            $cumplePolitica = false;
+            $requiereAprobacion = false;
+        }
+
+        $solicitud = null;
+        $solicitudAprobada = null;
+
+        /*
+        |--------------------------------------------------------------------------
+        | Autorización previa para este equipo y precio
+        |--------------------------------------------------------------------------
+        |
+        | El equipo es serializado y solo puede venderse una vez. Por eso una
+        | autorización aprobada para esta versión de precio + precio solicitado
+        | habilita la negociación posterior del mismo vendedor.
+        */
+        if (
+            !$generaPerdida
+            && !$cumplePolitica
+            && $requiereAprobacion
+            && $vendedorId !== null
+        ) {
+            $consultaAprobada = SolicitudDescuento::query()
+                ->where('precio_equipo_id', $precio->id)
+                ->where('solicitado_por_id', $vendedorId)
+                ->where('precio_solicitado', round($precioPropuesto, 2))
+                ->where('estado', 'APROBADA');
+
+            if ($clienteId !== null) {
+                $consultaAprobada->where(function ($query) use ($clienteId) {
+                    $query
+                        ->where('cliente_id', $clienteId)
+                        ->orWhereNull('cliente_id');
+                });
+            }
+
+            $solicitudAprobada =
+                $consultaAprobada
+                    ->latest('fecha_respuesta')
+                    ->first();
+
+            if ($solicitudAprobada) {
+                $cumplePolitica = true;
+                $requiereAprobacion = false;
+            }
+        }
+
+        if (
+            !$cumplePolitica
+            && $requiereAprobacion
+            && $vendedorId !== null
         ) {
             $solicitud =
                 $this->crearSolicitud(
@@ -128,7 +262,8 @@ class ValidadorVentaPrecioService
                     descuento: $descuento,
                     porcentaje: $porcentaje,
                     costo: $costo,
-                    utilidad: $utilidad
+                    utilidad: $utilidad,
+                    motivoSolicitud: $motivoSolicitud
                 );
         }
 
@@ -182,16 +317,34 @@ class ValidadorVentaPrecioService
             'politica' =>
                 $politica,
 
+            'precio_minimo_autorizado' =>
+                $precioMinimoAutorizado,
+
             'requiere_aprobacion' =>
                 $requiereAprobacion,
 
             'solicitud' =>
                 $solicitud,
 
+            'solicitud_aprobada' =>
+                $solicitudAprobada,
+
             'estado' =>
-                $cumplePolitica
-                    ? 'APROBADO'
-                    : 'REQUIERE_REVISION',
+                $generaPerdida
+                    ? 'NO_RECOMENDADA'
+                    : (
+                        $solicitudAprobada
+                            ? 'AUTORIZADO'
+                            : (
+                                $cumplePolitica
+                                    ? 'APROBADO'
+                                    : (
+                                        $requiereAprobacion
+                                            ? 'REQUIERE_AUTORIZACION'
+                                            : 'REQUIERE_REVISION'
+                                    )
+                            )
+                    ),
         ];
     }
 
@@ -204,7 +357,8 @@ class ValidadorVentaPrecioService
         float $descuento,
         float $porcentaje,
         float $costo,
-        float $utilidad
+        float $utilidad,
+        ?string $motivoSolicitud = null
     ): SolicitudDescuento {
         return DB::transaction(function () use (
             $precio,
@@ -215,8 +369,29 @@ class ValidadorVentaPrecioService
             $descuento,
             $porcentaje,
             $costo,
-            $utilidad
+            $utilidad,
+            $motivoSolicitud
         ) {
+            $pendiente = SolicitudDescuento::query()
+                ->where('precio_equipo_id', $precio->id)
+                ->where('solicitado_por_id', $vendedorId)
+                ->where('precio_solicitado', round($precioPropuesto, 2))
+                ->where('estado', 'PENDIENTE')
+                ->first();
+
+            if ($pendiente) {
+                if (
+                    $motivoSolicitud
+                    && $pendiente->motivo !== $motivoSolicitud
+                ) {
+                    $pendiente->update([
+                        'motivo' => $motivoSolicitud,
+                    ]);
+                }
+
+                return $pendiente->refresh();
+            }
+
             return SolicitudDescuento::create([
                 'precio_equipo_id' =>
                     $precio->id,
@@ -256,7 +431,8 @@ class ValidadorVentaPrecioService
                     'PENDIENTE',
 
                 'motivo' =>
-                    'Descuento fuera de política comercial.',
+                    $motivoSolicitud
+                    ?: 'Descuento fuera de política comercial.',
 
                 'respondido_por_id' =>
                     null,

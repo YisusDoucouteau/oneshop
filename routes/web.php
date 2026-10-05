@@ -14,6 +14,7 @@ use App\Http\Controllers\ComponenteInventarioController;
 use App\Http\Controllers\AjusteGarantiaController;
 use App\Http\Controllers\AnulacionVentaController;
 use App\Http\Controllers\PrecioEquipoController;
+use App\Http\Controllers\SolicitudDescuentoController;
 use App\Http\Controllers\ReservaController;
 use App\Http\Controllers\VentaController;
 use App\Http\Controllers\PagoVentaController;
@@ -907,7 +908,7 @@ Route::post(
     '/inventario/{equipo:codigo_interno}/precio/evaluar-json',
     [PrecioEquipoController::class, 'evaluarAjax']
 )
-->middleware('permiso:precios.ver')
+->middleware('permiso:precios.modificar')
 ->name('precios.equipos.evaluar-json');
 
 
@@ -921,7 +922,7 @@ Route::get(
     '/inventario/{equipo:codigo_interno}/precio',
     [PrecioEquipoController::class, 'show']
 )
-->middleware('permiso:precios.ver')
+->middleware('permiso:precios.modificar')
 ->name('precios.equipos.show');
 
 
@@ -935,7 +936,7 @@ Route::post(
     '/inventario/{equipo:codigo_interno}/precio/evaluar',
     [PrecioEquipoController::class, 'evaluar']
 )
-->middleware('permiso:precios.ver')
+->middleware('permiso:precios.modificar')
 ->name('precios.equipos.evaluar');
 
 
@@ -951,6 +952,41 @@ Route::post(
 )
 ->middleware('permiso:precios.modificar')
 ->name('precios.equipos.store');
+
+
+/*
+|--------------------------------------------------------------------------
+| AUTORIZACIONES DE DESCUENTO
+|--------------------------------------------------------------------------
+*/
+
+Route::post(
+    '/ventas/equipos/{equipo:codigo_interno}/solicitar-autorizacion',
+    [SolicitudDescuentoController::class, 'store']
+)
+->middleware('permiso:ventas.crear')
+->name('precios.autorizaciones.store');
+
+Route::get(
+    '/precios/autorizaciones',
+    [SolicitudDescuentoController::class, 'index']
+)
+->middleware('permiso:precios.autorizar_descuento')
+->name('precios.autorizaciones.index');
+
+Route::post(
+    '/precios/autorizaciones/{solicitud}/aprobar',
+    [SolicitudDescuentoController::class, 'aprobar']
+)
+->middleware('permiso:precios.autorizar_descuento')
+->name('precios.autorizaciones.aprobar');
+
+Route::post(
+    '/precios/autorizaciones/{solicitud}/rechazar',
+    [SolicitudDescuentoController::class, 'rechazar']
+)
+->middleware('permiso:precios.autorizar_descuento')
+->name('precios.autorizaciones.rechazar');
 
 
 /*

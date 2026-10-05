@@ -80,7 +80,8 @@ class EvaluacionPropuestaPrecioServiceTest extends TestCase
 
     private function crearEquipoConPrecio(
         float $costo = 4300,
-        float $precioPublicado = 5200
+        float $precioPublicado = 5200,
+        ?float $precioMinimoAutorizado = null
     ): Equipo {
         $categoria =
             $this->crearCategoria();
@@ -168,7 +169,7 @@ class EvaluacionPropuestaPrecioServiceTest extends TestCase
                 $precioPublicado,
 
             'precio_minimo_autorizado' =>
-                null,
+                $precioMinimoAutorizado,
 
             'vigente_desde' =>
                 now()->subDays(15),
@@ -719,6 +720,79 @@ class EvaluacionPropuestaPrecioServiceTest extends TestCase
 
         $this->assertSame(
             'NO_RECOMENDADA',
+            $resultado['estado']
+        );
+    }
+
+    /*
+    |--------------------------------------------------------------------------
+    | Límite operativo sin política adicional
+    |--------------------------------------------------------------------------
+    */
+
+    public function test_minimo_operativo_permite_decidir_sin_politica_adicional(): void
+    {
+        $equipo =
+            $this->crearEquipoConPrecio(
+                4300,
+                5200,
+                4800
+            );
+
+        $resultado =
+            $this->servicio()->evaluar(
+                $equipo->id,
+                5000
+            );
+
+        $this->assertNull(
+            $resultado['politica']
+        );
+
+        $this->assertSame(
+            4800.0,
+            $resultado['precio_minimo_autorizado']
+        );
+
+        $this->assertTrue(
+            $resultado['usa_limite_operativo']
+        );
+
+        $this->assertFalse(
+            $resultado['requiere_autorizacion']
+        );
+
+        $this->assertSame(
+            'APROBABLE',
+            $resultado['estado']
+        );
+    }
+
+    public function test_minimo_operativo_exige_autorizacion_si_la_rebaja_lo_supera(): void
+    {
+        $equipo =
+            $this->crearEquipoConPrecio(
+                4300,
+                5200,
+                4800
+            );
+
+        $resultado =
+            $this->servicio()->evaluar(
+                $equipo->id,
+                4700
+            );
+
+        $this->assertTrue(
+            $resultado['usa_limite_operativo']
+        );
+
+        $this->assertTrue(
+            $resultado['requiere_autorizacion']
+        );
+
+        $this->assertSame(
+            'REQUIERE_AUTORIZACION',
             $resultado['estado']
         );
     }

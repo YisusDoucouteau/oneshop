@@ -90,33 +90,26 @@ class PrecioEquipoWebTest extends TestCase
                 )
             )
             ->assertOk()
-            ->assertSee('Evaluar rebaja')
+            ->assertSee('Sugerencia OneShop')
+            ->assertSee('Simulador de venta')
             ->assertSee('Administración del precio')
-            ->assertSee('Historial de precios');
+            ->assertSee('Historial de precios')
+            // Este fixture no tiene una unidad de origen en moneda extranjera.
+            // La configuración global de TC solo debe mostrarse cuando aplica.
+            ->assertDontSee('Configuración comercial global');
     }
 
-    public function test_vendedor_ve_ganancia_pero_no_reparto_administrativo(): void
+    public function test_vendedor_no_puede_abrir_gestion_administrativa_de_precio(): void
     {
-        $this->mockCostoComercial(3827);
-
         $this
             ->actingAs($this->vendedor)
-            ->post(
+            ->get(
                 route(
-                    'precios.equipos.evaluar',
+                    'precios.equipos.show',
                     $this->equipo
-                ),
-                [
-                    'precio_rebaja' =>
-                        5300,
-                ]
+                )
             )
-            ->assertOk()
-            ->assertSee('Ganancia')
-            ->assertDontSee('Ver detalle administrativo')
-            ->assertDontSee('Margen total:')
-            ->assertDontSee('Administración del precio')
-            ->assertDontSee('Historial de precios');
+            ->assertForbidden();
     }
 
     public function test_admin_ve_reparto_hugo_daniel_tienda(): void

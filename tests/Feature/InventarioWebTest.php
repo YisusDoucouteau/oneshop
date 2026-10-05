@@ -88,7 +88,7 @@ class InventarioWebTest extends TestCase
         )->firstOrFail();
 
         $marca = Marca::create([
-            'nombre' => 'Dell',
+            'nombre' => 'Dell Test Inventario',
             'descripcion' => 'Marca de prueba',
             'activo' => true,
         ]);

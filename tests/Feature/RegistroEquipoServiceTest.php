@@ -56,7 +56,7 @@ class RegistroEquipoServiceTest extends TestCase
         )->firstOrFail();
 
         $marca = Marca::create([
-            'nombre' => 'Dell',
+            'nombre' => 'Dell Test Registro Equipo',
             'descripcion' => null,
             'activo' => true,
         ]);

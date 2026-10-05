@@ -318,6 +318,55 @@ class EvaluacionPropuestaPrecioService
 
         /*
         |--------------------------------------------------------------------------
+        | Límite operativo definido por administración
+        |--------------------------------------------------------------------------
+        |
+        | El precio mínimo autorizado del equipo funciona como una regla operativa
+        | incluso cuando todavía no existe una política comercial general.
+        |
+        | - si no hay política, pero sí un mínimo guardado, ese mínimo permite
+        |   decidir automáticamente si la propuesta puede venderse o necesita
+        |   autorización;
+        | - si existe una política, el mínimo puede volver más estricta la decisión,
+        |   pero nunca anula una restricción de la política;
+        | - una pérdida nunca se convierte en una propuesta autorizable por esta vía.
+        */
+
+        $precioMinimoAutorizado =
+            $resultado['precio_vigente']['precio_minimo_autorizado']
+            ?? null;
+
+        $usaLimiteOperativo = false;
+
+        if (
+            $ganancia >= 0
+            && $precioMinimoAutorizado !== null
+        ) {
+            $precioMinimoAutorizado =
+                (float) $precioMinimoAutorizado;
+
+            if ($estado === 'REQUIERE_REVISION') {
+                $usaLimiteOperativo = true;
+
+                if ($precioPropuesto < $precioMinimoAutorizado) {
+                    $estado = 'REQUIERE_AUTORIZACION';
+                    $requiereAutorizacion = true;
+                } else {
+                    $estado = 'APROBABLE';
+                    $requiereAutorizacion = false;
+                }
+            } elseif (
+                $estado === 'APROBABLE'
+                && $precioPropuesto < $precioMinimoAutorizado
+            ) {
+                $usaLimiteOperativo = true;
+                $estado = 'REQUIERE_AUTORIZACION';
+                $requiereAutorizacion = true;
+            }
+        }
+
+        /*
+        |--------------------------------------------------------------------------
         | Resultado
         |--------------------------------------------------------------------------
         */
@@ -388,6 +437,14 @@ class EvaluacionPropuestaPrecioService
 
             'requiere_autorizacion' =>
                 (bool) $requiereAutorizacion,
+
+            'precio_minimo_autorizado' =>
+                $precioMinimoAutorizado !== null
+                    ? round((float) $precioMinimoAutorizado, 2)
+                    : null,
+
+            'usa_limite_operativo' =>
+                $usaLimiteOperativo,
 
             'cumple_politica' =>
                 $cumplePolitica,

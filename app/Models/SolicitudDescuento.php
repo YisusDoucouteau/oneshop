@@ -41,6 +41,8 @@ class SolicitudDescuento extends Model
         'fecha_respuesta',
 
         'motivo_respuesta',
+
+        'medio_respuesta',
     ];
 
 

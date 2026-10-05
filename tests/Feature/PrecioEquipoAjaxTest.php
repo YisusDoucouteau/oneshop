@@ -73,41 +73,21 @@ class PrecioEquipoAjaxTest extends TestCase
         ]);
     }
 
-    public function test_vendedor_recibe_ganancia_pero_no_reparto_en_json(): void
+    public function test_vendedor_no_puede_usar_simulador_administrativo(): void
     {
-        $this->mockCosto(3827);
-
-        $response =
-            $this
-                ->actingAs($this->vendedor)
-                ->postJson(
-                    route(
-                        'precios.equipos.evaluar-json',
-                        $this->equipo
-                    ),
-                    [
-                        'precio_rebaja' =>
-                            5300,
-                    ]
-                );
-
-        $response
-            ->assertOk()
-            ->assertJson([
-                'ok' =>
-                    true,
-
-                'ganancia' =>
-                    491.0,
-            ]);
-
-        $response
-            ->assertJsonMissingPath(
-                'reparto'
+        $this
+            ->actingAs($this->vendedor)
+            ->postJson(
+                route(
+                    'precios.equipos.evaluar-json',
+                    $this->equipo
+                ),
+                [
+                    'precio_rebaja' =>
+                        5300,
+                ]
             )
-            ->assertJsonMissingPath(
-                'margen_total'
-            );
+            ->assertForbidden();
     }
 
     public function test_admin_recibe_reparto_administrativo(): void
@@ -150,12 +130,37 @@ class PrecioEquipoAjaxTest extends TestCase
             ]);
     }
 
+    public function test_precio_debajo_del_minimo_requiere_autorizacion(): void
+    {
+        $this->mockCosto(3827);
+
+        $this
+            ->actingAs($this->admin)
+            ->postJson(
+                route(
+                    'precios.equipos.evaluar-json',
+                    $this->equipo
+                ),
+                [
+                    'precio_rebaja' =>
+                        5100,
+                ]
+            )
+            ->assertOk()
+            ->assertJson([
+                'ok' => true,
+                'estado' => 'REQUIERE_AUTORIZACION',
+                'requiere_autorizacion' => true,
+                'precio_minimo_autorizado' => 5200.0,
+            ]);
+    }
+
     public function test_no_evalua_si_costo_es_cero(): void
     {
         $this->mockCosto(0);
 
         $this
-            ->actingAs($this->vendedor)
+            ->actingAs($this->admin)
             ->postJson(
                 route(
                     'precios.equipos.evaluar-json',

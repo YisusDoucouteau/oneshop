@@ -10,6 +10,7 @@ use App\Services\CostoRealEquipoService;
 use App\Services\EvaluacionPropuestaPrecioService;
 use App\Services\RegistroPrecioEquipoService;
 use App\Services\RentabilidadRebajaService;
+use App\Services\SugerenciaPrecioEquipoService;
 use App\Services\TipoCambioComercialService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
@@ -24,27 +25,31 @@ class PrecioEquipoController extends Controller
         Equipo $equipo,
         CostoRealEquipoService $costoRealEquipoService,
         CostoComercialActualService $costoComercialActualService,
-        TipoCambioComercialService $tipoCambioComercialService
+        TipoCambioComercialService $tipoCambioComercialService,
+        SugerenciaPrecioEquipoService $sugerenciaPrecioEquipoService
     ): View {
         return $this->render(
             $request,
             $equipo,
             $costoRealEquipoService,
             $costoComercialActualService,
-            $tipoCambioComercialService
+            $tipoCambioComercialService,
+            $sugerenciaPrecioEquipoService
         );
     }
 
     /**
-     * Evaluación rápida para la negociación.
+     * Simulación administrativa de precio.
      *
+     * Este endpoint pertenece a Gestión de precio y está protegido por
+     * precios.modificar. El flujo de Ventas utiliza su propio evaluador.
      * La fórmula SIEMPRE se calcula en backend.
-     * El vendedor no recibe en JSON el reparto administrativo.
      */
     public function evaluarAjax(
         Request $request,
         Equipo $equipo,
-        RentabilidadRebajaService $rentabilidadRebajaService
+        RentabilidadRebajaService $rentabilidadRebajaService,
+        EvaluacionPropuestaPrecioService $evaluacionPropuestaPrecioService
     ): JsonResponse {
         $datos = $request->validate([
             'precio_rebaja' => [
@@ -55,11 +60,38 @@ class PrecioEquipoController extends Controller
         ]);
 
         try {
+            $precio =
+                (float) $datos['precio_rebaja'];
+
+            /*
+            |--------------------------------------------------------------------------
+            | Rentabilidad estilo Excel de Daniel
+            |--------------------------------------------------------------------------
+            |
+            | Se usa el costo comercial actualizado y la ganancia principal se
+            | mantiene como (precio de venta - costo comercial) / 3.
+            */
             $resultado =
                 $rentabilidadRebajaService
                     ->evaluar(
                         $equipo,
-                        (float) $datos['precio_rebaja']
+                        $precio
+                    );
+
+            /*
+            |--------------------------------------------------------------------------
+            | Estado comercial de la propuesta
+            |--------------------------------------------------------------------------
+            |
+            | La misma propuesta se evalúa contra la política comercial para que
+            | la interfaz pueda indicar si es aprobable, requiere autorización,
+            | requiere revisión o no debe recomendarse.
+            */
+            $evaluacionComercial =
+                $evaluacionPropuestaPrecioService
+                    ->evaluar(
+                        $equipo->id,
+                        $precio
                     );
 
             $esAdministrador =
@@ -68,8 +100,27 @@ class PrecioEquipoController extends Controller
                     ?->tienePermiso('precios.modificar')
                 ?? false;
 
+            /*
+             * Gestión de precio solo simula y define límites. Las solicitudes
+             * y aprobaciones pertenecen al flujo real de Ventas, no a Inventario.
+             */
+            $estado =
+                $evaluacionComercial['estado']
+                ?? null;
+
+            $requiereAutorizacion =
+                (bool) (
+                    $evaluacionComercial['requiere_autorizacion']
+                    ?? false
+                );
+
+            $precioMinimoAutorizado =
+                $evaluacionComercial['precio_minimo_autorizado']
+                ?? null;
+
             $respuesta = [
                 'ok' => true,
+
                 'precio_publicado' =>
                     $resultado['precio_publicado'],
 
@@ -87,6 +138,37 @@ class PrecioEquipoController extends Controller
 
                 'ganancia' =>
                     $resultado['ganancia'],
+
+                'estado' =>
+                    $estado,
+
+                'requiere_autorizacion' =>
+                    $requiereAutorizacion,
+
+                'precio_minimo_autorizado' =>
+                    $precioMinimoAutorizado,
+
+                'usa_limite_operativo' =>
+                    (bool) (
+                        $evaluacionComercial['usa_limite_operativo']
+                        ?? false
+                    ),
+
+                'cumple_politica' =>
+                    $evaluacionComercial[
+                        'cumple_politica'
+                    ]
+                    ?? null,
+
+                'descuento' =>
+                    $evaluacionComercial['descuento']
+                    ?? null,
+
+                'porcentaje_descuento' =>
+                    $evaluacionComercial[
+                        'porcentaje_descuento'
+                    ]
+                    ?? null,
             ];
 
             if ($esAdministrador) {
@@ -124,6 +206,7 @@ class PrecioEquipoController extends Controller
         CostoRealEquipoService $costoRealEquipoService,
         CostoComercialActualService $costoComercialActualService,
         TipoCambioComercialService $tipoCambioComercialService,
+        SugerenciaPrecioEquipoService $sugerenciaPrecioEquipoService,
         RentabilidadRebajaService $rentabilidadRebajaService
     ): View {
         $datos = $request->validate([
@@ -158,6 +241,7 @@ class PrecioEquipoController extends Controller
             $costoRealEquipoService,
             $costoComercialActualService,
             $tipoCambioComercialService,
+            $sugerenciaPrecioEquipoService,
             $evaluacion,
             [
                 'precio_rebaja' =>
@@ -171,14 +255,10 @@ class PrecioEquipoController extends Controller
         Request $request,
         Equipo $equipo,
         EvaluacionPropuestaPrecioService $evaluacionPropuestaPrecioService,
-        RegistroPrecioEquipoService $registroPrecioEquipoService
+        RegistroPrecioEquipoService $registroPrecioEquipoService,
+        SugerenciaPrecioEquipoService $sugerenciaPrecioEquipoService
     ): RedirectResponse {
         $datos = $request->validate([
-            'precio_sugerido' => [
-                'required',
-                'numeric',
-                'min:0',
-            ],
             'precio_publico' => [
                 'required',
                 'numeric',
@@ -198,6 +278,15 @@ class PrecioEquipoController extends Controller
         ]);
 
         try {
+            /*
+             * El precio sugerido se calcula siempre en servidor. Daniel puede
+             * publicar el valor que considere conveniente, pero el snapshot
+             * conserva cuál era la recomendación de OneShop en ese momento.
+             */
+            $sugerencia =
+                $sugerenciaPrecioEquipoService
+                    ->sugerir($equipo);
+
             $evaluacion =
                 $evaluacionPropuestaPrecioService
                     ->evaluar(
@@ -210,7 +299,6 @@ class PrecioEquipoController extends Controller
                 [
                     'NO_RECOMENDADA',
                     'NO_CUMPLE_POLITICA',
-                    'REQUIERE_AUTORIZACION',
                 ],
                 true
             )) {
@@ -227,7 +315,7 @@ class PrecioEquipoController extends Controller
             $registroPrecioEquipoService
                 ->registrar(
                     $equipo->id,
-                    (float) $datos['precio_sugerido'],
+                    (float) $sugerencia['precio_sugerido'],
                     (float) $datos['precio_publico'],
                     isset($datos['precio_minimo_autorizado'])
                         && $datos['precio_minimo_autorizado'] !== ''
@@ -245,7 +333,7 @@ class PrecioEquipoController extends Controller
                 )
                 ->with(
                     'success',
-                    'Precio registrado correctamente.'
+                    'Precio registrado correctamente. El mínimo guardado queda como límite operativo para las negociaciones.'
                 );
         } catch (
             ReglaNegocioException
@@ -327,6 +415,7 @@ class PrecioEquipoController extends Controller
         CostoRealEquipoService $costoRealEquipoService,
         CostoComercialActualService $costoComercialActualService,
         TipoCambioComercialService $tipoCambioComercialService,
+        SugerenciaPrecioEquipoService $sugerenciaPrecioEquipoService,
         ?array $evaluacion = null,
         ?array $formularioRebaja = null,
         ?string $errorEvaluacion = null
@@ -367,6 +456,23 @@ class PrecioEquipoController extends Controller
         ) {
             $errorCostoComercial =
                 $exception->getMessage();
+        }
+
+        $sugerenciaPrecio = null;
+        $errorSugerenciaPrecio = null;
+
+        if ($costoComercial) {
+            try {
+                $sugerenciaPrecio =
+                    $sugerenciaPrecioEquipoService
+                        ->sugerir($equipo);
+            } catch (
+                ReglaNegocioException
+                | InvalidArgumentException $exception
+            ) {
+                $errorSugerenciaPrecio =
+                    $exception->getMessage();
+            }
         }
 
         $historial =
@@ -413,7 +519,9 @@ class PrecioEquipoController extends Controller
                 'errorEvaluacion',
                 'esAdministrador',
                 'monedaOrigen',
-                'tipoCambioVigente'
+                'tipoCambioVigente',
+                'sugerenciaPrecio',
+                'errorSugerenciaPrecio'
             )
         );
     }
@@ -430,6 +538,9 @@ class PrecioEquipoController extends Controller
 
             'REQUIERE_AUTORIZACION' =>
                 'El precio propuesto requiere autorización antes de ser publicado.',
+
+            'REQUIERE_REVISION' =>
+                'No existe una política comercial aplicable; el precio requiere revisión antes de ser publicado.',
 
             default =>
                 'El precio propuesto no puede publicarse directamente.',
