@@ -51,7 +51,7 @@
         {{-- Garantía --}}
 <x-inventario.garantia
     :equipo="$equipo"
-    :equipos-reemplazo="$equiposReemplazo"
+    :equiposReemplazo="$equiposReemplazo"
     :metodos="$metodosPagoAjuste"
     :resumenes="$resumenesAjusteGarantia"
 />

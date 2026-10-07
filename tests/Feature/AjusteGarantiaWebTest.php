@@ -81,8 +81,12 @@ class AjusteGarantiaWebTest extends TestCase
             );
 
         $origen =
-            '/inventario/'
-            . $equipoOriginal->codigo_interno;
+            route(
+                'garantias.casos.show',
+                [
+                    'caso' => $cambio->caso_garantia_id,
+                ]
+            );
 
         $this
             ->actingAs(
@@ -160,8 +164,12 @@ class AjusteGarantiaWebTest extends TestCase
             );
 
         $origen =
-            '/inventario/'
-            . $equipoOriginal->codigo_interno;
+            route(
+                'garantias.casos.show',
+                [
+                    'caso' => $cambio->caso_garantia_id,
+                ]
+            );
 
         $this
             ->actingAs(
@@ -289,8 +297,12 @@ class AjusteGarantiaWebTest extends TestCase
                 );
 
         $origen =
-            '/inventario/'
-            . $equipoOriginal->codigo_interno;
+            route(
+                'garantias.casos.show',
+                [
+                    'caso' => $cambio->caso_garantia_id,
+                ]
+            );
 
         $this
             ->actingAs(
@@ -475,8 +487,12 @@ class AjusteGarantiaWebTest extends TestCase
         );
 
         $origen =
-            '/inventario/'
-            . $equipoOriginal->codigo_interno;
+            route(
+                'garantias.casos.show',
+                [
+                    'caso' => $cambio->caso_garantia_id,
+                ]
+            );
 
         $this
             ->actingAs(

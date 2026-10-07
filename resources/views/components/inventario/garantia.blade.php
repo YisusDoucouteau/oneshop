@@ -3,6 +3,8 @@
     'equiposReemplazo' => null,
     'metodos' => null,
     'resumenes' => null,
+    'garantia' => null,
+    'casoEnfocadoId' => null,
 ])
 
 @php
@@ -18,23 +20,73 @@
         $resumenes
         ?? collect();
 
-    $detalleGarantiaActual = $equipo
-        ->detallesVentas
-        ->filter(function ($detalle) {
-            return $detalle->garantia
-                && $detalle->venta
-                && $detalle->venta->estado !== 'ANULADA';
-        })
-        ->sortByDesc(function ($detalle) {
-            return $detalle->venta?->fecha_venta?->timestamp ?? 0;
-        })
-        ->first();
+    $modoCaso = (int) ($casoEnfocadoId ?? 0) > 0;
+
+    $detalleGarantiaActual =
+        $garantia?->detalleVenta
+        ?? $equipo
+            ->detallesVentas
+            ->filter(function ($detalle) {
+                return $detalle->garantia
+                    && $detalle->venta
+                    && $detalle->venta->estado !== 'ANULADA';
+            })
+            ->sortByDesc(function ($detalle) {
+                return $detalle->venta?->fecha_venta?->timestamp ?? 0;
+            })
+            ->first();
 
     $garantiaActual =
-        $detalleGarantiaActual?->garantia;
+        $garantia
+        ?? $detalleGarantiaActual?->garantia;
+
+    $casosVisibles =
+        $casoEnfocadoId
+            ? $equipo->casosGarantia
+                ->where('id', (int) $casoEnfocadoId)
+                ->values()
+            : $equipo->casosGarantia;
+
+    $estadoCasoTexto = function (?string $estado): string {
+        return match (strtoupper((string) $estado)) {
+            'ABIERTO' => 'Abierto',
+            'DIAGNOSTICADO' => 'Diagnosticado',
+            'EN_PROCESO' => 'En proceso',
+            'CERRADO' => 'Cerrado',
+            'FINALIZADO' => 'Finalizado',
+            'PENDIENTE' => 'Pendiente',
+            'DIAGNOSTICO' => 'En diagnóstico',
+            default => $estado
+                ? ucfirst(mb_strtolower(str_replace('_', ' ', $estado)))
+                : 'Sin estado',
+        };
+    };
+
+    $tipoCasoTexto = function (?string $tipo): string {
+        return match (strtoupper((string) $tipo)) {
+            'GARANTIA' => 'Caso de garantía',
+            default => $tipo
+                ? ucfirst(mb_strtolower(str_replace('_', ' ', $tipo)))
+                : 'Caso de garantía',
+        };
+    };
+
+    $tipoIntervencionTexto = function (?string $tipo): string {
+        return match (strtoupper((string) $tipo)) {
+            'DIAGNOSTICO_COMPLEMENTARIO' => 'Diagnóstico complementario',
+            'PRUEBA' => 'Prueba',
+            'AJUSTE' => 'Ajuste',
+            'REPARACION' => 'Reparación',
+            'MANTENIMIENTO' => 'Mantenimiento',
+            'OTRO' => 'Otro',
+            default => $tipo
+                ? ucfirst(mb_strtolower(str_replace('_', ' ', $tipo)))
+                : 'Intervención',
+        };
+    };
 
     $casoActivo =
-        $equipo->casosGarantia
+        $casosVisibles
             ->first(function ($caso) {
                 return in_array(
                     strtoupper($caso->estado ?? ''),
@@ -96,14 +148,17 @@
 
             <h2 class="font-semibold text-slate-950">
 
-                Garantía y soporte
+                {{ $modoCaso ? 'Seguimiento del caso' : 'Garantía y soporte' }}
 
             </h2>
 
 
             <p class="mt-1 text-sm text-slate-500">
 
-                Seguimiento de casos, diagnósticos e intervenciones del equipo.
+                {{ $modoCaso
+                    ? 'Diagnóstico, intervenciones, resolución y movimientos asociados al caso.'
+                    : 'Seguimiento de casos, diagnósticos e intervenciones del equipo.'
+                }}
 
             </p>
 
@@ -111,7 +166,7 @@
 
 
 
-        @if($equipo->casosGarantia && $equipo->casosGarantia->count())
+        @if(!$modoCaso && $casosVisibles && $casosVisibles->count())
 
 
             <span
@@ -129,7 +184,7 @@
                 "
             >
 
-                {{ $equipo->casosGarantia->count() }}
+                {{ $casosVisibles->count() }}
                 caso(s)
 
             </span>
@@ -146,7 +201,7 @@
 
     <div class="p-6">
 
-        @if($garantiaActual)
+        @if($garantiaActual && !$modoCaso)
 
             <div class="mb-6 rounded-2xl border border-slate-200 bg-white p-5">
 
@@ -171,13 +226,13 @@
                     @if($garantiaActual->estaVigente())
 
                         <span class="inline-flex w-fit rounded-full bg-emerald-100 px-3 py-1 text-xs font-semibold text-emerald-700">
-                            VIGENTE
+                            Vigente
                         </span>
 
                     @else
 
                         <span class="inline-flex w-fit rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-600">
-                            NO VIGENTE
+                            No vigente
                         </span>
 
                     @endif
@@ -205,7 +260,7 @@
                         <p class="mt-1 text-sm text-amber-700">
                             {{ $casoActivo->numero }}
                             ·
-                            {{ str_replace('_', ' ', $casoActivo->estado) }}
+                            {{ $estadoCasoTexto($casoActivo->estado) }}
                         </p>
 
                     </div>
@@ -343,7 +398,7 @@
 
 
 
-        @if($equipo->casosGarantia && $equipo->casosGarantia->count())
+        @if($casosVisibles && $casosVisibles->count())
 
 
 
@@ -351,7 +406,7 @@
 
 
 
-                @foreach($equipo->casosGarantia as $caso)
+                @foreach($casosVisibles as $caso)
 
 
 
@@ -433,7 +488,7 @@
                                             "
                                         >
 
-                                            {{ $caso->tipo_caso ?? 'Caso de garantía' }}
+                                            {{ $tipoCasoTexto($caso->tipo_caso) }}
 
                                         </p>
 
@@ -460,38 +515,53 @@
 
 
 
-                            <span
-                                class="
-                                inline-flex
-                                w-fit
-                                rounded-full
-                                px-3
-                                py-1
-                                text-xs
-                                font-semibold
-                                "
-                                @class([
+                            <div class="flex flex-wrap items-center justify-end gap-2">
 
-                                    'bg-emerald-100 text-emerald-700'
-                                    =>
-                                    in_array($estado,['CERRADO','FINALIZADO']),
+                                <span
+                                    class="
+                                    inline-flex
+                                    w-fit
+                                    rounded-full
+                                    px-3
+                                    py-1
+                                    text-xs
+                                    font-semibold
+                                    "
+                                    @class([
 
-
-                                    'bg-amber-100 text-amber-700'
-                                    =>
-                                    in_array($estado,['ABIERTO','PENDIENTE','DIAGNOSTICO','DIAGNOSTICADO','EN_PROCESO']),
+                                        'bg-emerald-100 text-emerald-700'
+                                        =>
+                                        in_array($estado,['CERRADO','FINALIZADO']),
 
 
-                                    'bg-slate-100 text-slate-700'
-                                    =>
-                                    !in_array($estado,['CERRADO','FINALIZADO','ABIERTO','PENDIENTE','DIAGNOSTICO','DIAGNOSTICADO','EN_PROCESO'])
+                                        'bg-amber-100 text-amber-700'
+                                        =>
+                                        in_array($estado,['ABIERTO','PENDIENTE','DIAGNOSTICO','DIAGNOSTICADO','EN_PROCESO']),
 
-                                ])
-                            >
 
-                                {{ str_replace('_', ' ', $caso->estado) }}
+                                        'bg-slate-100 text-slate-700'
+                                        =>
+                                        !in_array($estado,['CERRADO','FINALIZADO','ABIERTO','PENDIENTE','DIAGNOSTICO','DIAGNOSTICADO','EN_PROCESO'])
 
-                            </span>
+                                    ])
+                                >
+
+                                    {{ $estadoCasoTexto($caso->estado) }}
+
+                                </span>
+
+                                @if((int) ($casoEnfocadoId ?? 0) !== (int) $caso->id)
+
+                                    <a
+                                        href="{{ route('garantias.casos.show', $caso) }}"
+                                        class="inline-flex items-center rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50"
+                                    >
+                                        Abrir ficha
+                                    </a>
+
+                                @endif
+
+                            </div>
 
 
 
@@ -772,7 +842,7 @@
 
                                             <p class="font-medium text-slate-800">
 
-                                                {{ $intervencion->tipo_intervencion }}
+                                                {{ $tipoIntervencionTexto($intervencion->tipo_intervencion) }}
 
                                             </p>
 
@@ -1306,76 +1376,333 @@
                                     @endif
 
 
+                                    @php
+                                        $equipoReemplazoSeleccionado =
+                                            $esFormularioCasoActual
+                                                ? $equiposReemplazo->firstWhere(
+                                                    'id',
+                                                    (int) old('equipo_entrante_id')
+                                                )
+                                                : null;
+
+                                        $precioOriginalCambio =
+                                            (float) (
+                                                $detalleGarantiaActual?->precio_unitario
+                                                ?? 0
+                                            );
+                                    @endphp
+
                                     <div>
 
-                                        <label
-    for="equipo_entrante_id_{{ $caso->id }}"
-    class="block text-sm font-semibold text-slate-700"
->
-    Equipo de reemplazo
-</label>
+                                        <label class="block text-sm font-semibold text-slate-700">
+                                            Equipo de reemplazo
+                                        </label>
 
+                                        <input
+                                            id="equipo_entrante_id_{{ $caso->id }}"
+                                            type="hidden"
+                                            name="equipo_entrante_id"
+                                            value="{{ $equipoReemplazoSeleccionado?->id ?? '' }}"
+                                        >
 
-@if($equiposReemplazo->isNotEmpty())
-
-                                            <select
-                                                id="equipo_entrante_id_{{ $caso->id }}"
-                                                name="equipo_entrante_id"
-                                                required
-                                                class="mt-2 w-full rounded-xl border-slate-300 text-sm shadow-sm focus:border-amber-500 focus:ring-amber-500"
-                                            >
-
-                                                <option value="">
-                                                    Seleccione un equipo disponible
-                                                </option>
-
-                                                @foreach($equiposReemplazo as $equipoReemplazo)
-
-                                                    <option
-                                                        value="{{ $equipoReemplazo->id }}"
-                                                        @selected(
-                                                            $esFormularioCasoActual
-                                                            && (int) old('equipo_entrante_id')
-                                                                === (int) $equipoReemplazo->id
-                                                        )
+                                        <div
+                                            id="reemplazo_seleccionado_{{ $caso->id }}"
+                                            class="mt-2 rounded-2xl border border-slate-200 bg-slate-50 p-4"
+                                            @if(!$equipoReemplazoSeleccionado) hidden @endif
+                                        >
+                                            <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                                                <div>
+                                                    <p
+                                                        id="reemplazo_codigo_{{ $caso->id }}"
+                                                        class="font-semibold text-slate-900"
                                                     >
-                                                        {{ $equipoReemplazo->codigo_interno }}
-                                                        —
-                                                        {{ $equipoReemplazo->producto?->nombre ?? 'Producto' }}
-                                                        @if($equipoReemplazo->producto?->modelo)
-                                                            / {{ $equipoReemplazo->producto->modelo }}
+                                                        {{ $equipoReemplazoSeleccionado?->codigo_interno }}
+                                                    </p>
+
+                                                    <p
+                                                        id="reemplazo_producto_{{ $caso->id }}"
+                                                        class="mt-1 text-sm text-slate-600"
+                                                    >
+                                                        @if($equipoReemplazoSeleccionado)
+                                                            {{ $equipoReemplazoSeleccionado->producto?->nombre ?? 'Producto' }}
+                                                            @if($equipoReemplazoSeleccionado->producto?->modelo)
+                                                                · {{ $equipoReemplazoSeleccionado->producto->modelo }}
+                                                            @endif
                                                         @endif
-                                                        —
-                                                        Bs {{
-                                                            number_format(
+                                                    </p>
+
+                                                    <p
+                                                        id="reemplazo_serial_{{ $caso->id }}"
+                                                        class="mt-1 text-xs text-slate-500"
+                                                    >
+                                                        @if($equipoReemplazoSeleccionado?->serial_fabricante)
+                                                            Serial fabricante: {{ $equipoReemplazoSeleccionado->serial_fabricante }}
+                                                        @endif
+                                                    </p>
+                                                </div>
+
+                                                <div class="text-left sm:text-right">
+                                                    <p
+                                                        id="reemplazo_precio_{{ $caso->id }}"
+                                                        class="font-semibold text-slate-900"
+                                                    >
+                                                        @if($equipoReemplazoSeleccionado)
+                                                            Bs {{ number_format((float) ($equipoReemplazoSeleccionado->precioVigente?->precio_publico ?? 0), 2, ',', '.') }}
+                                                        @endif
+                                                    </p>
+
+                                                    <p
+                                                        id="reemplazo_almacen_{{ $caso->id }}"
+                                                        class="mt-1 text-xs text-slate-500"
+                                                    >
+                                                        {{ $equipoReemplazoSeleccionado?->almacenActual?->nombre }}
+                                                    </p>
+                                                </div>
+                                            </div>
+
+                                            <div class="mt-4 grid gap-3 sm:grid-cols-3">
+                                                <div class="rounded-xl bg-white p-3">
+                                                    <p class="text-xs font-semibold uppercase tracking-wide text-slate-400">
+                                                        Valor original
+                                                    </p>
+                                                    <p class="mt-1 font-semibold text-slate-800">
+                                                        Bs {{ number_format($precioOriginalCambio, 2, ',', '.') }}
+                                                    </p>
+                                                </div>
+
+                                                <div class="rounded-xl bg-white p-3">
+                                                    <p class="text-xs font-semibold uppercase tracking-wide text-slate-400">
+                                                        Valor reemplazo
+                                                    </p>
+                                                    <p
+                                                        id="reemplazo_valor_preview_{{ $caso->id }}"
+                                                        class="mt-1 font-semibold text-slate-800"
+                                                    >
+                                                        @if($equipoReemplazoSeleccionado)
+                                                            Bs {{ number_format((float) ($equipoReemplazoSeleccionado->precioVigente?->precio_publico ?? 0), 2, ',', '.') }}
+                                                        @endif
+                                                    </p>
+                                                </div>
+
+                                                <div class="rounded-xl bg-white p-3">
+                                                    <p class="text-xs font-semibold uppercase tracking-wide text-slate-400">
+                                                        Diferencia estimada
+                                                    </p>
+                                                    <p
+                                                        id="reemplazo_diferencia_{{ $caso->id }}"
+                                                        class="mt-1 font-semibold text-slate-800"
+                                                    >
+                                                        @if($equipoReemplazoSeleccionado)
+                                                            @php
+                                                                $diferenciaSeleccionada =
+                                                                    (float) ($equipoReemplazoSeleccionado->precioVigente?->precio_publico ?? 0)
+                                                                    - $precioOriginalCambio;
+                                                            @endphp
+
+                                                            @if($diferenciaSeleccionada > 0)
+                                                                Cobro Bs {{ number_format($diferenciaSeleccionada, 2, ',', '.') }}
+                                                            @elseif($diferenciaSeleccionada < 0)
+                                                                A favor Bs {{ number_format(abs($diferenciaSeleccionada), 2, ',', '.') }}
+                                                            @else
+                                                                Sin diferencia
+                                                            @endif
+                                                        @endif
+                                                    </p>
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        @if($equiposReemplazo->isNotEmpty())
+
+                                            <div class="mt-3 flex flex-wrap items-center gap-3">
+                                                <button
+                                                    id="boton_elegir_reemplazo_{{ $caso->id }}"
+                                                    type="button"
+                                                    onclick="abrirSelectorReemplazo({{ $caso->id }})"
+                                                    class="inline-flex items-center justify-center rounded-xl border border-amber-300 bg-white px-4 py-2.5 text-sm font-semibold text-amber-800 shadow-sm hover:bg-amber-50"
+                                                >
+                                                    {{ $equipoReemplazoSeleccionado ? 'Cambiar selección' : 'Elegir equipo' }}
+                                                </button>
+
+                                                <span class="text-xs text-slate-500">
+                                                    Solo se muestran equipos actualmente disponibles para reemplazo.
+                                                </span>
+                                            </div>
+
+                                            <dialog
+                                                id="modal_reemplazo_{{ $caso->id }}"
+                                                class="w-[min(94vw,72rem)] rounded-2xl border border-slate-200 bg-white p-0 shadow-2xl backdrop:bg-slate-900/40"
+                                            >
+                                                <div class="border-b border-slate-200 px-5 py-4 sm:px-6">
+                                                    <div class="flex items-start justify-between gap-4">
+                                                        <div>
+                                                            <h3 class="text-lg font-semibold text-slate-900">
+                                                                Seleccionar equipo de reemplazo
+                                                            </h3>
+                                                            <p class="mt-1 text-sm text-slate-500">
+                                                                Busca por N° de equipo, serial, marca, modelo o producto.
+                                                            </p>
+                                                        </div>
+
+                                                        <button
+                                                            type="button"
+                                                            onclick="cerrarSelectorReemplazo({{ $caso->id }})"
+                                                            class="rounded-lg px-3 py-2 text-sm font-semibold text-slate-500 hover:bg-slate-100 hover:text-slate-800"
+                                                        >
+                                                            Cerrar
+                                                        </button>
+                                                    </div>
+
+                                                    <div class="mt-4">
+                                                        <input
+                                                            id="buscar_reemplazo_{{ $caso->id }}"
+                                                            type="search"
+                                                            autocomplete="off"
+                                                            oninput="filtrarSelectorReemplazo({{ $caso->id }}, this.value)"
+                                                            class="w-full rounded-xl border-slate-300 text-sm shadow-sm focus:border-amber-500 focus:ring-amber-500"
+                                                            placeholder="Buscar equipo disponible..."
+                                                        >
+                                                    </div>
+                                                </div>
+
+                                                <div
+                                                    id="lista_reemplazos_{{ $caso->id }}"
+                                                    class="max-h-[65vh] space-y-3 overflow-y-auto p-5 sm:p-6"
+                                                >
+                                                    @foreach($equiposReemplazo as $equipoReemplazo)
+
+                                                        @php
+                                                            $precioReemplazoModal =
                                                                 (float) (
-                                                                    $equipoReemplazo
-                                                                        ->precioVigente
-                                                                        ?->precio_publico
+                                                                    $equipoReemplazo->precioVigente?->precio_publico
                                                                     ?? 0
-                                                                ),
-                                                                2,
-                                                                '.',
-                                                                ''
-                                                            )
-                                                        }}
-                                                        —
-                                                        {{ $equipoReemplazo->almacenActual?->nombre ?? 'Sin almacén' }}
-                                                    </option>
+                                                                );
 
-                                                @endforeach
+                                                            $textoBusquedaReemplazo = mb_strtolower(
+                                                                implode(' ', [
+                                                                    $equipoReemplazo->codigo_interno,
+                                                                    $equipoReemplazo->serial_fabricante,
+                                                                    $equipoReemplazo->producto?->nombre,
+                                                                    $equipoReemplazo->producto?->modelo,
+                                                                    $equipoReemplazo->producto?->marca?->nombre,
+                                                                    $equipoReemplazo->almacenActual?->nombre,
+                                                                ])
+                                                            );
+                                                        @endphp
 
-                                            </select>
+                                                        <article
+                                                            data-reemplazo-card
+                                                            data-search="{{ $textoBusquedaReemplazo }}"
+                                                            class="rounded-2xl border border-slate-200 bg-white p-4 hover:border-amber-300 hover:bg-amber-50/30"
+                                                        >
+                                                            <div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                                                                <div class="min-w-0">
+                                                                    <div class="flex flex-wrap items-center gap-2">
+                                                                        <span class="font-semibold text-slate-900">
+                                                                            {{ $equipoReemplazo->codigo_interno }}
+                                                                        </span>
+
+                                                                        <span class="rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-700">
+                                                                            Disponible
+                                                                        </span>
+                                                                    </div>
+
+                                                                    <p class="mt-1 text-sm text-slate-700">
+                                                                        {{ $equipoReemplazo->producto?->marca?->nombre }}
+                                                                        {{ $equipoReemplazo->producto?->nombre ?? 'Producto' }}
+                                                                        @if($equipoReemplazo->producto?->modelo)
+                                                                            · {{ $equipoReemplazo->producto->modelo }}
+                                                                        @endif
+                                                                    </p>
+
+                                                                    <div class="mt-2 flex flex-wrap gap-x-5 gap-y-1 text-xs text-slate-500">
+                                                                        @if($equipoReemplazo->serial_fabricante)
+                                                                            <span>
+                                                                                Serial: {{ $equipoReemplazo->serial_fabricante }}
+                                                                            </span>
+                                                                        @endif
+
+                                                                        <span>
+                                                                            {{ $equipoReemplazo->almacenActual?->nombre ?? 'Sin almacén' }}
+                                                                        </span>
+                                                                    </div>
+                                                                </div>
+
+                                                                <div class="flex shrink-0 items-center gap-3 sm:text-right">
+                                                                    <div>
+                                                                        <p class="font-semibold text-slate-900">
+                                                                            Bs {{ number_format($precioReemplazoModal, 2, ',', '.') }}
+                                                                        </p>
+
+                                                                        @php
+                                                                            $diferenciaModal =
+                                                                                $precioReemplazoModal
+                                                                                - $precioOriginalCambio;
+                                                                        @endphp
+
+                                                                        <p class="mt-1 text-xs text-slate-500">
+                                                                            @if($diferenciaModal > 0)
+                                                                                Diferencia a cobrar:
+                                                                                Bs {{ number_format($diferenciaModal, 2, ',', '.') }}
+                                                                            @elseif($diferenciaModal < 0)
+                                                                                Saldo a favor:
+                                                                                Bs {{ number_format(abs($diferenciaModal), 2, ',', '.') }}
+                                                                            @else
+                                                                                Sin diferencia económica
+                                                                            @endif
+                                                                        </p>
+                                                                    </div>
+
+                                                                    <button
+                                                                        type="button"
+                                                                        data-caso-id="{{ $caso->id }}"
+                                                                        data-equipo-id="{{ $equipoReemplazo->id }}"
+                                                                        data-codigo="{{ $equipoReemplazo->codigo_interno }}"
+                                                                        data-producto="{{ $equipoReemplazo->producto?->nombre ?? 'Producto' }}"
+                                                                        data-modelo="{{ $equipoReemplazo->producto?->modelo ?? '' }}"
+                                                                        data-serial="{{ $equipoReemplazo->serial_fabricante ?? '' }}"
+                                                                        data-precio="{{ $precioReemplazoModal }}"
+                                                                        data-almacen="{{ $equipoReemplazo->almacenActual?->nombre ?? 'Sin almacén' }}"
+                                                                        data-precio-original="{{ $precioOriginalCambio }}"
+                                                                        onclick="seleccionarEquipoReemplazo(this)"
+                                                                        class="rounded-xl bg-amber-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-amber-700"
+                                                                    >
+                                                                        Seleccionar
+                                                                    </button>
+                                                                </div>
+                                                            </div>
+                                                        </article>
+
+                                                    @endforeach
+
+                                                    <div
+                                                        id="sin_resultados_reemplazo_{{ $caso->id }}"
+                                                        hidden
+                                                        class="rounded-2xl border border-dashed border-slate-300 p-8 text-center text-sm text-slate-500"
+                                                    >
+                                                        No se encontraron equipos con ese criterio.
+                                                    </div>
+                                                </div>
+                                            </dialog>
 
                                         @else
 
                                             <div class="mt-2 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">
-                                                No existen equipos disponibles para realizar
-                                                el reemplazo.
+                                                <p class="font-semibold">
+                                                    No hay equipos disponibles para reemplazo.
+                                                </p>
+                                                <p class="mt-1">
+                                                    Para autorizar el cambio debe existir al menos un equipo habilitado para venta y con precio vigente.
+                                                </p>
+                                                <a
+                                                    href="{{ route('inventario.index') }}"
+                                                    class="mt-3 inline-flex font-semibold text-amber-900 underline underline-offset-2"
+                                                >
+                                                    Ver inventario
+                                                </a>
                                             </div>
 
                                         @endif
-
 
                                         @if(
                                             $errorCambioActual
@@ -1505,7 +1832,7 @@
 </div>
 
                                     <span class="inline-flex w-fit rounded-full bg-white px-3 py-1 text-xs font-semibold text-blue-700 shadow-sm">
-                                        {{ str_replace('_', ' ', $estadoCaso) }}
+                                        {{ $estadoCasoTexto($estadoCaso) }}
                                     </span>
 
                                 </div>
@@ -1656,16 +1983,26 @@
                                                     Tipo de intervención
                                                 </label>
 
-                                                <input
+                                                <select
                                                     id="tipo_intervencion_{{ $caso->id }}"
-                                                    type="text"
                                                     name="tipo_intervencion"
                                                     required
-                                                    maxlength="100"
-                                                    value="{{ $esFormularioCasoActual ? old('tipo_intervencion') : '' }}"
                                                     class="mt-2 w-full rounded-xl border-slate-300 text-sm shadow-sm focus:border-blue-500 focus:ring-blue-500"
-                                                    placeholder="Ej.: REPARACIÓN, PRUEBA, AJUSTE..."
                                                 >
+                                                    @php
+                                                        $tipoIntervencionActual = $esFormularioCasoActual
+                                                            ? old('tipo_intervencion')
+                                                            : null;
+                                                    @endphp
+
+                                                    <option value="">Selecciona un tipo</option>
+                                                    <option value="DIAGNOSTICO_COMPLEMENTARIO" @selected($tipoIntervencionActual === 'DIAGNOSTICO_COMPLEMENTARIO')>Diagnóstico complementario</option>
+                                                    <option value="PRUEBA" @selected($tipoIntervencionActual === 'PRUEBA')>Prueba</option>
+                                                    <option value="AJUSTE" @selected($tipoIntervencionActual === 'AJUSTE')>Ajuste</option>
+                                                    <option value="REPARACION" @selected($tipoIntervencionActual === 'REPARACION')>Reparación</option>
+                                                    <option value="MANTENIMIENTO" @selected($tipoIntervencionActual === 'MANTENIMIENTO')>Mantenimiento</option>
+                                                    <option value="OTRO" @selected($tipoIntervencionActual === 'OTRO')>Otro</option>
+                                                </select>
 
                                                 @if(
                                                     $esFormularioCasoActual
@@ -1990,3 +2327,117 @@
 
 
 </section>
+
+@once
+<script>
+    function abrirSelectorReemplazo(casoId) {
+        const modal = document.getElementById(`modal_reemplazo_${casoId}`);
+        const buscar = document.getElementById(`buscar_reemplazo_${casoId}`);
+
+        if (!modal) {
+            return;
+        }
+
+        modal.showModal();
+
+        if (buscar) {
+            buscar.value = '';
+            filtrarSelectorReemplazo(casoId, '');
+            setTimeout(() => buscar.focus(), 0);
+        }
+    }
+
+    function cerrarSelectorReemplazo(casoId) {
+        document.getElementById(`modal_reemplazo_${casoId}`)?.close();
+    }
+
+    function filtrarSelectorReemplazo(casoId, termino) {
+        const lista = document.getElementById(`lista_reemplazos_${casoId}`);
+        const sinResultados = document.getElementById(`sin_resultados_reemplazo_${casoId}`);
+
+        if (!lista) {
+            return;
+        }
+
+        const normalizar = (valor) =>
+            String(valor ?? '')
+                .normalize('NFD')
+                .replace(/[\u0300-\u036f]/g, '')
+                .toLowerCase()
+                .trim();
+
+        const criterio = normalizar(termino);
+        let visibles = 0;
+
+        lista.querySelectorAll('[data-reemplazo-card]').forEach((card) => {
+            const coincide = normalizar(card.dataset.search).includes(criterio);
+            card.hidden = !coincide;
+
+            if (coincide) {
+                visibles += 1;
+            }
+        });
+
+        if (sinResultados) {
+            sinResultados.hidden = visibles !== 0;
+        }
+    }
+
+    function seleccionarEquipoReemplazo(boton) {
+        const casoId = boton.dataset.casoId;
+        const equipoId = boton.dataset.equipoId;
+        const codigo = boton.dataset.codigo ?? '';
+        const producto = boton.dataset.producto ?? '';
+        const modelo = boton.dataset.modelo ?? '';
+        const serial = boton.dataset.serial ?? '';
+        const almacen = boton.dataset.almacen ?? '';
+        const precio = Number(boton.dataset.precio ?? 0);
+        const precioOriginal = Number(boton.dataset.precioOriginal ?? 0);
+
+        const formato = new Intl.NumberFormat('es-BO', {
+            minimumFractionDigits: 2,
+            maximumFractionDigits: 2,
+        });
+
+        const input = document.getElementById(`equipo_entrante_id_${casoId}`);
+        const panel = document.getElementById(`reemplazo_seleccionado_${casoId}`);
+        const botonElegir = document.getElementById(`boton_elegir_reemplazo_${casoId}`);
+
+        if (input) {
+            input.value = equipoId;
+        }
+
+        document.getElementById(`reemplazo_codigo_${casoId}`).textContent = codigo;
+        document.getElementById(`reemplazo_producto_${casoId}`).textContent =
+            modelo ? `${producto} · ${modelo}` : producto;
+        document.getElementById(`reemplazo_serial_${casoId}`).textContent =
+            serial ? `Serial fabricante: ${serial}` : 'Sin serial de fabricante registrado';
+        document.getElementById(`reemplazo_precio_${casoId}`).textContent =
+            `Bs ${formato.format(precio)}`;
+        document.getElementById(`reemplazo_almacen_${casoId}`).textContent = almacen;
+        document.getElementById(`reemplazo_valor_preview_${casoId}`).textContent =
+            `Bs ${formato.format(precio)}`;
+
+        const diferencia = precio - precioOriginal;
+        let diferenciaTexto = 'Sin diferencia';
+
+        if (diferencia > 0) {
+            diferenciaTexto = `Cobro Bs ${formato.format(diferencia)}`;
+        } else if (diferencia < 0) {
+            diferenciaTexto = `A favor Bs ${formato.format(Math.abs(diferencia))}`;
+        }
+
+        document.getElementById(`reemplazo_diferencia_${casoId}`).textContent = diferenciaTexto;
+
+        if (panel) {
+            panel.hidden = false;
+        }
+
+        if (botonElegir) {
+            botonElegir.textContent = 'Cambiar selección';
+        }
+
+        cerrarSelectorReemplazo(casoId);
+    }
+</script>
+@endonce

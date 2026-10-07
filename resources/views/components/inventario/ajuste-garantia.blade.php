@@ -53,6 +53,33 @@
         $esDevolucion
             ? 'Pendiente por devolver'
             : 'Pendiente por cobrar';
+
+    $estadoAjusteTexto = match ($cambio->estado_ajuste) {
+        'PENDIENTE' => 'Pendiente',
+        'LIQUIDADO' => 'Liquidado',
+        default => $cambio->estado_ajuste
+            ? ucfirst(mb_strtolower(str_replace('_', ' ', $cambio->estado_ajuste)))
+            : 'Sin estado',
+    };
+
+    $metodosDirectos = $metodos->filter(
+        fn ($metodo) => !(bool) $metodo->requiere_verificacion
+    );
+
+    $metodosConVerificacion = $metodos->filter(
+        fn ($metodo) => (bool) $metodo->requiere_verificacion
+    );
+
+    $estadoMovimientoTexto = function (?string $estado): string {
+        return match (strtoupper((string) $estado)) {
+            'VERIFICADO' => 'Verificado',
+            'PENDIENTE' => 'Pendiente de verificación',
+            'RECHAZADO' => 'Rechazado',
+            default => $estado
+                ? ucfirst(mb_strtolower(str_replace('_', ' ', $estado)))
+                : 'Sin estado',
+        };
+    };
 @endphp
 
 @if($disponible)
@@ -87,7 +114,7 @@
                     }}
                 "
             >
-                {{ $cambio->estado_ajuste }}
+                {{ $estadoAjusteTexto }}
             </span>
 
         </div>
@@ -184,6 +211,7 @@
                     method="POST"
                     action="{{ route('garantias.ajustes.store', $cambio) }}"
                     class="grid gap-4 border-t border-blue-200 bg-white p-4 lg:grid-cols-2"
+                    data-ajuste-form
                 >
                     @csrf
 
@@ -199,28 +227,36 @@
                             id="metodo_pago_id_{{ $cambio->id }}"
                             name="metodo_pago_id"
                             required
+                            onchange="actualizarCamposAjuste(this)"
                             class="mt-2 w-full rounded-xl border-slate-300 text-sm shadow-sm"
                         >
                             <option value="">
                                 Seleccione
                             </option>
 
-                            @foreach($metodos as $metodo)
-
+                            @foreach($metodosDirectos as $metodo)
                                 <option
                                     value="{{ $metodo->id }}"
-                                    @selected(
-                                        (int) old('metodo_pago_id')
-                                        === (int) $metodo->id
-                                    )
+                                    data-requiere-verificacion="0"
+                                    @selected((int) old('metodo_pago_id') === (int) $metodo->id)
                                 >
                                     {{ $metodo->nombre }}
-                                    @if($metodo->requiere_verificacion)
-                                        — requiere verificación
-                                    @endif
                                 </option>
-
                             @endforeach
+
+                            @if($metodosConVerificacion->isNotEmpty())
+                                <optgroup label="QR / transferencia">
+                                    @foreach($metodosConVerificacion as $metodo)
+                                        <option
+                                            value="{{ $metodo->id }}"
+                                            data-requiere-verificacion="1"
+                                            @selected((int) old('metodo_pago_id') === (int) $metodo->id)
+                                        >
+                                            {{ $metodo->nombre }}
+                                        </option>
+                                    @endforeach
+                                </optgroup>
+                            @endif
                         </select>
 
                         @error('metodo_pago_id')
@@ -228,6 +264,10 @@
                                 {{ $message }}
                             </p>
                         @enderror
+
+                        <p class="mt-2 text-xs text-slate-500" data-ayuda-metodo>
+                            En efectivo se verifica al registrar. QR o transferencia requieren validación posterior.
+                        </p>
                     </div>
 
 
@@ -262,7 +302,7 @@
                     </div>
 
 
-                    <div>
+                    <div data-campo-verificacion hidden>
                         <label
                             for="referencia_ajuste_{{ $cambio->id }}"
                             class="block text-sm font-semibold text-slate-700"
@@ -282,7 +322,7 @@
                     </div>
 
 
-                    <div>
+                    <div data-campo-verificacion hidden>
                         <label
                             for="comprobante_ajuste_{{ $cambio->id }}"
                             class="block text-sm font-semibold text-slate-700"
@@ -409,7 +449,7 @@
                                         <span
                                             class="inline-flex rounded-full px-2.5 py-1 text-xs font-semibold {{ $estadoClase }}"
                                         >
-                                            {{ $movimiento->estado }}
+                                            {{ $estadoMovimientoTexto($movimiento->estado) }}
                                         </span>
 
                                     </div>
@@ -545,3 +585,34 @@
     </div>
 
 @endif
+
+@once
+<script>
+    function actualizarCamposAjuste(select) {
+        const form = select?.closest('[data-ajuste-form]');
+
+        if (!form) {
+            return;
+        }
+
+        const option = select.options[select.selectedIndex];
+        const requiere = option?.dataset?.requiereVerificacion === '1';
+
+        form.querySelectorAll('[data-campo-verificacion]').forEach((contenedor) => {
+            contenedor.hidden = !requiere;
+
+            if (!requiere) {
+                contenedor.querySelectorAll('input').forEach((input) => {
+                    input.value = '';
+                });
+            }
+        });
+    }
+
+    document.addEventListener('DOMContentLoaded', () => {
+        document.querySelectorAll('[data-ajuste-form] select[name="metodo_pago_id"]').forEach((select) => {
+            actualizarCamposAjuste(select);
+        });
+    });
+</script>
+@endonce

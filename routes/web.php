@@ -21,6 +21,7 @@ use App\Http\Controllers\PagoVentaController;
 use App\Http\Controllers\RegularizacionValoracionInventarioController;
 use App\Http\Controllers\CostoLoteController;
 use App\Http\Controllers\CasoGarantiaController;
+use App\Http\Controllers\GarantiaController;
 use App\Http\Controllers\IntervencionUnidadAdquiridaController;
 use App\Services\UnidadAdquiridaService;
 use Illuminate\Support\Facades\Route;
@@ -806,6 +807,36 @@ Route::get(
 | GARANTÍAS / POSTVENTA
 |--------------------------------------------------------------------------
 */
+
+/*
+|--------------------------------------------------------------------------
+| Bandeja y consulta de postventa
+|--------------------------------------------------------------------------
+*/
+
+Route::get(
+    '/garantias',
+    [GarantiaController::class, 'index']
+)
+->middleware('permiso:garantias.ver')
+->name('garantias.index');
+
+
+Route::get(
+    '/garantias/casos/{caso}',
+    [GarantiaController::class, 'showCase']
+)
+->middleware('permiso:garantias.ver')
+->name('garantias.casos.show');
+
+
+Route::get(
+    '/garantias/{garantia}',
+    [GarantiaController::class, 'show']
+)
+->middleware('permiso:garantias.ver')
+->name('garantias.show');
+
 
 /*
 |--------------------------------------------------------------------------

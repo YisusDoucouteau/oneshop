@@ -275,6 +275,13 @@ shadow-sm
                         permission="ventas.ver"
                     />
 
+                    <x-ui.menu-item
+                        route="garantias.index"
+                        label="Garantías"
+                        icon="shield"
+                        permission="garantias.ver"
+                    />
+
                 </div>
 
             </section>

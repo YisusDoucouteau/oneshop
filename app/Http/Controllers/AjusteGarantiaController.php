@@ -39,7 +39,7 @@ class AjusteGarantiaController extends Controller
                 observacion: $datos['observacion'] ?? null
             );
         } catch (ReglaNegocioException $exception) {
-            return back()
+            return $this->redirigirAlCaso($cambio)
                 ->withInput()
                 ->withErrors([
                     'ajuste_garantia' => $exception->getMessage(),
@@ -50,7 +50,7 @@ class AjusteGarantiaController extends Controller
             ? 'Devolución'
             : 'Cobro';
 
-        return back()->with(
+        return $this->redirigirAlCaso($cambio)->with(
             'success',
             "{$accion} registrado correctamente."
         );
@@ -71,12 +71,12 @@ class AjusteGarantiaController extends Controller
                 verificadoPorId: (int) $request->user()->id
             );
         } catch (ReglaNegocioException $exception) {
-            return back()->withErrors([
+            return $this->redirigirAlCaso($cambio)->withErrors([
                 'gestion_ajuste_garantia' => $exception->getMessage(),
             ]);
         }
 
-        return back()->with(
+        return $this->redirigirAlCaso($cambio)->with(
             'success',
             'Movimiento económico verificado correctamente.'
         );
@@ -107,16 +107,27 @@ class AjusteGarantiaController extends Controller
                 motivo: $datos['motivo_rechazo']
             );
         } catch (ReglaNegocioException $exception) {
-            return back()
+            return $this->redirigirAlCaso($cambio)
                 ->withInput()
                 ->withErrors([
                     'gestion_ajuste_garantia' => $exception->getMessage(),
                 ]);
         }
 
-        return back()->with(
+        return $this->redirigirAlCaso($cambio)->with(
             'success',
             'Movimiento económico rechazado correctamente. El importe volvió a quedar disponible.'
+        );
+    }
+
+    private function redirigirAlCaso(
+        CambioEquipo $cambio
+    ): RedirectResponse {
+        return redirect()->route(
+            'garantias.casos.show',
+            [
+                'caso' => $cambio->caso_garantia_id,
+            ]
         );
     }
 }
