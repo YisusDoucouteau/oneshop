@@ -23,6 +23,7 @@ use App\Http\Controllers\CostoLoteController;
 use App\Http\Controllers\CasoGarantiaController;
 use App\Http\Controllers\GarantiaController;
 use App\Http\Controllers\IntervencionUnidadAdquiridaController;
+use App\Http\Controllers\UsuarioController;
 use App\Services\UnidadAdquiridaService;
 use Illuminate\Support\Facades\Route;
 
@@ -48,7 +49,10 @@ Route::get(
 
 
 
-Route::middleware('auth')->group(function () {
+Route::middleware([
+    'auth',
+    'usuario.activo',
+])->group(function () {
 
 
     Route::get(
@@ -77,6 +81,61 @@ Route::middleware([
     'usuario.activo',
 ])->group(function () {
 
+
+/*
+|--------------------------------------------------------------------------
+| USUARIOS Y ACCESOS
+|--------------------------------------------------------------------------
+*/
+
+Route::get(
+    '/usuarios',
+    [UsuarioController::class, 'index']
+)
+->middleware('permiso:usuarios.ver')
+->name('usuarios.index');
+
+Route::get(
+    '/usuarios/crear',
+    [UsuarioController::class, 'create']
+)
+->middleware('permiso:usuarios.gestionar')
+->name('usuarios.create');
+
+Route::post(
+    '/usuarios',
+    [UsuarioController::class, 'store']
+)
+->middleware('permiso:usuarios.gestionar')
+->name('usuarios.store');
+
+Route::get(
+    '/usuarios/{usuario}',
+    [UsuarioController::class, 'show']
+)
+->middleware('permiso:usuarios.ver')
+->name('usuarios.show');
+
+Route::put(
+    '/usuarios/{usuario}',
+    [UsuarioController::class, 'update']
+)
+->middleware('permiso:usuarios.gestionar')
+->name('usuarios.update');
+
+Route::patch(
+    '/usuarios/{usuario}/estado',
+    [UsuarioController::class, 'estado']
+)
+->middleware('permiso:usuarios.gestionar')
+->name('usuarios.estado');
+
+Route::put(
+    '/usuarios/{usuario}/contrasena',
+    [UsuarioController::class, 'contrasena']
+)
+->middleware('permiso:usuarios.gestionar')
+->name('usuarios.contrasena');
 
 
 /*

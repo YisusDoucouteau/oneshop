@@ -287,6 +287,40 @@ shadow-sm
             </section>
 
 
+            {{-- Administración --}}
+
+            @if(auth()->user()?->tienePermiso('usuarios.ver'))
+                <section>
+
+                    <p
+                        class="
+                            mb-2
+                            px-3
+                            text-[11px]
+                            font-bold
+                            uppercase
+                            tracking-[0.14em]
+                            text-slate-500
+                        "
+                    >
+                        Administración
+                    </p>
+
+                    <div class="space-y-1">
+
+                        <x-ui.menu-item
+                            route="usuarios.index"
+                            label="Usuarios"
+                            icon="shield"
+                            permission="usuarios.ver"
+                        />
+
+                    </div>
+
+                </section>
+            @endif
+
+
             {{-- Próximamente --}}
 
             <section>

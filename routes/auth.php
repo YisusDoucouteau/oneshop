@@ -12,7 +12,7 @@ use App\Http\Controllers\Auth\VerifyEmailController;
 use Illuminate\Support\Facades\Route;
 
 Route::middleware('guest')->group(function () {
-    
+
 
     Route::get('login', [AuthenticatedSessionController::class, 'create'])
                 ->name('login');
@@ -32,7 +32,10 @@ Route::middleware('guest')->group(function () {
                 ->name('password.store');
 });
 
-Route::middleware('auth')->group(function () {
+Route::middleware([
+    'auth',
+    'usuario.activo',
+])->group(function () {
     Route::get('verify-email', EmailVerificationPromptController::class)
                 ->name('verification.notice');
 
@@ -50,7 +53,19 @@ Route::middleware('auth')->group(function () {
     Route::post('confirm-password', [ConfirmablePasswordController::class, 'store']);
 
     Route::put('password', [PasswordController::class, 'update'])->name('password.update');
+});
 
+/*
+|--------------------------------------------------------------------------
+| Cierre de sesión
+|--------------------------------------------------------------------------
+|
+| Un usuario autenticado debe poder cerrar su sesión incluso si su cuenta
+| fue desactivada mientras la sesión estaba abierta. Las demás operaciones
+| de cuenta continúan protegidas por usuario.activo.
+|
+*/
+Route::middleware('auth')->group(function () {
     Route::post('logout', [AuthenticatedSessionController::class, 'destroy'])
-                ->name('logout');
+        ->name('logout');
 });

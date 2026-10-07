@@ -3,8 +3,10 @@
 namespace App\Services;
 
 use App\Exceptions\ReglaNegocioException;
+use App\Models\Almacen;
 use App\Models\Rol;
 use App\Models\User;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Validation\Rule;
@@ -12,13 +14,19 @@ use Illuminate\Validation\Rules\Password;
 
 class UsuarioService
 {
+    public function __construct(
+        private readonly AuditoriaService $auditoriaService
+    ) {
+    }
+
     public function crearUsuario(
         int $gestionadoPorId,
         string $nombre,
         string $email,
         string $password,
         array $rolesCodigos,
-        bool $activo = true
+        bool $activo = true,
+        ?int $almacenOperativoId = null
     ): User {
         return DB::transaction(function () use (
             $gestionadoPorId,
@@ -26,7 +34,8 @@ class UsuarioService
             $email,
             $password,
             $rolesCodigos,
-            $activo
+            $activo,
+            $almacenOperativoId
         ) {
             $gestor = $this->obtenerGestorAutorizado(
                 $gestionadoPorId
@@ -40,7 +49,11 @@ class UsuarioService
                 'email' => $email,
                 'password' => $password,
             ], [
-                'nombre' => ['required', 'string', 'max:255'],
+                'nombre' => [
+                    'required',
+                    'string',
+                    'max:255',
+                ],
                 'email' => [
                     'required',
                     'email',
@@ -57,39 +70,77 @@ class UsuarioService
                 $rolesCodigos
             );
 
+            $almacen = $this->resolverAlmacenOperativo(
+                $roles,
+                $almacenOperativoId
+            );
+
             $usuario = User::create([
                 'name' => $nombre,
                 'email' => $email,
                 'password' => $password,
                 'activo' => $activo,
                 'ultimo_acceso' => null,
+                'almacen_operativo_id' => $almacen?->id,
             ]);
 
             $usuario->roles()->sync(
                 $roles->pluck('id')->all()
             );
 
+            $this->auditoriaService->registrar(
+                usuarioId: $gestor->id,
+                accion: 'CREAR_USUARIO',
+                entidad: 'User',
+                entidadId: $usuario->id,
+                datosAnteriores: null,
+                datosNuevos: [
+                    'nombre' => $usuario->name,
+                    'email' => $usuario->email,
+                    'activo' => $usuario->activo,
+                    'roles' => $roles->pluck('codigo')->values()->all(),
+                    'almacen_operativo_id' => $almacen?->id,
+                ]
+            );
+
             return $usuario->fresh([
                 'roles',
+                'almacenOperativo',
             ]);
         }, 3);
     }
 
-    public function actualizarRoles(
+    public function actualizarUsuario(
         int $usuarioId,
+        string $nombre,
+        string $email,
         array $rolesCodigos,
+        ?int $almacenOperativoId,
         int $gestionadoPorId
     ): User {
         return DB::transaction(function () use (
             $usuarioId,
+            $nombre,
+            $email,
             $rolesCodigos,
+            $almacenOperativoId,
             $gestionadoPorId
         ) {
-            $this->obtenerGestorAutorizado(
+            $gestor = $this->obtenerGestorAutorizado(
                 $gestionadoPorId
             );
 
+            if ($usuarioId === $gestionadoPorId) {
+                throw new ReglaNegocioException(
+                    'Los roles y la sede de la cuenta actual no pueden modificarse desde Administración. Use Perfil para actualizar sus datos personales.'
+                );
+            }
+
             $usuario = User::query()
+                ->with([
+                    'roles',
+                    'almacenOperativo',
+                ])
                 ->lockForUpdate()
                 ->find($usuarioId);
 
@@ -99,18 +150,102 @@ class UsuarioService
                 );
             }
 
+            $nombre = trim($nombre);
+            $email = mb_strtolower(trim($email));
+
+            Validator::make([
+                'nombre' => $nombre,
+                'email' => $email,
+            ], [
+                'nombre' => [
+                    'required',
+                    'string',
+                    'max:255',
+                ],
+                'email' => [
+                    'required',
+                    'email',
+                    'max:255',
+                    Rule::unique('users', 'email')
+                        ->ignore($usuario->id),
+                ],
+            ])->validate();
+
             $roles = $this->obtenerRolesActivos(
                 $rolesCodigos
             );
+
+            $almacen = $this->resolverAlmacenOperativo(
+                $roles,
+                $almacenOperativoId
+            );
+
+            $this->protegerAdministradorGlobal(
+                $usuario,
+                seguiraActivo: $usuario->activo,
+                seguiraAdministrador: $roles->contains(
+                    'codigo',
+                    'ADMINISTRADOR'
+                )
+            );
+
+            $anteriores = $this->snapshotUsuario(
+                $usuario
+            );
+
+            $usuario->name = $nombre;
+            $usuario->email = $email;
+            $usuario->almacen_operativo_id = $almacen?->id;
+            $usuario->save();
 
             $usuario->roles()->sync(
                 $roles->pluck('id')->all()
             );
 
-            return $usuario->fresh([
+            $usuario = $usuario->fresh([
                 'roles',
+                'almacenOperativo',
             ]);
+
+            $this->auditoriaService->registrar(
+                usuarioId: $gestor->id,
+                accion: 'ACTUALIZAR_ACCESO_USUARIO',
+                entidad: 'User',
+                entidadId: $usuario->id,
+                datosAnteriores: $anteriores,
+                datosNuevos: $this->snapshotUsuario(
+                    $usuario
+                )
+            );
+
+            return $usuario;
         }, 3);
+    }
+
+    public function actualizarRoles(
+        int $usuarioId,
+        array $rolesCodigos,
+        int $gestionadoPorId,
+        ?int $almacenOperativoId = null
+    ): User {
+        $usuario = User::query()->find($usuarioId);
+
+        if (!$usuario) {
+            throw new ReglaNegocioException(
+                'El usuario no existe.'
+            );
+        }
+
+        return $this->actualizarUsuario(
+            usuarioId: $usuario->id,
+            nombre: $usuario->name,
+            email: $usuario->email,
+            rolesCodigos: $rolesCodigos,
+            almacenOperativoId:
+                $almacenOperativoId
+                ?? $usuario->almacen_operativo_id,
+            gestionadoPorId: $gestionadoPorId
+        );
     }
 
     public function cambiarEstado(
@@ -123,13 +258,13 @@ class UsuarioService
             $activo,
             $gestionadoPorId
         ) {
-            $this->obtenerGestorAutorizado(
+            $gestor = $this->obtenerGestorAutorizado(
                 $gestionadoPorId
             );
 
             if (
-                !$activo &&
-                $usuarioId === $gestionadoPorId
+                !$activo
+                && $usuarioId === $gestionadoPorId
             ) {
                 throw new ReglaNegocioException(
                     'Un usuario no puede desactivar su propia cuenta.'
@@ -137,6 +272,10 @@ class UsuarioService
             }
 
             $usuario = User::query()
+                ->with([
+                    'roles',
+                    'almacenOperativo',
+                ])
                 ->lockForUpdate()
                 ->find($usuarioId);
 
@@ -146,12 +285,39 @@ class UsuarioService
                 );
             }
 
+            $this->protegerAdministradorGlobal(
+                $usuario,
+                seguiraActivo: $activo,
+                seguiraAdministrador:
+                    $usuario->tieneRol('ADMINISTRADOR')
+            );
+
+            $anteriores = $this->snapshotUsuario(
+                $usuario
+            );
+
             $usuario->activo = $activo;
             $usuario->save();
 
-            return $usuario->fresh([
+            $usuario = $usuario->fresh([
                 'roles',
+                'almacenOperativo',
             ]);
+
+            $this->auditoriaService->registrar(
+                usuarioId: $gestor->id,
+                accion: $activo
+                    ? 'ACTIVAR_USUARIO'
+                    : 'DESACTIVAR_USUARIO',
+                entidad: 'User',
+                entidadId: $usuario->id,
+                datosAnteriores: $anteriores,
+                datosNuevos: $this->snapshotUsuario(
+                    $usuario
+                )
+            );
+
+            return $usuario;
         }, 3);
     }
 
@@ -165,9 +331,15 @@ class UsuarioService
             $nuevaContrasena,
             $gestionadoPorId
         ) {
-            $this->obtenerGestorAutorizado(
+            $gestor = $this->obtenerGestorAutorizado(
                 $gestionadoPorId
             );
+
+            if ($usuarioId === $gestionadoPorId) {
+                throw new ReglaNegocioException(
+                    'Use Perfil para cambiar la contraseña de su propia cuenta.'
+                );
+            }
 
             Validator::make([
                 'password' => $nuevaContrasena,
@@ -191,8 +363,119 @@ class UsuarioService
             $usuario->password = $nuevaContrasena;
             $usuario->save();
 
+            $this->auditoriaService->registrar(
+                usuarioId: $gestor->id,
+                accion: 'RESTABLECER_CONTRASENA_USUARIO',
+                entidad: 'User',
+                entidadId: $usuario->id,
+                datosAnteriores: null,
+                datosNuevos: [
+                    'contrasena_restablecida' => true,
+                ]
+            );
+
             return $usuario;
         }, 3);
+    }
+
+    private function resolverAlmacenOperativo(
+        Collection $roles,
+        ?int $almacenOperativoId
+    ): ?Almacen {
+        $esAdministradorGlobal =
+            $roles->contains(
+                'codigo',
+                'ADMINISTRADOR'
+            );
+
+        if ($almacenOperativoId === null) {
+            if (!$esAdministradorGlobal) {
+                throw new ReglaNegocioException(
+                    'Debe asignarse una sede operativa al usuario.'
+                );
+            }
+
+            return null;
+        }
+
+        $almacen = Almacen::query()
+            ->where('activo', true)
+            ->find($almacenOperativoId);
+
+        if (!$almacen) {
+            throw new ReglaNegocioException(
+                'La sede operativa seleccionada no existe o se encuentra inactiva.'
+            );
+        }
+
+        return $almacen;
+    }
+
+    private function protegerAdministradorGlobal(
+        User $usuario,
+        bool $seguiraActivo,
+        bool $seguiraAdministrador
+    ): void {
+        if (
+            !$usuario->activo
+            || !$usuario->tieneRol('ADMINISTRADOR')
+            || (
+                $seguiraActivo
+                && $seguiraAdministrador
+            )
+        ) {
+            return;
+        }
+
+        $existeOtroAdministrador =
+            User::query()
+                ->where('activo', true)
+                ->where(
+                    'id',
+                    '!=',
+                    $usuario->id
+                )
+                ->whereHas(
+                    'roles',
+                    fn ($query) =>
+                        $query
+                            ->where(
+                                'roles.codigo',
+                                'ADMINISTRADOR'
+                            )
+                            ->where(
+                                'roles.activo',
+                                true
+                            )
+                )
+                ->exists();
+
+        if (!$existeOtroAdministrador) {
+            throw new ReglaNegocioException(
+                'Debe permanecer al menos un administrador global activo.'
+            );
+        }
+    }
+
+    private function snapshotUsuario(
+        User $usuario
+    ): array {
+        if (!$usuario->relationLoaded('roles')) {
+            $usuario->load('roles');
+        }
+
+        return [
+            'nombre' => $usuario->name,
+            'email' => $usuario->email,
+            'activo' => (bool) $usuario->activo,
+            'roles' => $usuario->roles
+                ->pluck('codigo')
+                ->sort()
+                ->values()
+                ->all(),
+            'almacen_operativo_id' =>
+                $usuario->almacen_operativo_id,
+        ];
     }
 
     private function obtenerGestorAutorizado(
@@ -219,11 +502,14 @@ class UsuarioService
 
     private function obtenerRolesActivos(
         array $codigos
-    ) {
+    ): Collection {
         $codigos = collect($codigos)
-            ->map(fn ($codigo) => strtoupper(
-                trim((string) $codigo)
-            ))
+            ->map(
+                fn ($codigo) =>
+                    strtoupper(
+                        trim((string) $codigo)
+                    )
+            )
             ->filter()
             ->unique()
             ->values();
