@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Models\CambioEquipo;
 use App\Models\Equipo;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Str;
 
 class TrazabilidadEquipoService
 {
@@ -44,12 +45,19 @@ class TrazabilidadEquipoService
             'detallesVentas.venta.cliente',
             'detallesVentas.venta.vendedor',
             'detallesVentas.venta.anuladoPor',
+            'detallesVentas.venta.pagos.metodoPago',
+            'detallesVentas.venta.pagos.registradoPor',
+            'detallesVentas.venta.pagos.verificadoPor',
+
+            'precios.aprobadoPor',
 
             'detallesVentas.garantia.casosGarantia.recibidoPor',
             'detallesVentas.garantia.casosGarantia.intervenciones.usuario',
 
             'casosGarantia.recibidoPor',
+            'casosGarantia.cerradoPor',
             'casosGarantia.intervenciones.usuario',
+            'casosGarantia.cambioEquipo',
         ]);
 
         $eventos = collect();
@@ -216,7 +224,10 @@ class TrazabilidadEquipoService
             foreach ($unidad->intervenciones as $intervencion) {
                 $detalleIntervencion = collect([
                     $intervencion->tipo
-                        ? 'Tipo: ' . $intervencion->tipo
+                        ? 'Tipo: '
+                            . $this->humanizarCodigo(
+                                $intervencion->tipo
+                            )
                         : null,
 
                     $intervencion->producto?->nombre
@@ -358,7 +369,9 @@ class TrazabilidadEquipoService
                                     : null,
 
                                 'Estado de recepción: '
-                                    . $participacion->estado_recepcion,
+                                    . $this->humanizarCodigo(
+                                        $participacion->estado_recepcion
+                                    ),
 
                                 $participacion->incluye_cargador
                                     ? (
@@ -538,6 +551,58 @@ class TrazabilidadEquipoService
 
         /*
         |--------------------------------------------------------------------------
+        | Historial comercial de precios
+        |--------------------------------------------------------------------------
+        */
+
+        $precios =
+            $equipo->precios
+                ->sortBy(
+                    fn ($precio) =>
+                        $precio->vigente_desde
+                        ?? $precio->created_at
+                )
+                ->values();
+
+        foreach ($precios as $indice => $precio) {
+            $fechaPrecio =
+                $precio->vigente_desde
+                ?? $precio->created_at;
+
+            if (!$fechaPrecio) {
+                continue;
+            }
+
+            $eventos->push([
+                'fecha' => $fechaPrecio,
+                'tipo' => 'precio',
+                'orden' => 122,
+                'titulo' =>
+                    $indice === 0
+                        ? 'Precio comercial definido'
+                        : 'Precio comercial actualizado',
+                'detalle' =>
+                    collect([
+                        $precio->precio_publico !== null
+                            ? 'Precio publicado: Bs '
+                                . $this->formatearMonto(
+                                    $precio->precio_publico
+                                )
+                            : null,
+
+                        $precio->vigente
+                            ? 'Vigencia: Actual'
+                            : 'Vigencia: Histórica',
+                    ])
+                        ->filter()
+                        ->implode(' | '),
+                'usuario' => $precio->aprobadoPor?->name,
+                'observacion' => $precio->observacion,
+            ]);
+        }
+
+        /*
+        |--------------------------------------------------------------------------
         | Reservas
         |--------------------------------------------------------------------------
         */
@@ -637,7 +702,10 @@ class TrazabilidadEquipoService
                                 : null,
 
                             $reserva->estado
-                                ? 'Estado final: ' . $reserva->estado
+                                ? 'Estado final: '
+                                    . $this->humanizarCodigo(
+                                        $reserva->estado
+                                    )
                                 : null,
                         ])
                             ->filter()
@@ -683,6 +751,135 @@ class TrazabilidadEquipoService
                     'usuario' => $venta->vendedor?->name,
                     'observacion' => $venta->observacion,
                 ]);
+
+                foreach ($venta->pagos as $pago) {
+                    $requiereVerificacion =
+                        (bool) (
+                            $pago
+                                ->metodoPago
+                                ?->requiere_verificacion
+                            ?? false
+                        );
+
+                    $estadoInicial =
+                        $requiereVerificacion
+                            ? 'PENDIENTE'
+                            : 'VERIFICADO';
+
+                    $eventos->push([
+                        'fecha' =>
+                            $pago->fecha_pago
+                            ?? $pago->created_at,
+
+                        'tipo' => 'pago',
+                        'orden' => 132,
+                        'titulo' => 'Pago de venta registrado',
+                        'detalle' =>
+                            collect([
+                                $venta->numero
+                                    ? 'Venta: '
+                                        . $venta->numero
+                                    : null,
+
+                                'Monto: Bs '
+                                    . $this->formatearMonto(
+                                        $pago->monto
+                                    ),
+
+                                'Método: '
+                                    . (
+                                        $pago
+                                            ->metodoPago
+                                            ?->nombre
+                                        ?? 'No registrado'
+                                    ),
+
+                                'Estado inicial: '
+                                    . $this->humanizarEstadoPago(
+                                        $estadoInicial
+                                    ),
+
+                                $pago->referencia
+                                    ? 'Referencia: '
+                                        . $pago->referencia
+                                    : null,
+                            ])
+                                ->filter()
+                                ->implode(' | '),
+                        'usuario' =>
+                            $pago
+                                ->registradoPor
+                                ?->name,
+                        'observacion' => $pago->observacion,
+                    ]);
+
+                    if (
+                        $requiereVerificacion
+                        && $pago->fecha_verificacion
+                        && in_array(
+                            $pago->estado,
+                            [
+                                'VERIFICADO',
+                                'RECHAZADO',
+                            ],
+                            true
+                        )
+                    ) {
+                        $rechazado =
+                            $pago->estado
+                            ===
+                            'RECHAZADO';
+
+                        $eventos->push([
+                            'fecha' =>
+                                $pago->fecha_verificacion,
+
+                            'tipo' => 'pago',
+                            'orden' => 133,
+
+                            'titulo' =>
+                                $rechazado
+                                    ? 'Pago de venta rechazado'
+                                    : 'Pago de venta verificado',
+
+                            'detalle' =>
+                                collect([
+                                    $venta->numero
+                                        ? 'Venta: '
+                                            . $venta->numero
+                                        : null,
+
+                                    'Monto: Bs '
+                                        . $this->formatearMonto(
+                                            $pago->monto
+                                        ),
+
+                                    'Estado: '
+                                        . $this->humanizarEstadoPago(
+                                            $pago->estado
+                                        ),
+
+                                    $pago->referencia
+                                        ? 'Referencia: '
+                                            . $pago->referencia
+                                        : null,
+
+                                    $rechazado
+                                    && $pago->motivo_rechazo
+                                        ? 'Motivo: '
+                                            . $pago->motivo_rechazo
+                                        : null,
+                                ])
+                                    ->filter()
+                                    ->implode(' | '),
+                            'usuario' =>
+                                $pago
+                                    ->verificadoPor
+                                    ?->name,
+                            'observacion' => null,
+                        ]);
+                    }
+                }
 
                 if ($venta->fecha_anulacion) {
                     $eventos->push([
@@ -760,10 +957,36 @@ class TrazabilidadEquipoService
                     .
                     ' | Estado: '
                     .
-                    $caso->estado,
+                    $this->humanizarCodigo(
+                        $caso->estado
+                    ),
                 'usuario' => $caso->recibidoPor?->name,
                 'observacion' => $caso->observacion,
             ]);
+
+            if ($caso->diagnostico_final) {
+                $primeraIntervencion =
+                    $caso->intervenciones
+                        ->sortBy('fecha_intervencion')
+                        ->first();
+
+                $fechaDiagnostico =
+                    $primeraIntervencion?->fecha_intervencion
+                    ?? $caso->cambioEquipo?->fecha_cambio
+                    ?? $caso->fecha_cierre
+                    ?? $caso->updated_at
+                    ?? $caso->fecha_apertura;
+
+                $eventos->push([
+                    'fecha' => $fechaDiagnostico,
+                    'tipo' => 'garantia',
+                    'orden' => 155,
+                    'titulo' => 'Diagnóstico de garantía registrado',
+                    'detalle' => $caso->diagnostico_final,
+                    'usuario' => null,
+                    'observacion' => null,
+                ]);
+            }
 
             foreach ($caso->intervenciones as $intervencion) {
                 $eventos->push([
@@ -771,9 +994,49 @@ class TrazabilidadEquipoService
                     'tipo' => 'garantia',
                     'orden' => 160,
                     'titulo' => 'Intervención de garantía',
-                    'detalle' => $intervencion->descripcion,
+                    'detalle' =>
+                        collect([
+                            $intervencion->tipo_intervencion
+                                ? 'Tipo: '
+                                    . $this->humanizarCodigo(
+                                        $intervencion->tipo_intervencion
+                                    )
+                                : null,
+
+                            $intervencion->descripcion,
+                        ])
+                            ->filter()
+                            ->implode(' | '),
                     'usuario' => $intervencion->usuario?->name,
                     'observacion' => $intervencion->resultado,
+                ]);
+            }
+
+            if ($caso->fecha_cierre) {
+                $eventos->push([
+                    'fecha' => $caso->fecha_cierre,
+                    'tipo' => 'garantia',
+                    'orden' => 180,
+                    'titulo' => 'Caso de garantía cerrado',
+                    'detalle' =>
+                        collect([
+                            $caso->numero
+                                ? 'Caso: ' . $caso->numero
+                                : null,
+
+                            $caso->resolucion
+                                ? 'Resolución: '
+                                    . $this->humanizarValor(
+                                        $caso->resolucion
+                                    )
+                                : null,
+
+                            'Estado final: Cerrado',
+                        ])
+                            ->filter()
+                            ->implode(' | '),
+                    'usuario' => $caso->cerradoPor?->name,
+                    'observacion' => $caso->observacion,
                 ]);
             }
         }
@@ -917,11 +1180,8 @@ class TrazabilidadEquipoService
                                     ?? 'BOB'
                                 )
                                 . ' '
-                                . number_format(
-                                    (float) $movimiento->monto,
-                                    2,
-                                    '.',
-                                    ''
+                                . $this->formatearMonto(
+                                    $movimiento->monto
                                 ),
 
                             'Método: '
@@ -933,7 +1193,9 @@ class TrazabilidadEquipoService
                                 ),
 
                             'Estado inicial: '
-                                . $estadoInicial,
+                                . $this->humanizarEstadoPago(
+                                    $estadoInicial
+                                ),
 
                             $movimiento->referencia
                                 ? 'Referencia: '
@@ -1008,15 +1270,14 @@ class TrazabilidadEquipoService
                                         ?? 'BOB'
                                     )
                                     . ' '
-                                    . number_format(
-                                        (float) $movimiento->monto,
-                                        2,
-                                        '.',
-                                        ''
+                                    . $this->formatearMonto(
+                                        $movimiento->monto
                                     ),
 
                                 'Estado: '
-                                    . $movimiento->estado,
+                                    . $this->humanizarEstadoPago(
+                                        $movimiento->estado
+                                    ),
 
                                 $movimiento->referencia
                                     ? 'Referencia: '
@@ -1060,7 +1321,9 @@ class TrazabilidadEquipoService
             'estado' => 'settings',
             'transferencia' => 'truck',
             'reserva' => 'package',
+            'precio' => 'chart',
             'venta' => 'chart',
+            'pago' => 'chart',
             'garantia' => 'shield',
         ];
 
@@ -1110,5 +1373,97 @@ class TrazabilidadEquipoService
                 }
             )
             ->values();
+    }
+
+    private function humanizarEstadoPago(
+        ?string $estado
+    ): string {
+        return match ($estado) {
+            'PENDIENTE' =>
+                'Pendiente de verificación',
+
+            'VERIFICADO' =>
+                'Verificado',
+
+            'RECHAZADO' =>
+                'Rechazado',
+
+            default =>
+                $this->humanizarCodigo(
+                    $estado
+                ),
+        };
+    }
+
+    private function humanizarValor(
+        ?string $valor
+    ): string {
+        if (
+            $valor === null
+            || trim($valor) === ''
+        ) {
+            return 'No registrado';
+        }
+
+        $valor = trim($valor);
+
+        if (
+            preg_match(
+                '/^[A-Z0-9_]+$/',
+                $valor
+            ) === 1
+        ) {
+            return $this->humanizarCodigo(
+                $valor
+            );
+        }
+
+        return $valor;
+    }
+
+    private function humanizarCodigo(
+        ?string $valor
+    ): string {
+        if (
+            $valor === null
+            || trim($valor) === ''
+        ) {
+            return 'No registrado';
+        }
+
+        return match ($valor) {
+            'EN_PROCESO' =>
+                'En proceso',
+
+            'COBRO_CLIENTE' =>
+                'Cobro al cliente',
+
+            'SALDO_FAVOR_CLIENTE' =>
+                'Saldo a favor del cliente',
+
+            'SIN_DIFERENCIA' =>
+                'Sin diferencia',
+
+            'CONVERTIDA' =>
+                'Convertida en venta',
+
+            default =>
+                Str::of($valor)
+                    ->replace('_', ' ')
+                    ->lower()
+                    ->ucfirst()
+                    ->toString(),
+        };
+    }
+
+    private function formatearMonto(
+        mixed $monto
+    ): string {
+        return number_format(
+            (float) $monto,
+            2,
+            ',',
+            '.'
+        );
     }
 }

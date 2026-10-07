@@ -264,6 +264,31 @@
                 </p>
 
 
+                @if(!empty($primero['observacion']))
+
+                    <div
+                        class="
+                            mt-4
+                            rounded-lg
+                            border
+                            border-slate-200
+                            bg-white
+                            px-4
+                            py-3
+                        "
+                    >
+                        <p class="text-xs font-semibold uppercase tracking-wide text-slate-400">
+                            Observación
+                        </p>
+
+                        <p class="mt-1 text-sm text-slate-600">
+                            {{ $primero['observacion'] }}
+                        </p>
+                    </div>
+
+                @endif
+
+
                 @if(!empty($primero['usuario']))
 
                     <p
@@ -360,6 +385,19 @@ document.addEventListener(
 
         let indiceActivo =
             eventos.length - 1;
+
+
+
+        function escaparHtml(valor)
+        {
+            const elemento =
+                document.createElement('div');
+
+            elemento.textContent =
+                valor ?? '';
+
+            return elemento.innerHTML;
+        }
 
 
         function actualizarProgreso(index)
@@ -529,16 +567,38 @@ document.addEventListener(
 
                         <h3 class="font-semibold text-slate-900">
 
-                            ${evento.titulo}
+                            ${escaparHtml(evento.titulo)}
 
                         </h3>
 
 
                         <p class="mt-3 text-sm text-slate-600">
 
-                            ${evento.detalle ?? ''}
+                            ${escaparHtml(evento.detalle ?? '')}
 
                         </p>
+
+
+                        ${
+                            evento.observacion
+
+                                ?
+
+                                `
+                                <div class="mt-4 rounded-lg border border-slate-200 bg-white px-4 py-3">
+                                    <p class="text-xs font-semibold uppercase tracking-wide text-slate-400">
+                                        Observación
+                                    </p>
+                                    <p class="mt-1 text-sm text-slate-600">
+                                        ${escaparHtml(evento.observacion)}
+                                    </p>
+                                </div>
+                                `
+
+                                :
+
+                                ''
+                        }
 
 
                         ${
@@ -550,7 +610,7 @@ document.addEventListener(
                                 <p class="mt-4 text-sm text-slate-500">
 
                                     Responsable:
-                                    ${evento.usuario}
+                                    ${escaparHtml(evento.usuario)}
 
                                 </p>
                                 `

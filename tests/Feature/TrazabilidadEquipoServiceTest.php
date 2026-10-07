@@ -28,6 +28,8 @@ use App\Models\EnvioImportacionUnidad;
 use App\Models\RevisionTecnicaUnidadAdquirida;
 use App\Models\IncorporacionUnidadAdquirida;
 use App\Models\PoliticaGarantia;
+use App\Models\Pago;
+use App\Models\PrecioEquipo;
 use App\Services\TrazabilidadEquipoService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Str;
@@ -859,7 +861,7 @@ public function test_muestra_intervenciones_de_preparacion_de_la_unidad(): void
         );
 
         $this->assertStringContainsString(
-            'Estado final: LIBERADA',
+            'Estado final: Liberada',
             $liberacion['detalle']
         );
 
@@ -1073,7 +1075,7 @@ public function test_muestra_intervenciones_de_preparacion_de_la_unidad(): void
         );
 
         $this->assertStringContainsString(
-            'Estado final: CONVERTIDA',
+            'Estado final: Convertida en venta',
             $conversion['detalle']
         );
 
@@ -1525,12 +1527,12 @@ public function test_muestra_intervenciones_de_preparacion_de_la_unidad(): void
         );
 
         $this->assertStringContainsString(
-            'BOB 500.00',
+            'BOB 500,00',
             $cobroRegistradoSaliente['detalle']
         );
 
         $this->assertStringContainsString(
-            'Estado inicial: PENDIENTE',
+            'Estado inicial: Pendiente de verificación',
             $cobroRegistradoSaliente['detalle']
         );
 
@@ -1624,6 +1626,305 @@ public function test_muestra_intervenciones_de_preparacion_de_la_unidad(): void
                 'titulo',
                 'Cobro de ajuste rechazado'
             )
+        );
+    }
+
+    public function test_muestra_historial_comercial_y_pagos_de_venta(): void
+    {
+        $equipo = $this->crearEquipo();
+
+        $usuario = User::create([
+            'name' => 'Usuario trazabilidad comercial',
+            'email' => 'trazabilidad-comercial-' . Str::uuid() . '@test.com',
+            'password' => bcrypt('123456'),
+            'activo' => true,
+        ]);
+
+        $cliente = Cliente::create([
+            'nombre_completo' => 'Cliente trazabilidad comercial',
+            'telefono' => '70001234',
+            'activo' => true,
+        ]);
+
+        PrecioEquipo::create([
+            'equipo_id' => $equipo->id,
+            'costo_total_snapshot' => 3500,
+            'precio_sugerido' => 4300,
+            'precio_publico' => 4200,
+            'precio_minimo_autorizado' => 4000,
+            'vigente_desde' => now()->subDays(6),
+            'vigente_hasta' => now()->subDays(5),
+            'vigente' => false,
+            'aprobado_por_id' => $usuario->id,
+            'observacion' => 'Precio inicial de prueba.',
+        ]);
+
+        PrecioEquipo::create([
+            'equipo_id' => $equipo->id,
+            'costo_total_snapshot' => 3600,
+            'precio_sugerido' => 4500,
+            'precio_publico' => 4400,
+            'precio_minimo_autorizado' => 4100,
+            'vigente_desde' => now()->subDays(5),
+            'vigente_hasta' => null,
+            'vigente' => true,
+            'aprobado_por_id' => $usuario->id,
+            'observacion' => 'Precio comercial actualizado.',
+        ]);
+
+        $venta = Venta::create([
+            'numero' => 'VEN-TP-' . Str::uuid(),
+            'cliente_id' => $cliente->id,
+            'vendedor_id' => $usuario->id,
+            'fecha_venta' => now()->subDays(4),
+            'subtotal' => 4400,
+            'descuento_total' => 0,
+            'total' => 4400,
+            'estado' => 'REGISTRADA',
+        ]);
+
+        DetalleVenta::create([
+            'venta_id' => $venta->id,
+            'producto_id' => $equipo->producto_id,
+            'equipo_id' => $equipo->id,
+            'cantidad' => 1,
+            'precio_lista_snapshot' => 4400,
+            'descuento_unitario' => 0,
+            'precio_unitario' => 4400,
+            'costo_unitario_snapshot' => 3600,
+            'subtotal' => 4400,
+        ]);
+
+        $efectivoId =
+            \Illuminate\Support\Facades\DB::table('metodos_pago')
+                ->insertGetId([
+                    'codigo' => 'EFECTIVO-TRAZ-' . Str::uuid(),
+                    'nombre' => 'Efectivo',
+                    'requiere_verificacion' => false,
+                    'activo' => true,
+                    'created_at' => now(),
+                    'updated_at' => now(),
+                ]);
+
+        $qrId =
+            \Illuminate\Support\Facades\DB::table('metodos_pago')
+                ->insertGetId([
+                    'codigo' => 'QR-TRAZ-' . Str::uuid(),
+                    'nombre' => 'QR / transferencia',
+                    'requiere_verificacion' => true,
+                    'activo' => true,
+                    'created_at' => now(),
+                    'updated_at' => now(),
+                ]);
+
+        Pago::create([
+            'venta_id' => $venta->id,
+            'metodo_pago_id' => $efectivoId,
+            'monto' => 1000,
+            'fecha_pago' => now()->subDays(3),
+            'estado' => 'VERIFICADO',
+            'registrado_por_id' => $usuario->id,
+            'verificado_por_id' => $usuario->id,
+            'fecha_verificacion' => now()->subDays(3),
+            'observacion' => 'Pago parcial en efectivo.',
+        ]);
+
+        Pago::create([
+            'venta_id' => $venta->id,
+            'metodo_pago_id' => $qrId,
+            'monto' => 500,
+            'fecha_pago' => now()->subDays(2),
+            'referencia' => 'QR-TRAZ-PAGO-001',
+            'estado' => 'RECHAZADO',
+            'registrado_por_id' => $usuario->id,
+            'verificado_por_id' => $usuario->id,
+            'fecha_verificacion' => now()->subDay(),
+            'motivo_rechazo' => 'Pago no localizado.',
+            'observacion' => 'Pago QR de prueba.',
+        ]);
+
+        $eventos = app(TrazabilidadEquipoService::class)
+            ->obtener($equipo->fresh());
+
+        $this->assertNotNull(
+            $eventos->firstWhere(
+                'titulo',
+                'Precio comercial definido'
+            )
+        );
+
+        $precioActualizado = $eventos->firstWhere(
+            'titulo',
+            'Precio comercial actualizado'
+        );
+
+        $this->assertNotNull($precioActualizado);
+        $this->assertStringContainsString(
+            'Bs 4.400,00',
+            $precioActualizado['detalle']
+        );
+
+        $pagosRegistrados = $eventos->where(
+            'titulo',
+            'Pago de venta registrado'
+        );
+
+        $this->assertCount(2, $pagosRegistrados);
+
+        $pagoQr = $pagosRegistrados->first(
+            fn ($evento) =>
+                str_contains(
+                    $evento['detalle'],
+                    'QR-TRAZ-PAGO-001'
+                )
+        );
+
+        $this->assertNotNull($pagoQr);
+        $this->assertStringContainsString(
+            'Pendiente de verificación',
+            $pagoQr['detalle']
+        );
+
+        $pagoRechazado = $eventos->firstWhere(
+            'titulo',
+            'Pago de venta rechazado'
+        );
+
+        $this->assertNotNull($pagoRechazado);
+        $this->assertStringContainsString(
+            'Estado: Rechazado',
+            $pagoRechazado['detalle']
+        );
+        $this->assertStringNotContainsString(
+            'RECHAZADO',
+            $pagoRechazado['detalle']
+        );
+    }
+
+    public function test_muestra_diagnostico_y_cierre_de_garantia_con_textos_humanos(): void
+    {
+        $equipo = $this->crearEquipo();
+        $producto = $equipo->producto;
+        $categoria = $producto->categoria;
+
+        $usuario = User::create([
+            'name' => 'Usuario cierre garantia trazabilidad',
+            'email' => 'cierre-garantia-' . Str::uuid() . '@test.com',
+            'password' => bcrypt('123456'),
+            'activo' => true,
+        ]);
+
+        $cliente = Cliente::create([
+            'nombre_completo' => 'Cliente cierre garantia',
+            'telefono' => '70004321',
+            'activo' => true,
+        ]);
+
+        $venta = Venta::create([
+            'numero' => 'VEN-CG-' . Str::uuid(),
+            'cliente_id' => $cliente->id,
+            'vendedor_id' => $usuario->id,
+            'fecha_venta' => now()->subDays(8),
+            'subtotal' => 3500,
+            'descuento_total' => 0,
+            'total' => 3500,
+            'estado' => 'REGISTRADA',
+        ]);
+
+        $detalleVenta = DetalleVenta::create([
+            'venta_id' => $venta->id,
+            'producto_id' => $producto->id,
+            'equipo_id' => $equipo->id,
+            'cantidad' => 1,
+            'precio_lista_snapshot' => 3500,
+            'descuento_unitario' => 0,
+            'precio_unitario' => 3500,
+            'costo_unitario_snapshot' => 2900,
+            'subtotal' => 3500,
+        ]);
+
+        $politica = PoliticaGarantia::create([
+            'codigo' => 'GAR-CIERRE-' . Str::uuid(),
+            'nombre' => 'Garantía cierre trazabilidad',
+            'categoria_producto_id' => $categoria->id,
+            'producto_id' => $producto->id,
+            'duracion_meses' => 6,
+            'condiciones' => 'Condiciones de prueba.',
+            'exclusiones' => 'Daño físico.',
+            'vigente_desde' => now()->subDays(20),
+            'vigente_hasta' => null,
+            'activo' => true,
+        ]);
+
+        $garantia = Garantia::create([
+            'numero' => 'GRT-CIERRE-' . Str::uuid(),
+            'detalle_venta_id' => $detalleVenta->id,
+            'politica_garantia_id' => $politica->id,
+            'fecha_inicio' => now()->subDays(8),
+            'fecha_fin' => now()->addMonths(6),
+            'duracion_meses_snapshot' => 6,
+            'condiciones_snapshot' => 'Condiciones de prueba.',
+            'estado' => 'VIGENTE',
+        ]);
+
+        CasoGarantia::create([
+            'numero' => 'CAS-GC-' . Str::uuid(),
+            'garantia_id' => $garantia->id,
+            'equipo_afectado_id' => $equipo->id,
+            'recibido_por_id' => $usuario->id,
+            'tipo_caso' => 'GARANTIA',
+            'estado' => 'CERRADO',
+            'fecha_apertura' => now()->subDays(3),
+            'motivo_cliente' => 'Falla intermitente.',
+            'diagnostico_final' => 'Falla confirmada en alimentación.',
+            'resolucion' => 'CAMBIO_EQUIPO',
+            'fecha_cierre' => now()->subDay(),
+            'cerrado_por_id' => $usuario->id,
+            'observacion' => 'Caso resuelto satisfactoriamente.',
+        ]);
+
+        $eventos = app(TrazabilidadEquipoService::class)
+            ->obtener($equipo->fresh());
+
+        $apertura = $eventos->firstWhere(
+            'titulo',
+            'Caso de garantía abierto'
+        );
+
+        $this->assertNotNull($apertura);
+        $this->assertStringContainsString(
+            'Estado: Cerrado',
+            $apertura['detalle']
+        );
+        $this->assertStringNotContainsString(
+            'CERRADO',
+            $apertura['detalle']
+        );
+
+        $diagnostico = $eventos->firstWhere(
+            'titulo',
+            'Diagnóstico de garantía registrado'
+        );
+
+        $this->assertNotNull($diagnostico);
+        $this->assertSame(
+            'Falla confirmada en alimentación.',
+            $diagnostico['detalle']
+        );
+
+        $cierre = $eventos->firstWhere(
+            'titulo',
+            'Caso de garantía cerrado'
+        );
+
+        $this->assertNotNull($cierre);
+        $this->assertStringContainsString(
+            'Resolución: Cambio equipo',
+            $cierre['detalle']
+        );
+        $this->assertSame(
+            'Usuario cierre garantia trazabilidad',
+            $cierre['usuario']
         );
     }
 
