@@ -562,6 +562,21 @@
                                                 ->especificacionEsperada;
 
 
+                                        $resumenConfiguracion = collect([
+                                            $esperada?->procesador,
+                                            $esperada?->ram_gb
+                                                ? $esperada->ram_gb.' GB RAM'
+                                                : null,
+                                            $esperada?->almacenamiento_gb
+                                                ? $esperada->almacenamiento_gb.' GB'.(
+                                                    $esperada?->tipo_almacenamiento
+                                                        ? ' '.$esperada->tipo_almacenamiento
+                                                        : ''
+                                                )
+                                                : null,
+                                        ])->filter()->implode(' · ');
+
+
                                         $datosRecepcion = [
 
                                             'campos' => [
@@ -640,11 +655,17 @@
                                                 == $detalle->id
                                             )
                                         >
+                                            Línea {{ $loop->iteration }} ·
+
                                             {{ $detalle->producto?->marca?->nombre }}
 
                                             {{ $detalle->producto?->nombre }}
 
                                             {{ $detalle->producto?->modelo }}
+
+                                            @if($resumenConfiguracion)
+                                                · {{ $resumenConfiguracion }}
+                                            @endif
 
                                             — {{ $disponibles }}
                                             {{ $disponibles === 1 ? 'pendiente' : 'pendientes' }}
