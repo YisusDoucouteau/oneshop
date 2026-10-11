@@ -30,7 +30,7 @@ use Illuminate\Support\Facades\Route;
 
 
 
-Route::redirect('/', '/login');
+Route::view('/', 'welcome')->name('home');
 
 
 

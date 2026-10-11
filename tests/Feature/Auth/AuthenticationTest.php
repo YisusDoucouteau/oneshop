@@ -11,10 +11,13 @@ class AuthenticationTest extends TestCase
 {
     use RefreshDatabase;
 
-    public function test_root_redirects_to_login(): void
+    public function test_root_presents_the_oneshop_landing_page(): void
     {
         $this->get('/')
-            ->assertRedirect('/login');
+            ->assertOk()
+            ->assertSee('Cada equipo,')
+            ->assertSee('Acceder a OneShop')
+            ->assertDontSee('Laravel');
     }
 
     public function test_login_screen_can_be_rendered(): void
