@@ -12,20 +12,17 @@ class BackupDatabase extends Command
 
     protected $description = 'Genera un respaldo comprimido de la base de datos';
 
-
     public function handle(): int
     {
         $this->info(
             'Iniciando respaldo de base de datos...'
         );
 
-
         $directorio = storage_path(
             'app/backups'
         );
 
-
-        if (!File::exists($directorio)) {
+        if (! File::exists($directorio)) {
 
             File::makeDirectory(
                 $directorio,
@@ -35,64 +32,76 @@ class BackupDatabase extends Command
 
         }
 
-
         $nombreBase =
-            'oneshop_backup_' .
+            'oneshop_backup_'.
             now()->format('Y-m-d_H-i-s');
 
-
         $archivoSql =
-            $directorio .
-            '/' .
-            $nombreBase .
+            $directorio.
+            '/'.
+            $nombreBase.
             '.sql';
 
-
         $archivoGzip =
-            $archivoSql .
+            $archivoSql.
             '.gz';
 
+        $conexion = config('database.connections.mysql');
+        $database = (string) ($conexion['database'] ?? '');
+        $usuario = (string) ($conexion['username'] ?? '');
+        $password = (string) ($conexion['password'] ?? '');
+        $host = (string) ($conexion['host'] ?? '127.0.0.1');
+        $puerto = (string) ($conexion['port'] ?? '3306');
 
+        if ($database === '' || $usuario === '') {
+            $this->error('La conexión MySQL no tiene base de datos o usuario configurado.');
 
-        $database = env('DB_DATABASE');
-        $usuario = env('DB_USERNAME');
-        $password = env('DB_PASSWORD');
-        $host = env('DB_HOST');
+            return Command::FAILURE;
+        }
 
-
-
-        $comando = sprintf(
-
-            'mysqldump --skip-ssl --no-tablespaces -h %s -u %s -p%s %s > %s',
-
-            $host,
-
-            $usuario,
-
-            $password,
-
-            $database,
-
-            $archivoSql
-
+        $proceso = new Process(
+            [
+                'mysqldump',
+                '--skip-ssl',
+                '--no-tablespaces',
+                '--single-transaction',
+                '--quick',
+                '--host='.$host,
+                '--port='.$puerto,
+                '--user='.$usuario,
+                $database,
+            ],
+            base_path(),
+            ['MYSQL_PWD' => $password]
         );
-
-
-
-        $proceso = Process::fromShellCommandline(
-            $comando
-        );
-
 
         $proceso->setTimeout(300);
 
+        $salida = fopen($archivoSql, 'wb');
 
-        $proceso->run();
+        if ($salida === false) {
+            $this->error('No se pudo crear el archivo temporal del respaldo.');
 
+            return Command::FAILURE;
+        }
 
+        $errores = '';
 
-        if (!$proceso->isSuccessful()) {
+        try {
+            $proceso->run(function (string $tipo, string $contenido) use ($salida, &$errores): void {
+                if ($tipo === Process::OUT) {
+                    fwrite($salida, $contenido);
 
+                    return;
+                }
+
+                $errores .= $contenido;
+            });
+        } finally {
+            fclose($salida);
+        }
+
+        if (! $proceso->isSuccessful()) {
 
             if (File::exists($archivoSql)) {
 
@@ -100,22 +109,17 @@ class BackupDatabase extends Command
 
             }
 
-
             $this->error(
                 'No se pudo generar el backup.'
             );
 
-
             $this->error(
-                $proceso->getErrorOutput()
+                trim($errores) ?: 'mysqldump finalizó con error.'
             );
-
 
             return Command::FAILURE;
 
         }
-
-
 
         /*
          * Compresión del respaldo
@@ -125,18 +129,14 @@ class BackupDatabase extends Command
             $archivoSql
         );
 
-
         File::put(
             $archivoGzip,
             gzencode($contenido, 9)
         );
 
-
         File::delete(
             $archivoSql
         );
-
-
 
         /*
          * Limpieza automática:
@@ -161,8 +161,6 @@ class BackupDatabase extends Command
             })
             ->values();
 
-
-
         $backups
             ->slice(30)
             ->each(function ($archivo) {
@@ -173,17 +171,13 @@ class BackupDatabase extends Command
 
             });
 
-
-
         $this->info(
             'Backup creado correctamente.'
         );
 
-
         $this->line(
             $archivoGzip
         );
-
 
         return Command::SUCCESS;
 
