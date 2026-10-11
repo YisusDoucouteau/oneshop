@@ -24,6 +24,7 @@ use App\Http\Controllers\CasoGarantiaController;
 use App\Http\Controllers\GarantiaController;
 use App\Http\Controllers\IntervencionUnidadAdquiridaController;
 use App\Http\Controllers\UsuarioController;
+use App\Http\Controllers\ReporteController;
 use App\Services\UnidadAdquiridaService;
 use Illuminate\Support\Facades\Route;
 
@@ -44,6 +45,198 @@ Route::get(
     'usuario.activo',
 ])
 ->name('dashboard');
+
+
+Route::get(
+    '/reportes',
+    [ReporteController::class, 'index']
+)
+->middleware([
+    'auth',
+    'usuario.activo',
+    'permiso:reportes.ver',
+])
+->name('reportes.index');
+
+
+Route::get(
+    '/reportes/ventas',
+    [ReporteController::class, 'ventas']
+)
+->middleware([
+    'auth',
+    'usuario.activo',
+    'permiso:reportes.ver',
+])
+->name('reportes.ventas.index');
+
+Route::get(
+    '/reportes/ventas/csv',
+    [ReporteController::class, 'ventasCsv']
+)
+->middleware([
+    'auth',
+    'usuario.activo',
+    'permiso:reportes.ver',
+])
+->name('reportes.ventas.csv');
+
+
+Route::get(
+    '/reportes/ventas/pdf',
+    [ReporteController::class, 'ventasPdf']
+)
+->middleware([
+    'auth',
+    'usuario.activo',
+    'permiso:reportes.ver',
+])
+->name('reportes.ventas.pdf');
+
+Route::get(
+    '/reportes/ventas/imprimir',
+    [ReporteController::class, 'ventasImprimir']
+)
+->middleware([
+    'auth',
+    'usuario.activo',
+    'permiso:reportes.ver',
+])
+->name('reportes.ventas.imprimir');
+
+
+Route::get(
+    '/reportes/inventario',
+    [ReporteController::class, 'inventario']
+)
+->middleware([
+    'auth',
+    'usuario.activo',
+    'permiso:reportes.ver',
+])
+->name('reportes.inventario.index');
+
+Route::get(
+    '/reportes/inventario/csv',
+    [ReporteController::class, 'inventarioCsv']
+)
+->middleware([
+    'auth',
+    'usuario.activo',
+    'permiso:reportes.ver',
+])
+->name('reportes.inventario.csv');
+
+
+Route::get(
+    '/reportes/inventario/pdf',
+    [ReporteController::class, 'inventarioPdf']
+)
+->middleware([
+    'auth',
+    'usuario.activo',
+    'permiso:reportes.ver',
+])
+->name('reportes.inventario.pdf');
+
+Route::get(
+    '/reportes/inventario/imprimir',
+    [ReporteController::class, 'inventarioImprimir']
+)
+->middleware([
+    'auth',
+    'usuario.activo',
+    'permiso:reportes.ver',
+])
+->name('reportes.inventario.imprimir');
+
+
+Route::get(
+    '/reportes/abastecimiento-logistica',
+    [ReporteController::class, 'abastecimientoLogistica']
+)
+->middleware(['auth', 'usuario.activo', 'permiso:reportes.ver'])
+->name('reportes.abastecimiento-logistica.index');
+
+Route::get(
+    '/reportes/abastecimiento-logistica/csv',
+    [ReporteController::class, 'abastecimientoLogisticaCsv']
+)
+->middleware(['auth', 'usuario.activo', 'permiso:reportes.ver'])
+->name('reportes.abastecimiento-logistica.csv');
+
+Route::get(
+    '/reportes/abastecimiento-logistica/pdf',
+    [ReporteController::class, 'abastecimientoLogisticaPdf']
+)
+->middleware(['auth', 'usuario.activo', 'permiso:reportes.ver'])
+->name('reportes.abastecimiento-logistica.pdf');
+
+Route::get(
+    '/reportes/abastecimiento-logistica/imprimir',
+    [ReporteController::class, 'abastecimientoLogisticaImprimir']
+)
+->middleware(['auth', 'usuario.activo', 'permiso:reportes.ver'])
+->name('reportes.abastecimiento-logistica.imprimir');
+
+
+Route::get(
+    '/reportes/garantias-postventa',
+    [ReporteController::class, 'garantiasPostventa']
+)
+->middleware(['auth', 'usuario.activo', 'permiso:reportes.ver'])
+->name('reportes.garantias-postventa.index');
+
+Route::get(
+    '/reportes/garantias-postventa/csv',
+    [ReporteController::class, 'garantiasPostventaCsv']
+)
+->middleware(['auth', 'usuario.activo', 'permiso:reportes.ver'])
+->name('reportes.garantias-postventa.csv');
+
+Route::get(
+    '/reportes/garantias-postventa/pdf',
+    [ReporteController::class, 'garantiasPostventaPdf']
+)
+->middleware(['auth', 'usuario.activo', 'permiso:reportes.ver'])
+->name('reportes.garantias-postventa.pdf');
+
+Route::get(
+    '/reportes/garantias-postventa/imprimir',
+    [ReporteController::class, 'garantiasPostventaImprimir']
+)
+->middleware(['auth', 'usuario.activo', 'permiso:reportes.ver'])
+->name('reportes.garantias-postventa.imprimir');
+
+Route::get(
+    '/reportes/trazabilidad',
+    [ReporteController::class, 'trazabilidad']
+)
+->middleware(['auth', 'usuario.activo', 'permiso:reportes.ver'])
+->name('reportes.trazabilidad.index');
+
+Route::get(
+    '/reportes/trazabilidad/{equipo}',
+    [ReporteController::class, 'trazabilidadDetalle']
+)
+->middleware(['auth', 'usuario.activo', 'permiso:reportes.ver'])
+->name('reportes.trazabilidad.detalle');
+
+Route::get(
+    '/reportes/trazabilidad/{equipo}/pdf',
+    [ReporteController::class, 'trazabilidadPdf']
+)
+->middleware(['auth', 'usuario.activo', 'permiso:reportes.ver'])
+->name('reportes.trazabilidad.pdf');
+
+Route::get(
+    '/reportes/trazabilidad/{equipo}/imprimir',
+    [ReporteController::class, 'trazabilidadImprimir']
+)
+->middleware(['auth', 'usuario.activo', 'permiso:reportes.ver'])
+->name('reportes.trazabilidad.imprimir');
+
+
 
 
 

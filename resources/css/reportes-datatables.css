@@ -1,0 +1,108 @@
+/* OneShop · integración visual de DataTables */
+.dt-container {
+    color: #334155;
+    font-size: 0.875rem;
+}
+
+.dt-container .dt-layout-row {
+    margin: 0;
+    padding: 0.9rem 1.25rem;
+    gap: 0.75rem;
+    align-items: center;
+}
+
+.dt-container .dt-layout-row:first-child {
+    border-bottom: 1px solid #e2e8f0;
+    background: #fff;
+}
+
+.dt-container .dt-layout-row:last-child {
+    border-top: 1px solid #e2e8f0;
+    background: #fff;
+}
+
+.dt-container .dt-search,
+.dt-container .dt-length {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    color: #64748b;
+    font-size: 0.78rem;
+    font-weight: 700;
+}
+
+.dt-container .dt-search input,
+.dt-container .dt-length select {
+    border: 1px solid #cbd5e1 !important;
+    border-radius: 0.7rem !important;
+    background: #fff !important;
+    color: #0f172a !important;
+    box-shadow: none !important;
+    outline: none !important;
+}
+
+.dt-container .dt-search input {
+    min-width: min(22rem, 55vw);
+    padding: 0.55rem 0.75rem !important;
+}
+
+.dt-container .dt-length select {
+    padding: 0.5rem 2rem 0.5rem 0.7rem !important;
+}
+
+.dt-container .dt-search input:focus,
+.dt-container .dt-length select:focus {
+    border-color: #2563eb !important;
+    box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.10) !important;
+}
+
+.dt-container .dt-info {
+    color: #64748b;
+    font-size: 0.75rem;
+    font-weight: 700;
+}
+
+.dt-container .dt-paging {
+    display: flex;
+    align-items: center;
+    gap: 0.25rem;
+}
+
+.dt-container .dt-paging .dt-paging-button {
+    min-width: 2.1rem;
+    border: 1px solid transparent !important;
+    border-radius: 0.6rem !important;
+    background: transparent !important;
+    color: #475569 !important;
+    font-size: 0.75rem;
+    font-weight: 800;
+    box-shadow: none !important;
+}
+
+.dt-container .dt-paging .dt-paging-button:hover:not(.disabled),
+.dt-container .dt-paging .dt-paging-button.current {
+    border-color: #bfdbfe !important;
+    background: #eff6ff !important;
+    color: #1d4ed8 !important;
+}
+
+.dt-container table.dataTable > thead > tr > th,
+.dt-container table.dataTable > thead > tr > td {
+    border-bottom: 1px solid #e2e8f0;
+}
+
+.dt-container table.dataTable > tbody > tr > td {
+    border-top: 0;
+}
+
+@media (max-width: 720px) {
+    .dt-container .dt-layout-row {
+        align-items: stretch;
+        flex-direction: column;
+    }
+
+    .dt-container .dt-search input {
+        min-width: 0;
+        width: 100%;
+    }
+}

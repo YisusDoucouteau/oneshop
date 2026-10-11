@@ -321,81 +321,78 @@ shadow-sm
             @endif
 
 
-            {{-- Próximamente --}}
+            {{-- Información --}}
 
-            <section>
-
-                <p
-                    class="
-                        mb-2
-                        px-3
-                        text-[11px]
-                        font-bold
-                        uppercase
-                        tracking-[0.14em]
-                        text-slate-500
-                    "
-                >
-                    Próximamente
-                </p>
-
-                <div
-                    class="
-                        flex
-                        items-center
-                        gap-3
-                        rounded-lg
-                        border
-                        border-dashed
-                        border-slate-300
-                        px-3
-                        py-2.5
-                        text-sm
-                        font-semibold
-                        text-slate-500
-                    "
-                >
-
-                    <span
+            @if(auth()->user()?->tienePermiso('reportes.ver'))
+                <section>
+                    <p
                         class="
-                            flex
-                            h-8
-                            w-8
-                            items-center
-                            justify-center
+                            mb-2
+                            px-3
+                            text-[11px]
+                            font-bold
+                            uppercase
+                            tracking-[0.14em]
                             text-slate-500
                         "
                     >
-                        <x-ui.icon
-                            name="chart"
-                            size="19"
-                        />
-                    </span>
+                        Información
+                    </p>
 
-                    <span>
-                        Reportes
-                    </span>
-
-                    <span
-                        class="
-                            ml-auto
-                            rounded-md
-                            bg-oneshop-light
-                            px-2
-                            py-1
-                            text-[10px]
-                            font-bold
-                            uppercase
-                            tracking-wide
-                            text-oneshop-dark
-                        "
+                    <details
+                        class="group"
+                        @if(request()->routeIs('reportes.*')) open @endif
                     >
-                        Próximo
-                    </span>
+                        <summary
+                            class="
+                                flex
+                                min-h-11
+                                cursor-pointer
+                                list-none
+                                items-center
+                                gap-3
+                                rounded-lg
+                                border
+                                px-3
+                                py-2.5
+                                text-sm
+                                font-semibold
+                                transition
+                                {{ request()->routeIs('reportes.*')
+                                    ? 'border-blue-300 bg-white text-oneshop-dark shadow-sm'
+                                    : 'border-transparent text-slate-700 hover:border-blue-200 hover:bg-white/60 hover:text-oneshop-dark' }}
+                            "
+                        >
+                            <span class="flex h-8 w-8 shrink-0 items-center justify-center text-oneshop-primary">
+                                <x-ui.icon name="chart" size="19" />
+                            </span>
+                            <span>Reportes</span>
+                            <span class="ml-auto text-slate-400 transition group-open:rotate-180">⌄</span>
+                        </summary>
 
-                </div>
-
-            </section>
+                        <div class="ml-7 mt-1 space-y-1 border-l border-blue-200 pl-3">
+                            <a
+                                href="{{ route('reportes.index') }}"
+                                class="block rounded-lg px-3 py-2 text-sm font-semibold {{ request()->routeIs('reportes.index') ? 'bg-white text-blue-700 shadow-sm' : 'text-slate-600 hover:bg-white/60 hover:text-blue-700' }}"
+                            >
+                                Resumen
+                            </a>
+                            <a
+                                href="{{ route('reportes.ventas.index') }}"
+                                class="block rounded-lg px-3 py-2 text-sm font-semibold {{ request()->routeIs('reportes.ventas.*') ? 'bg-white text-blue-700 shadow-sm' : 'text-slate-600 hover:bg-white/60 hover:text-blue-700' }}"
+                            >
+                                Ventas
+                            </a>
+                            <a
+                                href="{{ route('reportes.inventario.index') }}"
+                                class="block rounded-lg px-3 py-2 text-sm font-semibold {{ request()->routeIs('reportes.inventario.*') ? 'bg-white text-blue-700 shadow-sm' : 'text-slate-600 hover:bg-white/60 hover:text-blue-700' }}"
+                            >
+                                Inventario
+                            </a>
+                        </div>
+                    </details>
+                </section>
+            @endif
 
         </nav>
 
