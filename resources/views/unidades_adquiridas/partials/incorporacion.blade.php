@@ -30,6 +30,13 @@
         && auth()->user()?->puedeOperarEnAlmacen(
             (int) $unidad->almacen_actual_id
         );
+
+    $serialOriginal = trim((string) $unidad->serial_fabricante);
+    $serialInicial = in_array(
+        strtolower($serialOriginal),
+        ['', 'na', 'n/a', 's/n', 'sin serial'],
+        true
+    ) ? '' : $serialOriginal;
 @endphp
 
 <div
@@ -41,7 +48,7 @@
 
         formulario: {
             condicion_fisica_id: '',
-            serial_fabricante: @js($unidad->serial_fabricante ?? ''),
+            serial_fabricante: @js($serialInicial),
             observacion: ''
         },
 
