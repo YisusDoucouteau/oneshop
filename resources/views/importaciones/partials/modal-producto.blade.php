@@ -318,10 +318,6 @@ await respuesta.json();
 
 
 
-console.log(json);
-
-
-
 if(json.ok){
 
 
