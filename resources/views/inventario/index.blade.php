@@ -905,7 +905,9 @@ $estiloEstado = match($estadoNombre) {
 
                 Bs {{ number_format(
                     (float)$equipo->precioVigente->precio_publico,
-                    2
+                    2,
+                    ',',
+                    '.'
                 ) }}
 
             </p>
