@@ -1,0 +1,16 @@
+{
+    "Already registered?": "¿Ya tienes una cuenta?",
+    "Confirm": "Confirmar",
+    "Confirm Password": "Confirmar contraseña",
+    "Email": "Correo electrónico",
+    "Email Password Reset Link": "Enviar enlace para restablecer la contraseña",
+    "Forgot your password?": "¿Olvidaste tu contraseña?",
+    "Forgot your password? No problem. Just let us know your email address and we will email you a password reset link that will allow you to choose a new one.": "¿Olvidaste tu contraseña? Ingresa tu correo electrónico y te enviaremos un enlace para que puedas crear una nueva.",
+    "Log in": "Ingresar",
+    "Name": "Nombre",
+    "Password": "Contraseña",
+    "Register": "Registrarse",
+    "Remember me": "Recordarme",
+    "Reset Password": "Restablecer contraseña",
+    "This is a secure area of the application. Please confirm your password before continuing.": "Esta es un área segura de la aplicación. Confirma tu contraseña antes de continuar."
+}
