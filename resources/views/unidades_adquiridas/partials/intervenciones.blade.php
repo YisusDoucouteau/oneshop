@@ -151,7 +151,9 @@
                 {{
                     number_format(
                         $totalIntervencionesBob,
-                        2
+                        2,
+                        ',',
+                        '.'
                     )
                 }}
             </p>
@@ -267,7 +269,9 @@
                                             (float)
                                             $intervencion
                                                 ->monto_bob,
-                                            2
+                                            2,
+                                            ',',
+                                            '.'
                                         )
                                     }}
                                 </p>

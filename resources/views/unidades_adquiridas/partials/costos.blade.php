@@ -29,7 +29,7 @@
 
                 @if($unidad->precio_compra)
 
-                    {{ number_format($unidad->precio_compra,2) }}
+                    {{ number_format((float) $unidad->precio_compra, 2, ',', '.') }}
 
                     {{
                         $unidad->moneda?->codigo
@@ -59,8 +59,8 @@
 
                 @if($unidad->precio_compra_bob)
 
-                    Bs.
-                    {{ number_format($unidad->precio_compra_bob,2) }}
+                    Bs
+                    {{ number_format((float) $unidad->precio_compra_bob, 2, ',', '.') }}
 
                 @else
 
@@ -82,11 +82,11 @@
 
             <p class="font-semibold text-gray-800">
 
-                {{
-                    $unidad->tipoCambioCompra?->valor
-                    ??
-                    'No registrado'
-                }}
+                @if($unidad->tipoCambioCompra?->valor !== null)
+                    {{ number_format((float) $unidad->tipoCambioCompra->valor, 4, ',', '.') }}
+                @else
+                    No registrado
+                @endif
 
             </p>
 
@@ -165,8 +165,10 @@
 
                             {{
                                 number_format(
-                                    $costo->monto,
-                                    2
+                                    (float) $costo->monto,
+                                    2,
+                                    ',',
+                                    '.'
                                 )
                             }}
 

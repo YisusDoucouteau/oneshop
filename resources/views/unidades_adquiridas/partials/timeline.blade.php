@@ -7,6 +7,16 @@
 
     $eventos = collect();
 
+    $tieneValorInformativo = static function ($valor): bool {
+        $normalizado = strtolower(trim((string) $valor));
+
+        return !in_array(
+            $normalizado,
+            ['', 'na', 'n/a', 'ninguno', 'sin observacion', 'sin observación'],
+            true
+        );
+    };
+
 
     /*
     |--------------------------------------------------------------------------
@@ -41,8 +51,7 @@
             'titulo' => 'Llegada a Cochabamba',
             'descripcion' =>
                 'La unidad fue recibida físicamente en el punto de preparación.',
-            'ubicacion' =>
-                $unidad->almacenActual?->nombre,
+            'ubicacion' => 'Depósito Cochabamba',
             'icono' => 'warehouse',
             'color' => 'blue',
         ]);
@@ -64,7 +73,7 @@
                     'La unidad completó satisfactoriamente el checklist técnico.',
 
                 \App\Models\RevisionTecnicaUnidadAdquirida::RESULTADO_REQUIERE_PREPARACION =>
-                    $revisionTecnica->servicio_requerido
+                    $tieneValorInformativo($revisionTecnica->servicio_requerido)
                         ? 'La revisión detectó trabajo pendiente: ' . $revisionTecnica->servicio_requerido
                         : 'La revisión detectó fallas que requieren preparación adicional.',
 
@@ -160,7 +169,9 @@
                 ' · Bs ' .
                 number_format(
                     (float) $intervencion->monto_bob,
-                    2
+                    2,
+                    ',',
+                    '.'
                 );
         }
 

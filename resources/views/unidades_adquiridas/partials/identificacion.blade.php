@@ -79,12 +79,16 @@
             </p>
 
             <p class="font-semibold text-gray-800">
+                @php
+                    $serialFabricante = trim((string) $unidad->serial_fabricante);
+                    $serialNoInformado = in_array(
+                        strtolower($serialFabricante),
+                        ['', 'na', 'n/a', 's/n', 'sin serial'],
+                        true
+                    );
+                @endphp
 
-                {{
-                    $unidad->serial_fabricante
-                    ??
-                    'No registrado'
-                }}
+                {{ $serialNoInformado ? 'No registrado' : $serialFabricante }}
 
             </p>
         </div>
