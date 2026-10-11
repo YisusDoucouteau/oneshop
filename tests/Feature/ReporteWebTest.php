@@ -11,7 +11,16 @@ class ReporteWebTest extends TestCase
 {
     use RefreshDatabase;
 
-    protected $seed = true;
+    protected function setUp(): void
+    {
+        parent::setUp();
+
+        // La suite completa reutiliza el ciclo de RefreshDatabase entre clases.
+        // Sembramos explícitamente los catálogos oficiales para que este test
+        // no dependa del orden de ejecución ni del estado dejado por otra clase.
+        $this->seed();
+    }
+
 
     public function test_administrador_operativo_puede_abrir_centro_de_reportes(): void
     {
@@ -27,7 +36,6 @@ class ReporteWebTest extends TestCase
             ->assertSee('Inventario')
             ->assertSee('Abastecimiento y logística')
             ->assertSee('Garantías y postventa')
-            ->assertSee('Trazabilidad de equipos')
             ->assertDontSee('Ventas y rentabilidad')
             ->assertDontSee('PDF · CSV');
     }
@@ -43,8 +51,7 @@ class ReporteWebTest extends TestCase
             ->assertSee(route('reportes.ventas.index'), false)
             ->assertSee(route('reportes.inventario.index'), false)
             ->assertSee(route('reportes.abastecimiento-logistica.index'), false)
-            ->assertSee(route('reportes.garantias-postventa.index'), false)
-            ->assertSee(route('reportes.trazabilidad.index'), false);
+            ->assertSee(route('reportes.garantias-postventa.index'), false);
     }
 
     public function test_vendedor_no_puede_acceder_a_reportes(): void

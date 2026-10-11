@@ -18,7 +18,16 @@ class ReporteInventarioWebTest extends TestCase
 {
     use RefreshDatabase;
 
-    protected $seed = true;
+    protected function setUp(): void
+    {
+        parent::setUp();
+
+        // La suite completa reutiliza el ciclo de RefreshDatabase entre clases.
+        // Sembramos explícitamente los catálogos oficiales para que este test
+        // no dependa del orden de ejecución ni del estado dejado por otra clase.
+        $this->seed();
+    }
+
 
     public function test_administrador_operativo_puede_abrir_reporte_de_inventario(): void
     {
