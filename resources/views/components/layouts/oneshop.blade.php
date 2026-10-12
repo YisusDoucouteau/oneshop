@@ -389,6 +389,24 @@ shadow-sm
                             >
                                 Inventario
                             </a>
+                            <a
+                                href="{{ route('reportes.abastecimiento-logistica.index') }}"
+                                class="block rounded-lg px-3 py-2 text-sm font-semibold {{ request()->routeIs('reportes.abastecimiento-logistica.*') ? 'bg-white text-blue-700 shadow-sm' : 'text-slate-600 hover:bg-white/60 hover:text-blue-700' }}"
+                            >
+                                Abastecimiento
+                            </a>
+                            <a
+                                href="{{ route('reportes.garantias-postventa.index') }}"
+                                class="block rounded-lg px-3 py-2 text-sm font-semibold {{ request()->routeIs('reportes.garantias-postventa.*') ? 'bg-white text-blue-700 shadow-sm' : 'text-slate-600 hover:bg-white/60 hover:text-blue-700' }}"
+                            >
+                                Garantías
+                            </a>
+                            <a
+                                href="{{ route('reportes.trazabilidad.index') }}"
+                                class="block rounded-lg px-3 py-2 text-sm font-semibold {{ request()->routeIs('reportes.trazabilidad.*') ? 'bg-white text-blue-700 shadow-sm' : 'text-slate-600 hover:bg-white/60 hover:text-blue-700' }}"
+                            >
+                                Trazabilidad
+                            </a>
                         </div>
                     </details>
                 </section>

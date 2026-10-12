@@ -173,7 +173,10 @@
                     <p class="text-xs font-black uppercase tracking-[0.12em] text-slate-400">Tendencia</p>
                     <h2 class="mt-1 text-lg font-black text-slate-950">Evolución de ventas</h2>
                 </div>
-                <p class="text-xs font-semibold text-slate-400">{{ number_format($resumen['cantidad_ventas']) }} operaciones</p>
+                <p class="text-xs font-semibold text-slate-400">
+                    {{ number_format($resumen['cantidad_ventas']) }}
+                    {{ $resumen['cantidad_ventas'] === 1 ? 'operación' : 'operaciones' }}
+                </p>
             </div>
 
             @if($serie->isEmpty())
@@ -210,7 +213,11 @@
                             <p class="truncate text-sm font-bold text-slate-900">{{ $item['vendedor'] }}</p>
                             <p class="whitespace-nowrap text-sm font-black text-slate-950">Bs {{ number_format($item['total_vendido'], 2, ',', '.') }}</p>
                         </div>
-                        <p class="mt-1 text-xs text-slate-500">{{ number_format($item['cantidad_ventas']) }} operaciones · utilidad Bs {{ number_format($item['utilidad_generada'], 2, ',', '.') }}</p>
+                        <p class="mt-1 text-xs text-slate-500">
+                            {{ number_format($item['cantidad_ventas']) }}
+                            {{ $item['cantidad_ventas'] === 1 ? 'operación' : 'operaciones' }}
+                            · utilidad Bs {{ number_format($item['utilidad_generada'], 2, ',', '.') }}
+                        </p>
                     </a>
                 @empty
                     <p class="rounded-xl bg-slate-50 p-4 text-sm text-slate-500">Sin ventas por vendedor para el periodo.</p>
@@ -227,7 +234,10 @@
                     <h2 class="text-lg font-black text-slate-950">Operaciones</h2>
                     <p class="mt-1 text-sm text-slate-500">Busca, ordena y pagina la consulta directamente en la tabla.</p>
                 </div>
-                <p class="text-xs font-bold text-slate-400">{{ number_format($ventas->count()) }} registros filtrados</p>
+                <p class="text-xs font-bold text-slate-400">
+                    {{ number_format($ventas->count()) }}
+                    {{ $ventas->count() === 1 ? 'registro filtrado' : 'registros filtrados' }}
+                </p>
             </div>
         </div>
 

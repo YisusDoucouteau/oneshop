@@ -43,7 +43,7 @@
                 <select name="estado" class="input-oneshop w-full">
                     <option value="">Todos</option>
                     @foreach($estadosCaso as $estado)
-                        <option value="{{ $estado }}" @selected(($filtros['estado'] ?? '') === $estado)>{{ str($estado)->replace('_', ' ')->title() }}</option>
+                        <option value="{{ $estado }}" @selected(($filtros['estado'] ?? '') === $estado)>{{ str($estado)->replace('_', ' ')->lower()->ucfirst() }}</option>
                     @endforeach
                 </select>
             </div>
@@ -71,7 +71,10 @@
                     <h2 class="text-lg font-black text-slate-950">Casos de garantía</h2>
                     <p class="mt-1 text-sm text-slate-500">La búsqueda rápida de la tabla permite localizar caso, cliente, equipo, motivo, diagnóstico o resolución.</p>
                 </div>
-                <p class="text-xs font-bold text-slate-400">{{ number_format($casos->count()) }} casos filtrados</p>
+                <p class="text-xs font-bold text-slate-400">
+                    {{ number_format($casos->count()) }}
+                    {{ $casos->count() === 1 ? 'caso filtrado' : 'casos filtrados' }}
+                </p>
             </div>
         </div>
         <div class="overflow-x-auto">

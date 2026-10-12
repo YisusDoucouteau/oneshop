@@ -89,7 +89,10 @@
                     <h2 class="text-lg font-black text-slate-950">Equipos</h2>
                     <p class="mt-1 text-sm text-slate-500">Busca, ordena y pagina la consulta directamente en la tabla.</p>
                 </div>
-                <p class="text-xs font-bold text-slate-400">{{ number_format($equipos->count()) }} registros filtrados</p>
+                <p class="text-xs font-bold text-slate-400">
+                    {{ number_format($equipos->count()) }}
+                    {{ $equipos->count() === 1 ? 'registro filtrado' : 'registros filtrados' }}
+                </p>
             </div>
         </div>
 

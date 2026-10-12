@@ -31,7 +31,7 @@
             <div><label class="mb-1.5 block text-xs font-bold text-slate-600">Desde</label><input type="date" name="fecha_desde" value="{{ $filtros['fecha_desde'] ?? '' }}" class="input-oneshop w-full"></div>
             <div><label class="mb-1.5 block text-xs font-bold text-slate-600">Hasta</label><input type="date" name="fecha_hasta" value="{{ $filtros['fecha_hasta'] ?? '' }}" class="input-oneshop w-full"></div>
             <div><label class="mb-1.5 block text-xs font-bold text-slate-600">Proveedor</label><select name="proveedor_id" class="input-oneshop w-full"><option value="">Todos</option>@foreach($proveedores as $proveedor)<option value="{{ $proveedor->id }}" @selected((string)($filtros['proveedor_id'] ?? '') === (string)$proveedor->id)>{{ $proveedor->nombre }}</option>@endforeach</select></div>
-            <div><label class="mb-1.5 block text-xs font-bold text-slate-600">Estado del lote</label><select name="estado_lote" class="input-oneshop w-full"><option value="">Todos</option>@foreach($estadosLote as $estado)<option value="{{ $estado }}" @selected(($filtros['estado_lote'] ?? '') === $estado)>{{ str($estado)->replace('_', ' ')->title() }}</option>@endforeach</select></div>
+            <div><label class="mb-1.5 block text-xs font-bold text-slate-600">Estado del lote</label><select name="estado_lote" class="input-oneshop w-full"><option value="">Todos</option>@foreach($estadosLote as $estado)<option value="{{ $estado }}" @selected(($filtros['estado_lote'] ?? '') === $estado)>{{ match (strtoupper($estado)) { 'RECEPCION_PARCIAL' => 'Recepción parcial', 'RECIBIDO' => 'Recibido', 'ABIERTO' => 'Abierto', default => str($estado)->replace('_', ' ')->lower()->ucfirst() } }}</option>@endforeach</select></div>
             <div class="flex items-end gap-2"><button type="submit" class="rounded-xl bg-blue-700 px-4 py-2.5 text-sm font-bold text-white hover:bg-blue-800">Aplicar</button><a href="{{ route('reportes.abastecimiento-logistica.index') }}" class="rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm font-bold text-slate-700 hover:bg-slate-50">Limpiar</a></div>
         </form>
     </section>
@@ -39,7 +39,7 @@
     <section class="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
         <div class="border-b border-slate-200 px-5 py-4">
             <p class="text-xs font-black uppercase tracking-[0.12em] text-slate-400">Control del ciclo</p>
-            <div class="mt-1 flex flex-wrap items-end justify-between gap-3"><div><h2 class="text-lg font-black text-slate-950">Lotes</h2><p class="mt-1 text-sm text-slate-500">Los hitos son acumulativos: una unidad incorporada también cuenta como preparada, enviada y recibida.</p></div><p class="text-xs font-bold text-slate-400">{{ number_format($lotes->count()) }} lotes filtrados</p></div>
+            <div class="mt-1 flex flex-wrap items-end justify-between gap-3"><div><h2 class="text-lg font-black text-slate-950">Lotes</h2><p class="mt-1 text-sm text-slate-500">Los hitos son acumulativos: una unidad incorporada también cuenta como preparada, enviada y recibida.</p></div><p class="text-xs font-bold text-slate-400">{{ number_format($lotes->count()) }} {{ $lotes->count() === 1 ? 'lote filtrado' : 'lotes filtrados' }}</p></div>
         </div>
         <div class="overflow-x-auto">
             <table id="tabla-reporte-logistica" data-oneshop-datatable data-order-column="2" data-order-direction="desc" data-page-length="25" class="min-w-full text-sm">
