@@ -217,7 +217,103 @@
 
     <x-ui.card padding="false">
 
-        <div class="overflow-x-auto">
+        <div class="divide-y divide-slate-100 md:hidden">
+
+            @forelse($garantias as $garantia)
+                @php
+                    $detalleMovil = $garantia->detalleVenta;
+                    $equipoMovil = $detalleMovil?->equipo;
+                    $ventaMovil = $detalleMovil?->venta;
+                    $clienteMovil = $ventaMovil?->cliente_nombre_snapshot
+                        ?: $ventaMovil?->cliente?->nombre_completo
+                        ?: 'Cliente no disponible';
+                    $vigenteMovil = $garantia->estado === 'VIGENTE'
+                        && $garantia->fecha_fin
+                        && $garantia->fecha_fin->isFuture();
+                    $estadoMovil = $garantia->estado === 'ANULADA'
+                        ? 'Anulada'
+                        : ($vigenteMovil ? 'Vigente' : 'Vencida');
+                    $colorMovil = $garantia->estado === 'ANULADA'
+                        ? 'red'
+                        : ($vigenteMovil ? 'green' : 'gray');
+                    $casoActivoMovil = $garantia->casosGarantia->first(
+                        fn ($item) => in_array(
+                            strtoupper((string) $item->estado),
+                            ['ABIERTO', 'DIAGNOSTICADO', 'EN_PROCESO'],
+                            true
+                        )
+                    );
+                    $ultimoCasoMovil = $garantia->casosGarantia->first();
+                    $casoMovil = $casoActivoMovil ?: $ultimoCasoMovil;
+                    $estadoCasoMovil = match (strtoupper((string) $casoMovil?->estado)) {
+                        'ABIERTO' => 'Abierto',
+                        'DIAGNOSTICADO' => 'Diagnosticado',
+                        'EN_PROCESO' => 'En proceso',
+                        'CERRADO' => 'Cerrado',
+                        default => 'Sin caso',
+                    };
+                @endphp
+
+                <article class="space-y-4 p-5">
+                    <div class="flex items-start justify-between gap-3">
+                        <div class="min-w-0">
+                            <p class="break-words font-bold text-slate-900">
+                                {{ $equipoMovil?->codigo_interno ?? 'Sin N° de equipo' }}
+                            </p>
+                            <p class="mt-1 text-sm text-slate-600">{{ $clienteMovil }}</p>
+                            <p class="mt-1 text-xs text-slate-400">
+                                {{ $equipoMovil?->serial_fabricante ? 'Serial: ' . $equipoMovil->serial_fabricante : 'Serial no registrado' }}
+                            </p>
+                        </div>
+
+                        <x-ui.badge :color="$colorMovil">
+                            {{ $estadoMovil }}
+                        </x-ui.badge>
+                    </div>
+
+                    <dl class="grid grid-cols-2 gap-3 rounded-xl bg-slate-50 p-3 text-xs">
+                        <div>
+                            <dt class="font-semibold uppercase tracking-wide text-slate-400">Vence</dt>
+                            <dd class="mt-1 font-medium text-slate-700">
+                                {{ $garantia->fecha_fin?->format('d/m/Y') ?? 'Sin fecha' }}
+                            </dd>
+                        </div>
+                        <div>
+                            <dt class="font-semibold uppercase tracking-wide text-slate-400">Postventa</dt>
+                            <dd class="mt-1 font-medium {{ $casoActivoMovil ? 'text-amber-700' : 'text-slate-700' }}">
+                                {{ $estadoCasoMovil }}
+                            </dd>
+                        </div>
+                    </dl>
+
+                    <div class="space-y-1 text-xs text-slate-500">
+                        <p title="{{ $garantia->numero }}">
+                            Garantía {{ \Illuminate\Support\Str::limit($garantia->numero, 28) }}
+                        </p>
+                        @if($casoMovil)
+                            <p title="{{ $casoMovil->numero }}">
+                                Caso {{ \Illuminate\Support\Str::limit($casoMovil->numero, 28) }}
+                            </p>
+                        @endif
+                    </div>
+
+                    <a
+                        href="{{ $casoActivoMovil ? route('garantias.casos.show', $casoActivoMovil) : route('garantias.show', $garantia) }}"
+                        class="inline-flex w-full items-center justify-center rounded-xl {{ $casoActivoMovil ? 'bg-slate-900 text-white hover:bg-slate-700' : 'border border-slate-300 bg-white text-slate-700 hover:bg-slate-50' }} px-4 py-2.5 text-sm font-semibold"
+                    >
+                        {{ $casoActivoMovil ? 'Continuar caso' : 'Ver garantía' }}
+                    </a>
+                </article>
+            @empty
+                <div class="px-5 py-14 text-center">
+                    <p class="font-semibold text-slate-700">No se encontraron garantías</p>
+                    <p class="mt-1 text-sm text-slate-500">Prueba con otro término o estado.</p>
+                </div>
+            @endforelse
+
+        </div>
+
+        <div class="hidden overflow-x-auto md:block">
 
             <table class="w-full min-w-[980px] text-sm">
 
@@ -349,8 +445,8 @@
                                 @endif
 
                                 @if($venta)
-                                    <p class="mt-1 text-xs text-slate-400">
-                                        Venta {{ $venta->numero }}
+                                    <p class="mt-1 text-xs text-slate-400" title="{{ $venta->numero }}">
+                                        Venta {{ \Illuminate\Support\Str::limit($venta->numero, 24) }}
                                     </p>
                                 @endif
 
@@ -359,8 +455,8 @@
 
                             <td class="px-5 py-4">
 
-                                <p class="font-semibold text-slate-800">
-                                    {{ $garantia->numero }}
+                                <p class="font-semibold text-slate-800" title="{{ $garantia->numero }}">
+                                    {{ \Illuminate\Support\Str::limit($garantia->numero, 26) }}
                                 </p>
 
                                 <div class="mt-2">
@@ -390,8 +486,8 @@
 
                                 @if($casoActivo)
 
-                                    <p class="font-semibold text-amber-800">
-                                        {{ $casoActivo->numero }}
+                                    <p class="font-semibold text-amber-800" title="{{ $casoActivo->numero }}">
+                                        {{ \Illuminate\Support\Str::limit($casoActivo->numero, 26) }}
                                     </p>
 
                                     <p class="mt-1 text-xs text-amber-700">
@@ -400,8 +496,8 @@
 
                                 @elseif($ultimoCaso)
 
-                                    <p class="font-semibold text-slate-700">
-                                        {{ $ultimoCaso->numero }}
+                                    <p class="font-semibold text-slate-700" title="{{ $ultimoCaso->numero }}">
+                                        {{ \Illuminate\Support\Str::limit($ultimoCaso->numero, 26) }}
                                     </p>
 
                                     <p class="mt-1 text-xs text-slate-500">

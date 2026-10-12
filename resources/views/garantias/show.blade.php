@@ -76,11 +76,14 @@
 
             <div class="flex flex-wrap items-center gap-3">
 
-                <h1 class="text-2xl font-bold text-slate-900">
+                <h1
+                    class="text-2xl font-bold text-slate-900"
+                    title="{{ $casoEnfocado?->numero ?? $garantia->numero }}"
+                >
                     @if($casoEnfocado)
-                        Caso {{ $casoEnfocado->numero }}
+                        Caso {{ \Illuminate\Support\Str::limit($casoEnfocado->numero, 30) }}
                     @else
-                        Garantía {{ $garantia->numero }}
+                        Garantía {{ \Illuminate\Support\Str::limit($garantia->numero, 30) }}
                     @endif
                 </h1>
 
@@ -229,8 +232,8 @@
                 Venta de origen
             </p>
 
-            <p class="mt-2 font-bold text-slate-900">
-                {{ $venta?->numero ?? 'No disponible' }}
+            <p class="mt-2 font-bold text-slate-900" title="{{ $venta?->numero }}">
+                {{ $venta ? \Illuminate\Support\Str::limit($venta->numero, 30) : 'No disponible' }}
             </p>
 
             <p class="mt-1 text-sm text-slate-500">

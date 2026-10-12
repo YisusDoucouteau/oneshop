@@ -185,7 +185,7 @@
             >
 
                 {{ $casosVisibles->count() }}
-                caso(s)
+                {{ $casosVisibles->count() === 1 ? 'caso' : 'casos' }}
 
             </span>
 
@@ -209,8 +209,11 @@
 
                     <div>
 
-                        <p class="text-sm font-semibold text-slate-900">
-                            Garantía {{ $garantiaActual->numero }}
+                        <p
+                            class="text-sm font-semibold text-slate-900"
+                            title="{{ $garantiaActual->numero }}"
+                        >
+                            Garantía {{ \Illuminate\Support\Str::limit($garantiaActual->numero, 30) }}
                         </p>
 
                         <p class="mt-1 text-sm text-slate-500">
@@ -476,7 +479,9 @@
                                             "
                                         >
 
-                                            {{ $caso->numero }}
+                                            <span title="{{ $caso->numero }}">
+                                                {{ \Illuminate\Support\Str::limit($caso->numero, 30) }}
+                                            </span>
 
                                         </p>
 
