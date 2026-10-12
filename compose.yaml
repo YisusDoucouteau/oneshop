@@ -15,6 +15,22 @@ services:
       - mysql
 
 
+  scheduler:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: oneshop_scheduler
+    restart: unless-stopped
+    working_dir: /var/www
+    command: php artisan schedule:work
+    volumes:
+      - .:/var/www:cached
+    networks:
+      - oneshop_network
+    depends_on:
+      - mysql
+
+
   nginx:
     image: nginx:alpine
     container_name: oneshop_nginx

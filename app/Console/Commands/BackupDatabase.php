@@ -125,18 +125,43 @@ class BackupDatabase extends Command
          * Compresión del respaldo
          */
 
-        $contenido = File::get(
-            $archivoSql
-        );
+        $origen = fopen($archivoSql, 'rb');
+        $destino = gzopen($archivoGzip, 'wb9');
 
-        File::put(
-            $archivoGzip,
-            gzencode($contenido, 9)
-        );
+        if ($origen === false || $destino === false) {
+            if (is_resource($origen)) {
+                fclose($origen);
+            }
 
-        File::delete(
-            $archivoSql
-        );
+            if (is_resource($destino)) {
+                gzclose($destino);
+            }
+
+            File::delete([$archivoSql, $archivoGzip]);
+            $this->error('No se pudo comprimir el respaldo.');
+
+            return Command::FAILURE;
+        }
+
+        try {
+            while (! feof($origen)) {
+                $bloque = fread($origen, 1024 * 1024);
+
+                if ($bloque === false || gzwrite($destino, $bloque) === false) {
+                    throw new \RuntimeException('No se pudo escribir el respaldo comprimido.');
+                }
+            }
+        } catch (\Throwable $exception) {
+            File::delete([$archivoSql, $archivoGzip]);
+            $this->error($exception->getMessage());
+
+            return Command::FAILURE;
+        } finally {
+            fclose($origen);
+            gzclose($destino);
+        }
+
+        File::delete($archivoSql);
 
         /*
          * Limpieza automática:
