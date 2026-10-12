@@ -18,13 +18,15 @@
     </div>
 
     <div class="p-6 sm:p-8">
-        <div class="mx-auto aspect-[10/7] w-full max-w-lg overflow-hidden border-2 border-slate-900 bg-[#f59e42] p-5 shadow-sm sm:p-7">
-            <div class="flex items-center justify-between gap-4 border-b-2 border-slate-900 pb-3">
-                <p class="text-lg font-black tracking-[0.18em] text-slate-950">ONESHOP</p>
-                <p class="text-right text-[10px] font-extrabold uppercase tracking-wide">Código: {{ $equipo->codigo_interno }}</p>
+        <div class="relative mx-auto aspect-[10/7] w-full max-w-lg overflow-hidden bg-white p-5 shadow-sm ring-1 ring-slate-200 sm:p-7">
+            <div class="absolute left-4 top-4 h-28 w-36 border-l-4 border-t-4 border-[#0755b8] sm:left-6 sm:top-6"></div>
+            <div class="relative flex h-10 items-start justify-end">
+                <div class="h-9 w-36 overflow-hidden">
+                    <img src="{{ asset('images/oneshop/logo.png') }}" alt="OneShop" class="block w-36 -translate-y-[27px]">
+                </div>
             </div>
 
-            <div class="mt-3 space-y-1 text-xs">
+            <div class="relative mt-1 space-y-1 text-xs">
                 @foreach([
                     ['Marca / modelo', trim(($equipo->producto?->marca?->nombre ?? '') . ' ' . ($equipo->producto?->modelo ?? '')) ?: '—'],
                     ['Procesador', trim(($equipo->especificacion?->procesador ?? '') . ' ' . ($equipo->especificacion?->generacion_procesador ?? '')) ?: '—'],
@@ -32,18 +34,22 @@
                     ['Memoria RAM', $equipo->especificacion?->ram_gb ? $equipo->especificacion->ram_gb . ' GB' : '—'],
                     ['Pantalla', $equipo->especificacion?->pantalla_pulgadas ? $equipo->especificacion->pantalla_pulgadas . ' pulgadas' : '—'],
                     ['Video', $equipo->especificacion?->tarjeta_grafica ?: '—'],
-                    ['S/N', $equipo->serial_fabricante ?: '—'],
                 ] as [$label, $value])
-                    <div class="grid grid-cols-[130px_1fr] items-end gap-2 border-b border-slate-900/70 pb-1">
-                        <span class="font-extrabold uppercase">{{ $label }}:</span>
-                        <strong class="truncate text-sm">{{ $value }}</strong>
+                    <div class="grid grid-cols-[130px_1fr] items-center gap-2">
+                        <span class="font-black uppercase text-[#0755b8]">{{ $label }}:</span>
+                        <strong class="truncate border border-blue-600 px-2 py-1 text-center text-sm text-black">{{ $value }}</strong>
                     </div>
                 @endforeach
+            </div>
+
+            <div class="relative mt-2 grid grid-cols-2 gap-3 text-[10px]">
+                <p class="truncate border-t border-blue-200 pt-1"><span class="font-black uppercase text-[#0755b8]">Código:</span> <strong>{{ $equipo->codigo_interno }}</strong></p>
+                <p class="truncate border-t border-blue-200 pt-1"><span class="font-black uppercase text-[#0755b8]">S/N:</span> <strong>{{ $equipo->serial_fabricante ?: '—' }}</strong></p>
             </div>
         </div>
 
         <p class="mx-auto mt-4 max-w-lg text-xs leading-5 text-slate-500">
-            Formato de impresión: 100 × 70 mm. Los campos se completan automáticamente con la ficha técnica registrada; los datos faltantes quedan marcados con una línea.
+            Formato de impresión: 100 × 70 mm, adaptado a la etiqueta institucional de OneShop. Los campos se completan automáticamente con la ficha técnica registrada.
         </p>
     </div>
 </section>
