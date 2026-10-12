@@ -123,15 +123,32 @@ Acción
 
 @forelse($reservas as $reserva)
 
+@php
+    $numeroReserva = (string) $reserva->numero;
+    $numeroVisible = mb_strlen($numeroReserva) > 24
+        ? mb_substr($numeroReserva, 0, 12).'…'.mb_substr($numeroReserva, -7)
+        : $numeroReserva;
+
+    $estadoReserva = match ($reserva->estado) {
+        'ACTIVA' => ['Activa', 'yellow'],
+        'CONVERTIDA' => ['Convertida en venta', 'green'],
+        'LIBERADA' => ['Liberada', 'gray'],
+        'VENCIDA' => ['Vencida', 'red'],
+        'CANCELADA' => ['Cancelada', 'red'],
+        default => [str($reserva->estado)->lower()->ucfirst(), 'gray'],
+    };
+@endphp
 
 
 <tr class="border-b hover:bg-slate-50">
 
 
 
-<td class="px-5 py-4 font-semibold">
+<td class="px-5 py-4 font-semibold whitespace-nowrap">
 
-{{ $reserva->numero }}
+<span title="{{ $numeroReserva }}">
+    {{ $numeroVisible }}
+</span>
 
 </td>
 
@@ -171,7 +188,7 @@ Acción
 
 </span>
 
-equipos
+{{ $reserva->detalles->count() === 1 ? 'equipo' : 'equipos' }}
 
 
 </td>
@@ -183,37 +200,9 @@ equipos
 <td class="px-5 py-4">
 
 
-@if($reserva->estado === 'ACTIVA')
-
-
-<x-ui.badge color="yellow">
-
-ACTIVA
-
+<x-ui.badge :color="$estadoReserva[1]">
+    {{ $estadoReserva[0] }}
 </x-ui.badge>
-
-
-@elseif($reserva->estado === 'CONVERTIDA')
-
-
-<x-ui.badge color="green">
-
-CONVERTIDA
-
-</x-ui.badge>
-
-
-@else
-
-
-<x-ui.badge color="gray">
-
-{{ $reserva->estado }}
-
-</x-ui.badge>
-
-
-@endif
 
 
 

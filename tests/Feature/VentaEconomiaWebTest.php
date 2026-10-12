@@ -43,16 +43,16 @@ class VentaEconomiaWebTest extends TestCase
             )
             ->assertOk()
             ->assertSee('Ganancia por parte')
-            ->assertSee('Bs 491.00')
+            ->assertSee('Bs 491,00')
             ->assertSee('Detalle económico')
             ->assertSee('Costo al vender')
-            ->assertSee('Bs 3,827.00')
+            ->assertSee('Bs 3.827,00')
             ->assertSee('Margen total')
-            ->assertSee('Bs 1,473.00')
+            ->assertSee('Bs 1.473,00')
             ->assertSee('Hugo')
             ->assertSee('Daniel')
             ->assertSee('Tienda')
-            ->assertSee('12.000000');
+            ->assertSee('12,000000');
     }
 
     public function test_vendedor_ve_ganancia_pero_no_costo_tc_ni_reparto(): void
@@ -81,7 +81,7 @@ class VentaEconomiaWebTest extends TestCase
             )
             ->assertOk()
             ->assertSee('Ganancia por parte')
-            ->assertSee('Bs 491.00')
+            ->assertSee('Bs 491,00')
             ->assertDontSee('Detalle económico')
             ->assertDontSee('Costo al vender')
             ->assertDontSee('TC utilizado')
@@ -369,6 +369,9 @@ class VentaEconomiaWebTest extends TestCase
     ): User {
         $usuario =
             User::factory()->create([
+                'name' =>
+                    'Usuario de prueba',
+
                 'activo' =>
                     true,
             ]);

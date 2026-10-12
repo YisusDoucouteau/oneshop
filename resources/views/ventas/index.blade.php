@@ -66,10 +66,22 @@
 
                 <tbody class="divide-y divide-slate-100">
                     @forelse($ventas as $venta)
+                        @php
+                            $numeroVenta = (string) $venta->numero;
+                            $numeroVisible = mb_strlen($numeroVenta) > 24
+                                ? mb_substr($numeroVenta, 0, 12).'…'.mb_substr($numeroVenta, -7)
+                                : $numeroVenta;
+
+                            $estadoVenta = match ($venta->estado) {
+                                'REGISTRADA' => ['Registrada', 'green'],
+                                'ANULADA' => ['Anulada', 'red'],
+                                default => [str($venta->estado)->lower()->ucfirst(), 'gray'],
+                            };
+                        @endphp
                         <tr class="hover:bg-slate-50">
-                            <td class="px-5 py-4">
-                                <p class="font-bold text-slate-900">
-                                    {{ $venta->numero }}
+                            <td class="whitespace-nowrap px-5 py-4">
+                                <p class="font-bold text-slate-900" title="{{ $numeroVenta }}">
+                                    {{ $numeroVisible }}
                                 </p>
 
                                 <p class="text-xs text-slate-500">
@@ -89,17 +101,16 @@
 
                             <td class="px-5 py-4">
                                 {{ $venta->detalles->count() }}
+                                {{ $venta->detalles->count() === 1 ? 'equipo' : 'equipos' }}
                             </td>
 
                             <td class="px-5 py-4 font-bold text-slate-900">
-                                Bs {{ number_format((float) $venta->total, 2) }}
+                                Bs {{ number_format((float) $venta->total, 2, ',', '.') }}
                             </td>
 
                             <td class="px-5 py-4">
-                                <x-ui.badge
-                                    :color="$venta->estado === 'ANULADA' ? 'red' : 'green'"
-                                >
-                                    {{ $venta->estado }}
+                                <x-ui.badge :color="$estadoVenta[1]">
+                                    {{ $estadoVenta[0] }}
                                 </x-ui.badge>
                             </td>
 

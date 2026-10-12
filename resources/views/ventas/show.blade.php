@@ -62,7 +62,7 @@
 
                 >
 
-                    {{ $venta->estado }}
+                    {{ $venta->estado === 'ANULADA' ? 'Anulada' : 'Registrada' }}
 
                 </x-ui.badge>
 
@@ -367,7 +367,7 @@
                 Total de venta
             </p>
             <p class="mt-2 text-2xl font-black text-slate-900">
-                Bs {{ number_format((float) $resumenPago['total'], 2) }}
+                Bs {{ number_format((float) $resumenPago['total'], 2, ',', '.') }}
             </p>
         </div>
 
@@ -376,7 +376,7 @@
                 Cobrado confirmado
             </p>
             <p class="mt-2 text-2xl font-black text-green-700">
-                Bs {{ number_format((float) $resumenPago['pagado_total'], 2) }}
+                Bs {{ number_format((float) $resumenPago['pagado_total'], 2, ',', '.') }}
             </p>
         </div>
 
@@ -385,7 +385,7 @@
                 Por verificar
             </p>
             <p class="mt-2 text-2xl font-black text-amber-700">
-                Bs {{ number_format((float) $resumenPago['pendiente_total'], 2) }}
+                Bs {{ number_format((float) $resumenPago['pendiente_total'], 2, ',', '.') }}
             </p>
         </div>
 
@@ -394,7 +394,7 @@
                 Pendiente por cubrir
             </p>
             <p class="mt-2 text-2xl font-black text-slate-900">
-                Bs {{ number_format((float) $resumenPago['saldo_disponible'], 2) }}
+                Bs {{ number_format((float) $resumenPago['saldo_disponible'], 2, ',', '.') }}
             </p>
         </div>
 
@@ -405,7 +405,7 @@
 
             @if($economiaCompleta)
                 <p class="mt-2 text-2xl font-black text-emerald-700">
-                    Bs {{ number_format((float) $gananciaVenta, 2) }}
+                    Bs {{ number_format((float) $gananciaVenta, 2, ',', '.') }}
                 </p>
                 <p class="mt-1 text-xs text-emerald-700/80">
                     Valor histórico congelado al registrar la venta.
@@ -468,7 +468,7 @@
 
                         <p class="mt-1 font-bold text-slate-900">
 
-                            Bs {{ number_format((float) $resumenEconomicoAdmin['costo_total'], 2) }}
+                            Bs {{ number_format((float) $resumenEconomicoAdmin['costo_total'], 2, ',', '.') }}
 
                         </p>
 
@@ -484,7 +484,7 @@
 
                         <p class="mt-1 font-bold text-slate-900">
 
-                            Bs {{ number_format((float) $resumenEconomicoAdmin['margen_total'], 2) }}
+                            Bs {{ number_format((float) $resumenEconomicoAdmin['margen_total'], 2, ',', '.') }}
 
                         </p>
 
@@ -500,7 +500,7 @@
 
                         <p class="mt-1 font-bold text-slate-900">
 
-                            Bs {{ number_format((float) $resumenEconomicoAdmin['hugo'], 2) }}
+                            Bs {{ number_format((float) $resumenEconomicoAdmin['hugo'], 2, ',', '.') }}
 
                         </p>
 
@@ -516,7 +516,7 @@
 
                         <p class="mt-1 font-bold text-slate-900">
 
-                            Bs {{ number_format((float) $resumenEconomicoAdmin['daniel'], 2) }}
+                            Bs {{ number_format((float) $resumenEconomicoAdmin['daniel'], 2, ',', '.') }}
 
                         </p>
 
@@ -532,7 +532,7 @@
 
                         <p class="mt-1 font-bold text-slate-900">
 
-                            Bs {{ number_format((float) $resumenEconomicoAdmin['tienda'], 2) }}
+                            Bs {{ number_format((float) $resumenEconomicoAdmin['tienda'], 2, ',', '.') }}
 
                         </p>
 
@@ -632,7 +632,7 @@
 
                                         <p class="mt-1 font-bold text-slate-800">
 
-                                            Bs {{ number_format((float) $detalle->precio_lista_snapshot, 2) }}
+                                            Bs {{ number_format((float) $detalle->precio_lista_snapshot, 2, ',', '.') }}
 
                                         </p>
 
@@ -648,7 +648,7 @@
 
                                         <p class="mt-1 font-bold text-slate-800">
 
-                                            Bs {{ number_format((float) $detalle->descuento_unitario, 2) }}
+                                            Bs {{ number_format((float) $detalle->descuento_unitario, 2, ',', '.') }}
 
                                         </p>
 
@@ -664,7 +664,7 @@
 
                                         <p class="mt-1 text-lg font-black">
 
-                                            Bs {{ number_format((float) $detalle->precio_unitario, 2) }}
+                                            Bs {{ number_format((float) $detalle->precio_unitario, 2, ',', '.') }}
 
                                         </p>
 
@@ -688,7 +688,7 @@
 
                                         <p class="mt-1 text-2xl font-black text-emerald-600">
 
-                                            Bs {{ number_format((float) $detalle->ganancia_snapshot, 2) }}
+                                            Bs {{ number_format((float) $detalle->ganancia_snapshot, 2, ',', '.') }}
 
                                         </p>
 
@@ -726,7 +726,7 @@
 
                                                 <strong class="text-slate-900">
 
-                                                    Bs {{ number_format((float) $detalle->costo_unitario_snapshot, 2) }}
+                                                    Bs {{ number_format((float) $detalle->costo_unitario_snapshot, 2, ',', '.') }}
 
                                                 </strong>
 
@@ -742,7 +742,7 @@
 
                                                 <strong class="text-slate-900">
 
-                                                    Bs {{ number_format((float) $detalle->margen_total_snapshot, 2) }}
+                                                    Bs {{ number_format((float) $detalle->margen_total_snapshot, 2, ',', '.') }}
 
                                                 </strong>
 
@@ -760,7 +760,7 @@
 
                                                     {{ $detalle->tipo_cambio_valor_snapshot !== null
 
-                                                        ? number_format((float) $detalle->tipo_cambio_valor_snapshot, 6, '.', '')
+                                                        ? number_format((float) $detalle->tipo_cambio_valor_snapshot, 6, ',', '')
 
                                                         : 'No aplica' }}
 
@@ -796,7 +796,7 @@
 
                                                     <strong class="text-slate-900">
 
-                                                        {{ number_format((float) $detalle->monto_origen_snapshot, 2) }}
+                                                        {{ number_format((float) $detalle->monto_origen_snapshot, 2, ',', '.') }}
 
                                                         {{ $detalle->moneda_origen_snapshot }}
 
@@ -934,7 +934,7 @@
 
                 <div class="text-right">
                     <p class="font-bold text-slate-900">
-                        Bs {{ number_format((float) $pago->monto, 2) }}
+                        Bs {{ number_format((float) $pago->monto, 2, ',', '.') }}
                     </p>
 
                     <p
@@ -1103,7 +1103,7 @@
 
                     <p class="text-2xl font-black text-slate-900">
 
-                        Bs {{ number_format((float) $resumenPago['pagado_reserva'], 2) }}
+                        Bs {{ number_format((float) $resumenPago['pagado_reserva'], 2, ',', '.') }}
 
                     </p>
 

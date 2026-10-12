@@ -78,7 +78,7 @@
                     </p>
 
                     <p class="mt-1">
-                        Esta venta tiene Bs {{ number_format((float) $resumenPago['comprometido_total'], 2) }}
+                        Esta venta tiene Bs {{ number_format((float) $resumenPago['comprometido_total'], 2, ',', '.') }}
                         en pagos pendientes de verificación o ya verificados.
                         Debe resolverse primero mediante el flujo de rechazo o devolución correspondiente.
                     </p>
