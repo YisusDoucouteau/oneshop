@@ -1349,6 +1349,13 @@ Route::post(
 */
 
 Route::get(
+    '/inventario/{equipo:codigo_interno}/etiqueta',
+    [InventarioController::class, 'etiqueta']
+)
+->middleware('permiso:inventario.ver')
+->name('inventario.etiqueta');
+
+Route::get(
     '/inventario/{equipo:codigo_interno}',
     [InventarioController::class, 'show']
 )

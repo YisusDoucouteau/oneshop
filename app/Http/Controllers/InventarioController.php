@@ -394,4 +394,17 @@ return view(
         )
     );
 }
+
+public function etiqueta(Equipo $equipo): View
+{
+    $equipo->load([
+        'producto.marca',
+        'especificacion',
+    ]);
+
+    return view(
+        'inventario.etiqueta',
+        compact('equipo')
+    );
+}
     }

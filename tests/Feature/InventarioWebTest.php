@@ -191,6 +191,38 @@ class InventarioWebTest extends TestCase
         $response->assertNotFound();
     }
 
+    public function test_usuario_con_permiso_puede_abrir_etiqueta_imprimible(): void
+    {
+        $response = $this
+            ->actingAs($this->usuarioAutorizado)
+            ->get(
+                route(
+                    'inventario.etiqueta',
+                    $this->equipo->codigo_interno
+                )
+            );
+
+        $response
+            ->assertOk()
+            ->assertSee('Imprimir etiqueta')
+            ->assertSee('TEST-0001')
+            ->assertSee('SERIAL-TEST-001')
+            ->assertSee('100mm 70mm', false);
+    }
+
+    public function test_usuario_sin_permiso_no_puede_abrir_etiqueta(): void
+    {
+        $this
+            ->actingAs($this->usuarioSinPermiso)
+            ->get(
+                route(
+                    'inventario.etiqueta',
+                    $this->equipo->codigo_interno
+                )
+            )
+            ->assertForbidden();
+    }
+
     public function test_trazabilidad_muestra_registro_inicial_del_equipo(): void
     {
         $response = $this

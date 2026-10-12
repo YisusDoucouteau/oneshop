@@ -1,431 +1,49 @@
-<section
-    class="
-    rounded-2xl
-    border
-    border-slate-200
-    bg-white
-    shadow-sm
-    "
->
-
-
-    <div class="border-b border-slate-200 px-6 py-5">
-
-
-        <h2 class="font-semibold text-slate-950">
-
-            Etiqueta del equipo
-
-        </h2>
-
-
-        <p class="mt-1 text-sm text-slate-500">
-
-            Identificación física para control interno y trazabilidad.
-
-        </p>
-
-
-    </div>
-
-
-
-
-
-    <div class="flex justify-center p-8">
-
-
-
-        {{-- Etiqueta física --}}
-
-
-        <div
-            class="
-            w-full
-            max-w-sm
-            rounded-3xl
-            border-2
-            border-dashed
-            border-slate-300
-            bg-white
-            p-7
-            text-center
-            shadow-lg
-            "
-        >
-
-
-
-            {{-- Marca --}}
-
-
-            <div
-                class="
-                border-b
-                border-slate-200
-                pb-5
-                "
-            >
-
-
-                <p
-                    class="
-                    text-xl
-                    font-black
-                    tracking-[0.35em]
-                    text-slate-900
-                    "
-                >
-
-                    ONESHOP
-
-                </p>
-
-
-                <p
-                    class="
-                    mt-2
-                    text-xs
-                    uppercase
-                    tracking-wider
-                    text-slate-400
-                    "
-                >
-
-                    Control de activos
-
-                </p>
-
-
-            </div>
-
-
-
-
-
-
-
-            {{-- Equipo --}}
-
-
-            <div class="mt-6">
-
-
-                <p
-                    class="
-                    text-lg
-                    font-bold
-                    text-slate-900
-                    "
-                >
-
-                    {{ $equipo->producto?->marca?->nombre }}
-
-                    {{ $equipo->producto?->modelo }}
-
-                </p>
-
-
-
-                <p
-                    class="
-                    mt-1
-                    text-sm
-                    text-slate-500
-                    "
-                >
-
-                    {{ $equipo->producto?->nombre }}
-
-                </p>
-
-
-
-            </div>
-
-
-
-
-
-
-
-
-            {{-- Código principal --}}
-
-
-            <div
-                class="
-                mt-6
-                rounded-2xl
-                bg-slate-900
-                p-5
-                text-white
-                "
-            >
-
-
-                <p
-                    class="
-                    text-xs
-                    uppercase
-                    tracking-widest
-                    text-slate-300
-                    "
-                >
-
-                    Código interno
-
-                </p>
-
-
-
-                <p
-                    class="
-                    mt-2
-                    text-2xl
-                    font-black
-                    tracking-widest
-                    "
-                >
-
-                    {{ $equipo->codigo_interno }}
-
-                </p>
-
-
-
-            </div>
-
-
-
-
-
-
-
-
-            {{-- Datos secundarios --}}
-
-
-            <div
-                class="
-                mt-6
-                space-y-3
-                "
-            >
-
-
-
-                <div
-                    class="
-                    rounded-xl
-                    bg-slate-50
-                    p-3
-                    "
-                >
-
-
-                    <p
-                        class="
-                        text-xs
-                        uppercase
-                        tracking-wide
-                        text-slate-400
-                        "
-                    >
-
-                        Serial
-
-                    </p>
-
-
-                    <p class="mt-1 font-semibold text-slate-800">
-
-                        {{ $equipo->serial_fabricante ?? 'Sin registro' }}
-
-                    </p>
-
-
-                </div>
-
-
-
-
-
-
-                <div
-                    class="
-                    rounded-xl
-                    bg-slate-50
-                    p-3
-                    "
-                >
-
-
-                    <p
-                        class="
-                        text-xs
-                        uppercase
-                        tracking-wide
-                        text-slate-400
-                        "
-                    >
-
-                        Estado
-
-                    </p>
-
-
-
-                    <p class="mt-1 font-semibold text-slate-800">
-
-                        {{ $equipo->estadoActual?->nombre ?? 'Sin estado' }}
-
-                    </p>
-
-
-
-                </div>
-
-
-
-
-
-
-                @if($equipo->almacenActual)
-
-
-                <div
-                    class="
-                    rounded-xl
-                    bg-slate-50
-                    p-3
-                    "
-                >
-
-
-                    <p
-                        class="
-                        text-xs
-                        uppercase
-                        tracking-wide
-                        text-slate-400
-                        "
-                    >
-
-                        Ubicación
-
-                    </p>
-
-
-
-                    <p class="mt-1 font-semibold text-slate-800">
-
-                        {{ $equipo->almacenActual->nombre }}
-
-                    </p>
-
-
-                </div>
-
-
-                @endif
-
-
-
-
-            </div>
-
-
-
-
-
-
-
-
-            {{-- QR preparado --}}
-
-
-            <div
-                class="
-                mt-7
-                flex
-                justify-center
-                "
-            >
-
-
-                <div
-                    class="
-                    flex
-                    h-32
-                    w-32
-                    items-center
-                    justify-center
-                    rounded-2xl
-                    border
-                    border-slate-200
-                    bg-slate-50
-                    "
-                >
-
-
-                    <div class="text-center">
-
-
-                        <x-ui.icon
-                            name="package"
-                            size="38"
-                        />
-
-
-                        <p
-                            class="
-                            mt-2
-                            text-xs
-                            text-slate-400
-                            "
-                        >
-
-                            QR
-
-                        </p>
-
-
-                    </div>
-
-
-                </div>
-
-
-
-            </div>
-
-
-
-
-
-
-
-            <p
-                class="
-                mt-6
-                text-xs
-                text-slate-400
-                "
-            >
-
-                Escaneo para consulta de activo
-
+<section class="rounded-2xl border border-slate-200 bg-white shadow-sm">
+    <div class="flex flex-col gap-4 border-b border-slate-200 px-6 py-5 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+            <h2 class="font-semibold text-slate-950">Etiqueta del equipo</h2>
+            <p class="mt-1 text-sm text-slate-500">
+                Identificación física permanente para inventario y trazabilidad.
             </p>
-
-
-
         </div>
 
-
-
+        <a
+            href="{{ route('inventario.etiqueta', $equipo) }}"
+            target="_blank"
+            rel="noopener"
+            class="inline-flex items-center justify-center rounded-xl bg-slate-900 px-4 py-2.5 text-sm font-semibold text-white hover:bg-slate-700"
+        >
+            Imprimir etiqueta
+        </a>
     </div>
 
+    <div class="p-6 sm:p-8">
+        <div class="mx-auto aspect-[10/7] w-full max-w-lg overflow-hidden border-2 border-slate-900 bg-[#f59e42] p-5 shadow-sm sm:p-7">
+            <div class="flex items-center justify-between gap-4 border-b-2 border-slate-900 pb-3">
+                <p class="text-lg font-black tracking-[0.18em] text-slate-950">ONESHOP</p>
+                <p class="text-right text-[10px] font-extrabold uppercase tracking-wide">Código: {{ $equipo->codigo_interno }}</p>
+            </div>
 
+            <div class="mt-3 space-y-1 text-xs">
+                @foreach([
+                    ['Marca / modelo', trim(($equipo->producto?->marca?->nombre ?? '') . ' ' . ($equipo->producto?->modelo ?? '')) ?: '—'],
+                    ['Procesador', trim(($equipo->especificacion?->procesador ?? '') . ' ' . ($equipo->especificacion?->generacion_procesador ?? '')) ?: '—'],
+                    ['Almacenamiento', $equipo->especificacion?->almacenamiento_gb ? $equipo->especificacion->almacenamiento_gb . ' GB ' . $equipo->especificacion->tipo_almacenamiento : '—'],
+                    ['Memoria RAM', $equipo->especificacion?->ram_gb ? $equipo->especificacion->ram_gb . ' GB' : '—'],
+                    ['Pantalla', $equipo->especificacion?->pantalla_pulgadas ? $equipo->especificacion->pantalla_pulgadas . ' pulgadas' : '—'],
+                    ['Video', $equipo->especificacion?->tarjeta_grafica ?: '—'],
+                    ['S/N', $equipo->serial_fabricante ?: '—'],
+                ] as [$label, $value])
+                    <div class="grid grid-cols-[130px_1fr] items-end gap-2 border-b border-slate-900/70 pb-1">
+                        <span class="font-extrabold uppercase">{{ $label }}:</span>
+                        <strong class="truncate text-sm">{{ $value }}</strong>
+                    </div>
+                @endforeach
+            </div>
+        </div>
 
+        <p class="mx-auto mt-4 max-w-lg text-xs leading-5 text-slate-500">
+            Formato de impresión: 100 × 70 mm. Los campos se completan automáticamente con la ficha técnica registrada; los datos faltantes quedan marcados con una línea.
+        </p>
+    </div>
 </section>

@@ -15,7 +15,7 @@ class AuthenticationTest extends TestCase
     {
         $this->get('/')
             ->assertOk()
-            ->assertSee('Cada equipo,')
+            ->assertSee('Control claro para cada equipo.')
             ->assertSee('Acceder a OneShop')
             ->assertDontSee('Laravel');
     }
