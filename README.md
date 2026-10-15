@@ -47,3 +47,5 @@ El procedimiento completo y seguro de validación y restauración se encuentra e
 ## Seguridad de configuración
 
 No se deben versionar `.env`, respaldos SQL ni credenciales. En producción se debe usar `APP_ENV=production`, `APP_DEBUG=false`, contraseñas únicas y HTTPS.
+
+La configuración local no debe publicarse directamente. El despliegue seguro usa `compose.production.yaml` y el procedimiento descrito en [docs/DESPLIEGUE.md](docs/DESPLIEGUE.md).
