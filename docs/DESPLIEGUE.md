@@ -79,4 +79,3 @@ Si una actualización falla, detener escrituras y aplicar el procedimiento de `d
 ## Respaldos externos
 
 El volumen `oneshop_storage` conserva los respaldos generados por la aplicación, pero sigue ubicado en el mismo servidor. Se debe copiar diariamente al menos un archivo `.sql.gz` a un almacenamiento externo cifrado y comprobar mensualmente una restauración aislada.
-

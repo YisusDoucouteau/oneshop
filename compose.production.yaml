@@ -67,4 +67,3 @@ networks:
 volumes:
   oneshop_mysql_data:
   oneshop_storage:
-

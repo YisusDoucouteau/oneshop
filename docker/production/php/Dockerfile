@@ -38,4 +38,3 @@ RUN composer install \
 
 ENTRYPOINT ["/var/www/docker/production/php/entrypoint.sh"]
 CMD ["php-fpm"]
-

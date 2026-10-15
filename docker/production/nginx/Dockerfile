@@ -18,4 +18,3 @@ COPY --from=assets /app/public/build /var/www/public/build
 
 RUN rm -rf /var/www/public/storage \
     && ln -s /var/www/storage/app/public /var/www/public/storage
-
